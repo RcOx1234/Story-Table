@@ -1,0 +1,154 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Montserrat:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 220 20% 4%;
+    --foreground: 220 10% 92%;
+    --card: 222 18% 8%;
+    --card-foreground: 220 10% 92%;
+    --popover: 222 18% 8%;
+    --popover-foreground: 220 10% 92%;
+    --primary: 356 78% 47%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 222 15% 14%;
+    --secondary-foreground: 220 10% 92%;
+    --muted: 222 15% 14%;
+    --muted-foreground: 225 10% 55%;
+    --accent: 222 15% 14%;
+    --accent-foreground: 220 10% 92%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 222 15% 18%;
+    --input: 222 15% 18%;
+    --ring: 356 78% 47%;
+    --radius: 0.75rem;
+    --sidebar-background: 222 18% 6%;
+    --sidebar-foreground: 220 10% 92%;
+    --sidebar-primary: 356 78% 47%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 222 15% 14%;
+    --sidebar-accent-foreground: 220 10% 92%;
+    --sidebar-border: 222 15% 18%;
+    --sidebar-ring: 356 78% 47%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html,
+  body,
+  #root {
+    min-height: 100%;
+    height: 100%;
+  }
+
+  body {
+    @apply bg-[#0B0D10] text-[#E8E9EB] antialiased;
+    font-family: 'Inter', sans-serif;
+  }
+
+  #root {
+    min-height: 100vh;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Montserrat', sans-serif;
+  }
+
+  .font-mono {
+    font-family: 'Space Mono', monospace;
+  }
+}
+
+@layer components {
+  /*
+   * Ajustamos las tarjetas para alinearse con la paleta descrita en el brief.
+   * Las tarjetas tienen un fondo negro profundo (#0A0A0A) y un borde con
+   * baja opacidad para un toque sutil (equivale a border-white/10 en Tailwind).
+   * En hover, el borde cambia al color de marca principal (#D61E2B) y se mantiene
+   * la animación de elevación y sombra.
+   */
+  .story-card {
+    @apply bg-[#0A0A0A] border border-white/10 rounded-2xl transition-all duration-200;
+  }
+  .story-card:hover {
+    @apply border-[#D61E2B] -translate-y-1;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), 0 0 20px rgba(214, 30, 43, 0.08);
+  }
+
+  .story-input {
+    @apply bg-[#1E2230] border border-[#2A3045] rounded-lg px-4 py-2.5 text-sm text-[#E8E9EB] placeholder:text-[#5A6078] focus:outline-none focus:border-[#D61E2B] focus:ring-1 focus:ring-[#D61E2B]/30 transition-all;
+  }
+
+  /*
+   * Botón primario actualizado: mantiene el color de marca (#D61E2B) y al
+   * pasar el cursor se oscurece ligeramente (#B51823), como se sugiere en el
+   * documento de diseño. La sombra se mantiene para enfatizar la acción.
+   */
+  .story-btn-primary {
+    @apply bg-[#D61E2B] hover:bg-[#B51823] text-white font-medium px-4 py-2.5 rounded-xl transition-all duration-200 flex items-center gap-2;
+  }
+  .story-btn-primary:hover {
+    @apply scale-[1.02];
+    box-shadow: 0 4px 20px rgba(214, 30, 43, 0.3);
+  }
+
+  .story-btn-secondary {
+    @apply bg-[#1E2230] hover:bg-[#252A3C] text-[#E8E9EB] font-medium px-4 py-2.5 rounded-xl border border-[#2A3045] transition-all duration-200 flex items-center gap-2;
+  }
+
+  .story-sidebar-item {
+    @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-[#8B91A7] hover:text-[#E8E9EB] hover:bg-[#1E2230] transition-all cursor-pointer;
+  }
+  .story-sidebar-item.active {
+    @apply text-[#D61E2B] bg-[#D61E2B]/10;
+  }
+
+  .story-tab {
+    @apply px-4 py-2.5 text-sm font-medium text-[#8B91A7] border-b-2 border-transparent transition-all cursor-pointer;
+  }
+  .story-tab.active {
+    @apply text-[#E8E9EB] border-[#D61E2B];
+  }
+  .story-tab:hover {
+    @apply text-[#E8E9EB];
+  }
+
+  .status-pill {
+    @apply px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 4px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: #4A5068;
+    border-radius: 2px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: #D61E2B;
+  }
+
+  .ambient-bg {
+    background: radial-gradient(ellipse at 30% 20%, rgba(214, 30, 43, 0.03) 0%, transparent 50%),
+                radial-gradient(ellipse at 70% 80%, rgba(59, 130, 246, 0.03) 0%, transparent 50%),
+                #0B0D10;
+  }
+}
+
+@layer utilities {
+  .text-gradient-red {
+    background: linear-gradient(135deg, #D61E2B, #FF4D5A);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+}
