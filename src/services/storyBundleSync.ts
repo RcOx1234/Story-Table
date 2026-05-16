@@ -1,8 +1,11 @@
 import { useStore } from '@/store';
 import { loadUserStoryBundle, saveUserStoryBundle } from '@/services/firestoreService';
+import { prepareStoryBundleForFirestore } from '@/lib/firestorePayload';
 import type { AppState } from '@/store';
 
-const DOC_ID = 'library';
+/** Documento principal de la biblioteca (nombre legible en Firestore). */
+const DOC_ID = 'biblioteca';
+const LEGACY_DOC_ID = 'library';
 
 type StorySlice = Pick<
   AppState,
@@ -35,11 +38,16 @@ export function getStorySlice(): StorySlice {
 }
 
 export async function pushStoryBundle(uid: string): Promise<void> {
-  await saveUserStoryBundle(uid, DOC_ID, getStorySlice() as unknown as Record<string, unknown>);
+  const raw = getStorySlice() as unknown as Record<string, unknown>;
+  const prepared = await prepareStoryBundleForFirestore(uid, raw);
+  await saveUserStoryBundle(uid, DOC_ID, prepared);
 }
 
 export async function pullStoryBundle(uid: string): Promise<boolean> {
-  const data = await loadUserStoryBundle(uid);
+  let data = await loadUserStoryBundle(uid, DOC_ID);
+  if (!data || !Array.isArray(data.worlds)) {
+    data = await loadUserStoryBundle(uid, LEGACY_DOC_ID);
+  }
   if (!data || !Array.isArray(data.worlds)) return false;
   useStore.setState({
     worlds: data.worlds as AppState['worlds'],

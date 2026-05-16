@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { BaseModal } from './BaseModal';
+import { ImageInputField } from '@/components/common/ImageInputField';
 import type { World, WorldType } from '@/types';
 
 export type WorldFormValues = {
@@ -46,7 +47,7 @@ export function WorldFormModal({ open, onClose, initialData, onSubmit }: Props) 
     setProt(initialData?.protected ?? false);
     setPassword('');
     setNameError('');
-  }, [open, initialData]);
+  }, [open, initialData?.id, initialData?.updatedAt]);
 
   const handleSave = () => {
     if (!name.trim()) {
@@ -108,11 +109,7 @@ export function WorldFormModal({ open, onClose, initialData, onSubmit }: Props) 
             placeholder="De qué trata este mundo..."
           />
         </div>
-        <div>
-          <label className="mb-1.5 block text-xs font-mono uppercase tracking-wider text-[#5A6078]">Imagen de portada (URL)</label>
-          <input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} className="story-input w-full" placeholder="https://..." />
-          <p className="mt-1 text-[10px] text-[#5A6078]">La subida de archivos se completará con Storage.</p>
-        </div>
+        <ImageInputField label="Imagen de portada" value={imageUrl} onChange={setImageUrl} />
         <div>
           <label className="mb-1.5 block text-xs font-mono uppercase tracking-wider text-[#5A6078]">Tags (separados por coma)</label>
           <input

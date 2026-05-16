@@ -5,6 +5,8 @@ import { Plus, Search, Heart, Route, Zap } from 'lucide-react';
 import type { Plot } from '@/types';
 import { PlotFormModal } from '@/components/modals/crud/PlotFormModal';
 import { BaseModal } from '@/components/modals/crud/BaseModal';
+import { ConfirmDeleteModal } from '@/components/modals/crud/ConfirmDeleteModal';
+import { EntityCardMenu } from '@/components/common/EntityCardMenu';
 import { toast } from 'sonner';
 
 interface Props {
@@ -15,6 +17,7 @@ export function PlotsSection({ worldId }: Props) {
   const plots = useAppStore((s) => s.getPlotsByWorld(worldId));
   const addPlot = useAppStore((s) => s.addPlot);
   const updatePlot = useAppStore((s) => s.updatePlot);
+  const deletePlot = useAppStore((s) => s.deletePlot);
   const toggleFav = useAppStore((s) => s.toggleFavoritePlot);
   const chars = useAppStore((s) => s.getCharactersByWorld(worldId));
   const scenes = useAppStore((s) => s.getScenesByWorld(worldId));
@@ -22,6 +25,7 @@ export function PlotsSection({ worldId }: Props) {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Plot | null>(null);
   const [detail, setDetail] = useState<Plot | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const filtered = plots.filter((p) => !search || p.title.toLowerCase().includes(search.toLowerCase()));
 
@@ -95,28 +99,26 @@ export function PlotsSection({ worldId }: Props) {
               onClick={() => setDetail(plot)}
               className="story-card group relative cursor-pointer p-5"
             >
-              <button
-                type="button"
-                aria-label="Favorito"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  toggleFav(plot.id);
-                }}
-                className="absolute right-3 top-3 rounded-lg p-1.5 transition-all hover:bg-[#1E2230]"
-              >
-                <Heart size={14} className={plot.isFavorite ? 'fill-[#D61E2B] text-[#D61E2B]' : 'text-[#5A6078]'} />
-              </button>
-              <button
-                type="button"
-                className="absolute right-12 top-3 rounded-lg px-2 py-1 text-[10px] text-[#8B91A7] hover:bg-[#1E2230]"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setEditing(plot);
-                  setFormOpen(true);
-                }}
-              >
-                Editar
-              </button>
+              <div className="absolute right-3 top-3 flex items-center gap-0.5">
+                <button
+                  type="button"
+                  aria-label="Favorito"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleFav(plot.id);
+                  }}
+                  className="rounded-lg p-1.5 transition-all hover:bg-[#1E2230]"
+                >
+                  <Heart size={14} className={plot.isFavorite ? 'fill-[#D61E2B] text-[#D61E2B]' : 'text-[#5A6078]'} />
+                </button>
+                <EntityCardMenu
+                  onEdit={() => {
+                    setEditing(plot);
+                    setFormOpen(true);
+                  }}
+                  onDelete={() => setDeleteId(plot.id)}
+                />
+              </div>
               <div className="mb-2 flex items-center gap-2">
                 <Route size={14} className="text-[#D61E2B]" />
                 <h3 className="font-semibold text-[#E8E9EB]">{plot.title}</h3>
@@ -182,6 +184,18 @@ export function PlotsSection({ worldId }: Props) {
           </div>
         )}
       </BaseModal>
+
+      <ConfirmDeleteModal
+        open={!!deleteId}
+        onClose={() => setDeleteId(null)}
+        message="Esta trama irá a la papelera."
+        onConfirm={() => {
+          if (deleteId) {
+            deletePlot(deleteId);
+            toast.success('Trama enviada a la papelera');
+          }
+        }}
+      />
     </div>
   );
 }

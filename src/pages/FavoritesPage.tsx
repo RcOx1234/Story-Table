@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useMemo } from 'react';
+import { useNavigationReturn, useNavigateWithReturn } from '@/hooks/useNavigationReturn';
 import { useAppStore } from '@/store';
 import { motion } from 'framer-motion';
 import { Heart, Globe, Users, FileText, MapPin, Map as MapIcon, ArrowLeft } from 'lucide-react';
@@ -12,9 +12,33 @@ type FavItem =
   | { type: 'map'; data: { id: string; worldId: string; name: string }; icon: typeof MapIcon; color: string };
 
 export function FavoritesPage() {
-  const navigate = useNavigate();
+  const goBack = useNavigationReturn('/');
+  const navigateWithReturn = useNavigateWithReturn();
   const [activeFilter, setActiveFilter] = useState('all');
-  const favorites = useAppStore((s) => s.getFavorites());
+  const worlds = useAppStore((s) => s.worlds);
+  const characters = useAppStore((s) => s.characters);
+  const scenes = useAppStore((s) => s.scenes);
+  const places = useAppStore((s) => s.places);
+  const plots = useAppStore((s) => s.plots);
+  const components = useAppStore((s) => s.components);
+  const organizations = useAppStore((s) => s.organizations);
+  const ideas = useAppStore((s) => s.ideas);
+  const maps = useAppStore((s) => s.maps);
+
+  const favorites = useMemo(() => {
+    const activeWorldIds = new Set(worlds.filter((w) => !w.isDeleted).map((w) => w.id));
+    return {
+      worlds: worlds.filter((w) => w.isFavorite && !w.isDeleted),
+      characters: characters.filter((c) => c.isFavorite && !c.isDeleted),
+      scenes: scenes.filter((s) => s.isFavorite && !s.isDeleted),
+      places: places.filter((p) => p.isFavorite && !p.isDeleted),
+      plots: plots.filter((p) => p.isFavorite && !p.isDeleted),
+      components: components.filter((c) => c.isFavorite && !c.isDeleted),
+      organizations: organizations.filter((o) => o.isFavorite && !o.isDeleted),
+      ideas: ideas.filter((i) => i.isFavorite && !i.isDeleted),
+      maps: maps.filter((m) => m.isFavorite && activeWorldIds.has(m.worldId)),
+    };
+  }, [worlds, characters, scenes, places, plots, components, organizations, ideas, maps]);
 
   const filters = [
     { id: 'all', label: 'Todos' },
@@ -41,19 +65,19 @@ export function FavoritesPage() {
   const go = (item: FavItem) => {
     switch (item.type) {
       case 'world':
-        navigate(`/world/${item.data.id}`);
+        navigateWithReturn(`/world/${item.data.id}`);
         break;
       case 'character':
-        navigate(`/world/${item.data.worldId}/character/${item.data.id}`);
+        navigateWithReturn(`/world/${item.data.worldId}/character/${item.data.id}`);
         break;
       case 'scene':
-        navigate(`/world/${item.data.worldId}/scene/${item.data.id}`);
+        navigateWithReturn(`/world/${item.data.worldId}/scene/${item.data.id}`);
         break;
       case 'place':
-        navigate(`/world/${item.data.worldId}/place/${item.data.id}`);
+        navigateWithReturn(`/world/${item.data.worldId}/place/${item.data.id}`);
         break;
       case 'map':
-        navigate(`/world/${item.data.worldId}/map/${item.data.id}`);
+        navigateWithReturn(`/world/${item.data.worldId}/map/${item.data.id}`);
         break;
       default:
         break;
@@ -68,7 +92,7 @@ export function FavoritesPage() {
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="max-w-4xl mx-auto">
       <div className="flex items-center gap-4 mb-6">
-        <button type="button" onClick={() => navigate('/')} className="p-2 rounded-lg hover:bg-[#1E2230] transition-all">
+        <button type="button" onClick={goBack} className="p-2 rounded-lg hover:bg-[#1E2230] transition-all">
           <ArrowLeft size={20} className="text-[#8B91A7]" />
         </button>
         <div>

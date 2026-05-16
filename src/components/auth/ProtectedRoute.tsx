@@ -10,8 +10,6 @@ import { SplashLoader } from './SplashLoader';
 export function ProtectedRoute() {
   const [ready, setReady] = useState(!isFirebaseConfigured());
   const [user, setUser] = useState<FirebaseUser | null>(null);
-  const login = useStore((s) => s.login);
-  const logoutStore = useStore((s) => s.logout);
 
   useEffect(() => {
     if (!isFirebaseConfigured()) {
@@ -21,7 +19,7 @@ export function ProtectedRoute() {
     return subscribeToAuth((u) => {
       setUser(u);
       if (u) {
-        login({
+        useStore.getState().login({
           id: u.uid,
           email: u.email ?? '',
           displayName: u.displayName ?? u.email?.split('@')[0] ?? 'Usuario',
@@ -29,11 +27,11 @@ export function ProtectedRoute() {
           isAuthenticated: true,
         });
       } else {
-        logoutStore();
+        useStore.getState().logout();
       }
       setReady(true);
     });
-  }, [login, logoutStore]);
+  }, []);
 
   if (!isFirebaseConfigured()) {
     return <Outlet />;

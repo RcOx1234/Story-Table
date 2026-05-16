@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+import { useNavigateWithReturn } from '@/hooks/useNavigationReturn';
 import {
   Users,
   FileText,
@@ -50,37 +50,37 @@ const iconFor = (t: EntityRefType) => {
 };
 
 export function EntityReference({ type, id, worldId, label }: EntityReferenceProps) {
-  const navigate = useNavigate();
+  const navigateWithReturn = useNavigateWithReturn();
   const Icon = iconFor(type);
 
   const go = () => {
     switch (type) {
       case 'character':
-        navigate(`/world/${worldId}/character/${id}`);
+        navigateWithReturn(`/world/${worldId}/character/${id}`);
         break;
       case 'scene':
-        navigate(`/world/${worldId}/scene/${id}`);
+        navigateWithReturn(`/world/${worldId}/scene/${id}`);
         break;
       case 'place':
-        navigate(`/world/${worldId}/place/${id}`);
+        navigateWithReturn(`/world/${worldId}/place/${id}`);
         break;
       case 'map':
-        navigate(`/world/${worldId}/map/${id}`);
+        navigateWithReturn(`/world/${worldId}/map/${id}`);
         break;
       case 'plot':
-        navigate(`/world/${worldId}?tab=plots`);
+        navigateWithReturn(`/world/${worldId}?tab=plots`);
         break;
       case 'component':
-        navigate(`/world/${worldId}?tab=components`);
+        navigateWithReturn(`/world/${worldId}?tab=components`);
         break;
       case 'organization':
-        navigate(`/world/${worldId}?tab=organizations`);
+        navigateWithReturn(`/world/${worldId}?tab=organizations`);
         break;
       case 'idea':
-        navigate('/ideas');
+        navigateWithReturn('/ideas');
         break;
       default:
-        navigate(`/world/${worldId}`);
+        navigateWithReturn(`/world/${worldId}`);
     }
   };
 

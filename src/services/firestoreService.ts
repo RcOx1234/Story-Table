@@ -44,10 +44,13 @@ export async function deleteDocumentPermanent(pathSegments: string[], id: string
   await deleteDoc(ref);
 }
 
-/** Carga el documento agregado `library` con mundos y entidades. */
-export async function loadUserStoryBundle(uid: string): Promise<Record<string, unknown> | null> {
+/** Carga el documento agregado de la biblioteca (`biblioteca` o legado `library`). */
+export async function loadUserStoryBundle(
+  uid: string,
+  docId = 'biblioteca'
+): Promise<Record<string, unknown> | null> {
   if (!db) return null;
-  const ref = doc(db, 'users', uid, 'storyTable', 'library');
+  const ref = doc(db, 'users', uid, 'storyTable', docId);
   const snap = await getDoc(ref);
   if (!snap.exists()) return null;
   return snap.data() as Record<string, unknown>;

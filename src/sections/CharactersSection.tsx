@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigateWithReturn } from '@/hooks/useNavigationReturn';
 import { useAppStore } from '@/store';
 import { motion } from 'framer-motion';
 import { Plus, Search, Heart, MoreVertical, Trash2 } from 'lucide-react';
@@ -40,7 +40,7 @@ interface Props {
 }
 
 export function CharactersSection({ worldId }: Props) {
-  const navigate = useNavigate();
+  const navigateWithReturn = useNavigateWithReturn();
   const characters = useAppStore((s) => s.getCharactersByWorld(worldId));
   const addCharacter = useAppStore((s) => s.addCharacter);
   const updateCharacter = useAppStore((s) => s.updateCharacter);
@@ -129,7 +129,7 @@ export function CharactersSection({ worldId }: Props) {
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.05 }}
-              onClick={() => navigate(`/world/${worldId}/character/${char.id}`)}
+              onClick={() => navigateWithReturn(`/world/${worldId}/character/${char.id}`)}
               className="story-card group relative cursor-pointer p-5"
             >
               <div className="absolute right-10 top-3 flex gap-1">

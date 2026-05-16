@@ -1,10 +1,12 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigateWithReturn } from '@/hooks/useNavigationReturn';
 import { useAppStore } from '@/store';
 import { motion } from 'framer-motion';
 import { Plus, Search, MapPin, Heart } from 'lucide-react';
 import type { Place } from '@/types';
 import { PlaceFormModal } from '@/components/modals/crud/PlaceFormModal';
+import { ConfirmDeleteModal } from '@/components/modals/crud/ConfirmDeleteModal';
+import { EntityCardMenu } from '@/components/common/EntityCardMenu';
 import { toast } from 'sonner';
 
 const typeLabels: Record<string, string> = {
@@ -25,14 +27,16 @@ interface Props {
 }
 
 export function PlacesSection({ worldId }: Props) {
-  const navigate = useNavigate();
+  const navigateWithReturn = useNavigateWithReturn();
   const places = useAppStore((s) => s.getPlacesByWorld(worldId));
   const addPlace = useAppStore((s) => s.addPlace);
   const updatePlace = useAppStore((s) => s.updatePlace);
+  const deletePlace = useAppStore((s) => s.deletePlace);
   const toggleFav = useAppStore((s) => s.toggleFavoritePlace);
   const [search, setSearch] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Place | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const filtered = places.filter((p) => !search || p.name.toLowerCase().includes(search.toLowerCase()));
 
@@ -96,21 +100,30 @@ export function PlacesSection({ worldId }: Props) {
               transition={{ delay: i * 0.05 }}
               role="button"
               tabIndex={0}
-              onKeyDown={(e) => e.key === 'Enter' && navigate(`/world/${worldId}/place/${place.id}`)}
-              onClick={() => navigate(`/world/${worldId}/place/${place.id}`)}
+              onKeyDown={(e) => e.key === 'Enter' && navigateWithReturn(`/world/${worldId}/place/${place.id}`)}
+              onClick={() => navigateWithReturn(`/world/${worldId}/place/${place.id}`)}
               className="story-card group relative cursor-pointer p-5"
             >
-              <button
-                type="button"
-                aria-label="Favorito"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  toggleFav(place.id);
-                }}
-                className="absolute right-3 top-3 rounded-lg p-1.5 transition-all hover:bg-[#1E2230]"
-              >
-                <Heart size={14} className={place.isFavorite ? 'fill-[#D61E2B] text-[#D61E2B]' : 'text-[#5A6078]'} />
-              </button>
+              <div className="absolute right-3 top-3 flex items-center gap-0.5">
+                <button
+                  type="button"
+                  aria-label="Favorito"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleFav(place.id);
+                  }}
+                  className="rounded-lg p-1.5 transition-all hover:bg-[#1E2230]"
+                >
+                  <Heart size={14} className={place.isFavorite ? 'fill-[#D61E2B] text-[#D61E2B]' : 'text-[#5A6078]'} />
+                </button>
+                <EntityCardMenu
+                  onEdit={() => {
+                    setEditing(place);
+                    setFormOpen(true);
+                  }}
+                  onDelete={() => setDeleteId(place.id)}
+                />
+              </div>
               {place.mapUrl && (
                 <div className="mb-3 aspect-video overflow-hidden rounded-lg bg-[#0B0D10]">
                   <img src={place.mapUrl} alt={place.name} className="h-full w-full object-cover" />
@@ -136,6 +149,18 @@ export function PlacesSection({ worldId }: Props) {
         worldId={worldId}
         initial={editing}
         onSubmit={onSubmit}
+      />
+
+      <ConfirmDeleteModal
+        open={!!deleteId}
+        onClose={() => setDeleteId(null)}
+        message="Este lugar irá a la papelera."
+        onConfirm={() => {
+          if (deleteId) {
+            deletePlace(deleteId);
+            toast.success('Lugar enviado a la papelera');
+          }
+        }}
       />
     </div>
   );

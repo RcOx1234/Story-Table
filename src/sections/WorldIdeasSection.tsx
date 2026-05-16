@@ -3,8 +3,12 @@ import { useAppStore } from '@/store';
 import { motion } from 'framer-motion';
 import { Plus, Lightbulb, Heart } from 'lucide-react';
 import { IdeaFormModal } from '@/components/modals/crud/IdeaFormModal';
+import { BaseModal } from '@/components/modals/crud/BaseModal';
+import { ConfirmDeleteModal } from '@/components/modals/crud/ConfirmDeleteModal';
+import { EntityCardMenu } from '@/components/common/EntityCardMenu';
 import type { Idea } from '@/types';
 import { toast } from 'sonner';
+import { AudioPlayer } from '@/components/common/AudioPlayer';
 
 interface Props {
   worldId: string;
@@ -23,9 +27,12 @@ const typeLabels: Record<string, { label: string; color: string }> = {
 export function WorldIdeasSection({ worldId }: Props) {
   const ideas = useAppStore((s) => s.ideas.filter((i) => i.worldId === worldId && !i.isDeleted));
   const addIdea = useAppStore((s) => s.addIdea);
+  const deleteIdea = useAppStore((s) => s.deleteIdea);
   const toggleFav = useAppStore((s) => s.toggleFavoriteIdea);
   const [filter, setFilter] = useState('');
   const [formOpen, setFormOpen] = useState(false);
+  const [detail, setDetail] = useState<Idea | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const filtered = ideas.filter((i) => !filter || i.type === filter);
 
@@ -76,17 +83,25 @@ export function WorldIdeasSection({ worldId }: Props) {
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.05 }}
-              className="story-card group relative flex items-start gap-4 p-4"
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => e.key === 'Enter' && setDetail(idea)}
+              onClick={() => setDetail(idea)}
+              className="story-card group relative flex cursor-pointer items-start gap-4 p-4 transition-all hover:border-[#D61E2B]/30"
             >
               <button
                 type="button"
-                onClick={() => toggleFav(idea.id)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleFav(idea.id);
+                }}
                 className="mt-0.5 flex-shrink-0 rounded-lg p-1.5 transition-all hover:bg-[#1E2230]"
               >
                 <Heart size={14} className={idea.isFavorite ? 'fill-[#D61E2B] text-[#D61E2B]' : 'text-[#5A6078]'} />
               </button>
               <div className="min-w-0 flex-1">
-                <p className="mb-2 text-sm text-[#E8E9EB]">{idea.description}</p>
+                <p className="mb-2 line-clamp-3 text-sm text-[#E8E9EB]">{idea.description}</p>
+                {idea.audioUrl && <AudioPlayer src={idea.audioUrl} compact className="mb-2 max-w-xs" />}
                 <div className="flex items-center gap-2">
                   <span
                     className="rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider"
@@ -100,11 +115,63 @@ export function WorldIdeasSection({ worldId }: Props) {
                   <span className="text-[10px] text-[#5A6078]">{new Date(idea.createdAt).toLocaleDateString()}</span>
                 </div>
               </div>
+              <EntityCardMenu
+                className="flex-shrink-0 opacity-70 group-hover:opacity-100"
+                onEdit={() => setDetail(idea)}
+                editLabel="Ver detalle"
+                onDelete={() => setDeleteId(idea.id)}
+              />
             </motion.div>
           ))}
         </div>
       )}
       <IdeaFormModal open={formOpen} onClose={() => setFormOpen(false)} worldId={worldId} onSubmit={onSubmit} />
+
+      <BaseModal
+        open={!!detail}
+        onClose={() => setDetail(null)}
+        title="Idea"
+        maxWidthClass="max-w-lg"
+        footer={
+          <button type="button" className="story-btn-secondary text-sm" onClick={() => setDetail(null)}>
+            Cerrar
+          </button>
+        }
+      >
+        {detail && (
+          <div className="space-y-4">
+            {detail.imageUrl && (
+              <img src={detail.imageUrl} alt="" className="max-h-56 w-full rounded-xl border border-[#2A3045] object-cover" />
+            )}
+            <p className="whitespace-pre-wrap text-sm leading-relaxed text-[#E8E9EB]">{detail.description}</p>
+            {detail.audioUrl && <AudioPlayer src={detail.audioUrl} />}
+            <div className="flex items-center gap-2">
+              <span
+                className="rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider"
+                style={{
+                  backgroundColor: `${typeLabels[detail.type]?.color}15`,
+                  color: typeLabels[detail.type]?.color,
+                }}
+              >
+                {typeLabels[detail.type]?.label}
+              </span>
+              <span className="text-xs text-[#5A6078]">{new Date(detail.createdAt).toLocaleString()}</span>
+            </div>
+          </div>
+        )}
+      </BaseModal>
+
+      <ConfirmDeleteModal
+        open={!!deleteId}
+        onClose={() => setDeleteId(null)}
+        message="Esta idea irá a la papelera."
+        onConfirm={() => {
+          if (deleteId) {
+            deleteIdea(deleteId);
+            toast.success('Idea enviada a la papelera');
+          }
+        }}
+      />
     </div>
   );
 }

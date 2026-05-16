@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { BaseModal } from './BaseModal';
-import { useAppStore } from '@/store';
+import { ImageInputField } from '@/components/common/ImageInputField';
+import { useAppStore, useStore } from '@/store';
 import type { Character, CharacterRole } from '@/types';
 
 const ROLES: { value: CharacterRole; label: string }[] = [
@@ -64,18 +65,19 @@ export function CharacterFormModal({ open, onClose, worldId, initial, onSubmit }
 
   useEffect(() => {
     if (!open) return;
+    const timelinesSnap = useStore.getState().getTimelinesByWorld(worldId);
     const base = initial ? { ...emptyCharacter(worldId), ...initial, worldId } : emptyCharacter(worldId);
     setForm(base);
     setMainImage(initial?.images[0] ?? '');
     setQuotesRaw((initial?.quotes ?? []).join('\n'));
     setTagsRaw((initial?.tags ?? []).join(', '));
     const draft: Record<string, string> = {};
-    for (const tl of timelines) {
+    for (const tl of timelinesSnap) {
       draft[tl.id] = String(base.ageByTimeline[tl.id] ?? '');
     }
     setAgeTimelineDraft(draft);
     setErr('');
-  }, [open, initial, worldId, timelines]);
+  }, [open, worldId, initial?.id, initial?.updatedAt]);
 
   const patch = (p: Partial<Omit<Character, 'id' | 'createdAt' | 'updatedAt'>>) => setForm((f) => ({ ...f, ...p }));
 
@@ -110,6 +112,8 @@ export function CharacterFormModal({ open, onClose, worldId, initial, onSubmit }
     onClose();
   };
 
+  const hasPreview = Boolean(mainImage.trim() || form.images[0]);
+
   return (
     <BaseModal
       open={open}
@@ -128,7 +132,28 @@ export function CharacterFormModal({ open, onClose, worldId, initial, onSubmit }
       }
     >
       {err && <p className="mb-3 text-sm text-[#D61E2B]">{err}</p>}
-      <div className="grid max-h-[65vh] grid-cols-1 gap-4 overflow-y-auto pr-1 md:grid-cols-2">
+      <div
+        className={`grid max-h-[65vh] gap-6 overflow-y-auto pr-1 ${
+          hasPreview ? 'md:grid-cols-[minmax(220px,280px)_minmax(0,1fr)]' : ''
+        }`}
+      >
+        {hasPreview && (
+          <>
+            <div className="mx-auto w-full max-w-[220px] md:sticky md:top-0 md:mx-0 md:max-w-none md:self-start">
+              <div className="overflow-hidden rounded-2xl border border-[#2A3045] bg-[#111318] shadow-[0_20px_50px_rgba(0,0,0,0.35)]">
+                <div className="aspect-[3/4] w-full">
+                  <img
+                    src={(mainImage.trim() || form.images[0]) as string}
+                    alt=""
+                    className="h-full w-full object-cover"
+                  />
+                </div>
+              </div>
+              <p className="mt-2 text-center text-xs text-[#5A6078]">Vista previa</p>
+            </div>
+          </>
+        )}
+        <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
         <div>
           <label className="mb-1 block text-xs uppercase text-[#5A6078]">Nombre *</label>
           <input className="story-input w-full" value={form.name} onChange={(e) => patch({ name: e.target.value })} />
@@ -176,8 +201,7 @@ export function CharacterFormModal({ open, onClose, worldId, initial, onSubmit }
           </div>
         ))}
         <div className="md:col-span-2">
-          <label className="mb-1 block text-xs uppercase text-[#5A6078]">Imagen principal (URL)</label>
-          <input className="story-input w-full" value={mainImage} onChange={(e) => setMainImage(e.target.value)} />
+          <ImageInputField label="Imagen principal" value={mainImage} onChange={setMainImage} />
         </div>
         {(
           [
@@ -214,6 +238,7 @@ export function CharacterFormModal({ open, onClose, worldId, initial, onSubmit }
           <label htmlFor="cf-fav" className="text-sm text-[#E8E9EB]">
             Favorito
           </label>
+        </div>
         </div>
       </div>
     </BaseModal>

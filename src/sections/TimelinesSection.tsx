@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigateWithReturn } from '@/hooks/useNavigationReturn';
 import { useAppStore } from '@/store';
 import { motion } from 'framer-motion';
 import { Plus, Clock, ChevronRight } from 'lucide-react';
 import type { Timeline } from '@/types';
 import { TimelineFormModal } from '@/components/modals/crud/TimelineFormModal';
+import { ConfirmDeleteModal } from '@/components/modals/crud/ConfirmDeleteModal';
 import { toast } from 'sonner';
 
 interface Props {
@@ -12,14 +13,16 @@ interface Props {
 }
 
 export function TimelinesSection({ worldId }: Props) {
-  const navigate = useNavigate();
+  const navigateWithReturn = useNavigateWithReturn();
   const timelines = useAppStore((s) => s.getTimelinesByWorld(worldId));
   const addTimeline = useAppStore((s) => s.addTimeline);
   const updateTimeline = useAppStore((s) => s.updateTimeline);
+  const deleteTimeline = useAppStore((s) => s.deleteTimeline);
   const scenes = useAppStore((s) => s.scenes.filter((sc) => sc.worldId === worldId && !sc.isDeleted));
   const [activeTimeline, setActiveTimeline] = useState<string>('');
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Timeline | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const activeId = activeTimeline || timelines[0]?.id;
   const active = timelines.find((t) => t.id === activeId);
@@ -88,7 +91,7 @@ export function TimelinesSection({ worldId }: Props) {
             </button>
           ))}
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button
             type="button"
             onClick={() => {
@@ -99,6 +102,13 @@ export function TimelinesSection({ worldId }: Props) {
             className="story-btn-secondary text-sm"
           >
             Editar línea
+          </button>
+          <button
+            type="button"
+            onClick={() => activeId && setDeleteId(activeId)}
+            className="story-btn-secondary text-sm text-[#D61E2B] hover:border-[#D61E2B]/40"
+          >
+            Eliminar línea
           </button>
           <button
             type="button"
@@ -137,7 +147,7 @@ export function TimelinesSection({ worldId }: Props) {
               />
               <button
                 type="button"
-                onClick={() => navigate(`/world/${worldId}/scene/${scene.id}`)}
+                onClick={() => navigateWithReturn(`/world/${worldId}/scene/${scene.id}`)}
                 className="story-card flex-1 p-4 text-left transition-all hover:border-[#D61E2B]"
               >
                 <div className="mb-1 flex items-center gap-2">
@@ -162,6 +172,20 @@ export function TimelinesSection({ worldId }: Props) {
         initial={editing}
         nextOrder={nextOrder}
         onSubmit={onSubmit}
+      />
+
+      <ConfirmDeleteModal
+        open={!!deleteId}
+        onClose={() => setDeleteId(null)}
+        title="Eliminar línea temporal"
+        message="Las escenas no se borran; solo se quitará esta línea del mundo."
+        onConfirm={() => {
+          if (deleteId) {
+            deleteTimeline(deleteId);
+            setActiveTimeline('');
+            toast.success('Línea temporal enviada a la papelera');
+          }
+        }}
       />
     </div>
   );

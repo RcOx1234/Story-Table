@@ -1,25 +1,47 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigateWithReturn } from '@/hooks/useNavigationReturn';
 import { useAppStore } from '@/store';
 import { motion } from 'framer-motion';
-import { Globe, Plus, Heart, MapPin } from 'lucide-react';
+import { Globe, Plus, Heart, MapPin, Trash2 } from 'lucide-react';
 import { MapFormModal } from '@/components/modals/crud/MapFormModal';
+import { ConfirmDeleteModal } from '@/components/modals/crud/ConfirmDeleteModal';
 import type { MapData } from '@/types';
 import { toast } from 'sonner';
+import { purgeMapStorage } from '@/lib/trashStorage';
+import { isFirebaseConfigured } from '@/lib/firebase';
 
 type Props = { worldId: string };
 
 export function WorldMapsSection({ worldId }: Props) {
-  const navigate = useNavigate();
+  const navigateWithReturn = useNavigateWithReturn();
   const maps = useAppStore((s) => s.getMapsByWorld(worldId));
   const addMap = useAppStore((s) => s.addMap);
+  const deleteMap = useAppStore((s) => s.deleteMap);
   const toggleFavoriteMap = useAppStore((s) => s.toggleFavoriteMap);
+  const getWorldById = useAppStore((s) => s.getWorldById);
+  const user = useAppStore((s) => s.user);
   const [modalOpen, setModalOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<MapData | null>(null);
 
   const onCreate = (data: Omit<MapData, 'id' | 'createdAt' | 'updatedAt'>) => {
     const newId = addMap(data);
     toast.success('Mapa creado');
-    navigate(`/world/${worldId}/map/${newId}`);
+    navigateWithReturn(`/world/${worldId}/map/${newId}`);
+  };
+
+  const handleDeleteMap = async () => {
+    if (!deleteTarget) return;
+    const world = getWorldById(worldId);
+    if (user?.id && world && isFirebaseConfigured()) {
+      try {
+        await purgeMapStorage(user.id, deleteTarget, world);
+      } catch {
+        /* continuar con borrado local */
+      }
+    }
+    deleteMap(deleteTarget.id);
+    toast.success('Mapa eliminado');
+    setDeleteTarget(null);
   };
 
   if (maps.length === 0) {
@@ -41,7 +63,9 @@ export function WorldMapsSection({ worldId }: Props) {
   return (
     <>
       <div className="mb-6 flex items-center justify-between">
-        <p className="text-sm text-[#5A6078]">{maps.length} mapa{maps.length !== 1 ? 's' : ''}</p>
+        <p className="text-sm text-[#5A6078]">
+          {maps.length} mapa{maps.length !== 1 ? 's' : ''}
+        </p>
         <button type="button" onClick={() => setModalOpen(true)} className="story-btn-primary text-sm">
           <Plus size={16} /> Nuevo mapa
         </button>
@@ -55,8 +79,8 @@ export function WorldMapsSection({ worldId }: Props) {
             transition={{ delay: i * 0.05 }}
             role="button"
             tabIndex={0}
-            onKeyDown={(e) => e.key === 'Enter' && navigate(`/world/${worldId}/map/${m.id}`)}
-            onClick={() => navigate(`/world/${worldId}/map/${m.id}`)}
+            onKeyDown={(e) => e.key === 'Enter' && navigateWithReturn(`/world/${worldId}/map/${m.id}`)}
+            onClick={() => navigateWithReturn(`/world/${worldId}/map/${m.id}`)}
             className="story-card cursor-pointer overflow-hidden"
           >
             <div className="relative aspect-video bg-[#111318]">
@@ -78,6 +102,17 @@ export function WorldMapsSection({ worldId }: Props) {
               >
                 <Heart size={14} className={m.isFavorite ? 'fill-[#D61E2B] text-[#D61E2B]' : 'text-white'} />
               </button>
+              <button
+                type="button"
+                aria-label="Eliminar mapa"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setDeleteTarget(m);
+                }}
+                className="absolute left-2 top-2 rounded-lg bg-black/50 p-2 text-[#D61E2B] backdrop-blur-sm transition-colors hover:bg-[#D61E2B]/80 hover:text-white"
+              >
+                <Trash2 size={14} />
+              </button>
             </div>
             <div className="p-4">
               <h3 className="font-semibold text-[#E8E9EB]">{m.name}</h3>
@@ -88,6 +123,14 @@ export function WorldMapsSection({ worldId }: Props) {
         ))}
       </div>
       <MapFormModal open={modalOpen} onClose={() => setModalOpen(false)} worldId={worldId} onSubmit={onCreate} />
+      <ConfirmDeleteModal
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        title="Eliminar mapa"
+        message={deleteTarget ? `¿Eliminar "${deleteTarget.name}" permanentemente?` : ''}
+        confirmLabel="Eliminar"
+        onConfirm={() => void handleDeleteMap()}
+      />
     </>
   );
 }

@@ -1,26 +1,34 @@
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
+import { useNavigationReturn } from '@/hooks/useNavigationReturn';
 import { useAppStore } from '@/store';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Heart, MapPin, Edit2, Save, Trash2, FileText, Users } from 'lucide-react';
+import { ArrowLeft, Heart, MapPin, Edit2, Trash2, FileText, Users } from 'lucide-react';
 import { useState } from 'react';
-import type { Place } from '@/types';
 import { EntityReference } from '@/components/common/EntityReference';
 import { ConfirmDeleteModal } from '@/components/modals/crud/ConfirmDeleteModal';
+import { PlaceFormModal } from '@/components/modals/crud/PlaceFormModal';
+import { toast } from 'sonner';
 
 const typeLabels: Record<string, string> = {
-  city: 'Ciudad', town: 'Pueblo', kingdom: 'Reino', forest: 'Bosque',
-  mountain: 'Montaña', dungeon: 'Mazmorra', castle: 'Castillo', temple: 'Templo', other: 'Otro',
+  city: 'Ciudad',
+  town: 'Pueblo',
+  kingdom: 'Reino',
+  forest: 'Bosque',
+  mountain: 'Montaña',
+  dungeon: 'Mazmorra',
+  castle: 'Castillo',
+  temple: 'Templo',
+  other: 'Otro',
 };
 
 export function PlaceDetail() {
   const { worldId = '', placeId = '' } = useParams<{ worldId: string; placeId: string }>();
-  const navigate = useNavigate();
+  const goBack = useNavigationReturn(`/world/${worldId}`);
   const place = useAppStore((s) => s.places.find((p) => p.id === placeId));
   const updatePlace = useAppStore((s) => s.updatePlace);
   const toggleFav = useAppStore((s) => s.toggleFavoritePlace);
   const deletePlace = useAppStore((s) => s.deletePlace);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editData, setEditData] = useState<Partial<Place>>({});
+  const [formOpen, setFormOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   const scenesHere = useAppStore((s) =>
@@ -38,19 +46,14 @@ export function PlaceDetail() {
 
   if (!place) {
     return (
-      <div className="flex items-center justify-center h-[60vh]">
+      <div className="flex h-[60vh] items-center justify-center">
         <div className="text-center">
-          <MapPin size={48} className="text-[#2A3045] mx-auto mb-4" />
+          <MapPin size={48} className="mx-auto mb-4 text-[#2A3045]" />
           <p className="text-[#5A6078]">Lugar no encontrado</p>
         </div>
       </div>
     );
   }
-
-  const handleSave = () => {
-    updatePlace(place.id, editData);
-    setIsEditing(false);
-  };
 
   const sections = [
     { key: 'description', label: 'Descripción' },
@@ -59,64 +62,72 @@ export function PlaceDetail() {
   ];
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-3xl mx-auto">
-      <div className="flex items-start justify-between mb-6">
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mx-auto max-w-3xl">
+      <div className="mb-6 flex items-start justify-between">
         <div className="flex items-center gap-4">
-          <button onClick={() => navigate(`/world/${worldId}`)} className="p-2 rounded-lg hover:bg-[#1E2230] transition-all">
+          <button
+            type="button"
+            onClick={goBack}
+            className="rounded-lg p-2 transition-all hover:bg-[#1E2230]"
+          >
             <ArrowLeft size={20} className="text-[#8B91A7]" />
           </button>
           <div>
             <div className="flex items-center gap-2">
               <MapPin size={14} className="text-[#EAB308]" />
-              <span className="text-xs uppercase tracking-wider text-[#5A6078] bg-[#1E2230] px-2 py-0.5 rounded-full">{typeLabels[place.type]}</span>
+              <span className="rounded-full bg-[#1E2230] px-2 py-0.5 text-xs uppercase tracking-wider text-[#5A6078]">
+                {typeLabels[place.type]}
+              </span>
             </div>
-            <h1 className="text-2xl font-bold text-[#E8E9EB] mt-1" style={{ fontFamily: 'Montserrat' }}>{place.name}</h1>
+            <h1 className="mt-1 text-2xl font-bold text-[#E8E9EB]" style={{ fontFamily: 'Montserrat' }}>
+              {place.name}
+            </h1>
+            {place.population ? <p className="mt-1 text-sm text-[#5A6078]">Población: {place.population}</p> : null}
           </div>
         </div>
         <div className="flex gap-2">
-          <button type="button" onClick={() => toggleFav(place.id)} className="p-2.5 rounded-xl hover:bg-[#1E2230] transition-all" aria-label="Favorito">
-            <Heart size={18} className={place.isFavorite ? 'text-[#D61E2B] fill-[#D61E2B]' : 'text-[#5A6078]'} />
+          <button
+            type="button"
+            onClick={() => toggleFav(place.id)}
+            className="rounded-xl p-2.5 transition-all hover:bg-[#1E2230]"
+            aria-label="Favorito"
+          >
+            <Heart size={18} className={place.isFavorite ? 'fill-[#D61E2B] text-[#D61E2B]' : 'text-[#5A6078]'} />
           </button>
           <button
             type="button"
             onClick={() => setDeleteOpen(true)}
-            className="p-2.5 rounded-xl hover:bg-[#1E2230] transition-all text-[#5A6078] hover:text-[#D61E2B]"
+            className="rounded-xl p-2.5 text-[#5A6078] transition-all hover:bg-[#1E2230] hover:text-[#D61E2B]"
             aria-label="Eliminar lugar"
           >
             <Trash2 size={18} />
           </button>
-          <button type="button" onClick={() => { if (isEditing) handleSave(); setIsEditing(!isEditing); }} className="story-btn-secondary text-sm">
-            {isEditing ? <><Save size={14} /> Guardar</> : <><Edit2 size={14} /> Editar</>}
+          <button type="button" onClick={() => setFormOpen(true)} className="story-btn-secondary text-sm">
+            <Edit2 size={14} /> Editar
           </button>
         </div>
       </div>
 
       {place.mapUrl && (
-        <div className="story-card overflow-hidden mb-6">
-          <img src={place.mapUrl} alt={place.name} className="w-full h-48 object-cover" />
+        <div className="story-card mb-6 overflow-hidden">
+          <img src={place.mapUrl} alt={place.name} className="h-48 w-full object-cover" />
         </div>
       )}
 
       <div className="space-y-4">
         {sections.map(({ key, label }) => (
           <div key={key} className="story-card p-5">
-            <h3 className="text-sm font-semibold text-[#E8E9EB] font-mono uppercase tracking-wider mb-2">{label}</h3>
-            {isEditing ? (
-              <textarea
-                value={editData[key as keyof Place] as string ?? place[key as keyof Place] as string}
-                onChange={(e) => setEditData({ ...editData, [key]: e.target.value })}
-                className="story-input w-full h-24 text-sm"
-              />
-            ) : (
-              <p className="text-sm text-[#8B91A7] whitespace-pre-wrap">{(place[key as keyof Place] as string) || <span className="text-[#3A4460]">Sin información</span>}</p>
-            )}
+            <h3 className="mb-2 font-mono text-sm font-semibold uppercase tracking-wider text-[#E8E9EB]">{label}</h3>
+            <p className="whitespace-pre-wrap text-sm text-[#8B91A7]">
+              {(place[key as keyof typeof place] as string) || <span className="text-[#3A4460]">Sin información</span>}
+            </p>
           </div>
         ))}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+      <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
         <div className="story-card p-5">
-          <h3 className="text-sm font-semibold text-[#E8E9EB] font-mono uppercase tracking-wider mb-3 flex items-center gap-2">
+          <h3 className="mb-3 flex items-center gap-2 font-mono text-sm font-semibold uppercase tracking-wider text-[#E8E9EB]">
             <FileText size={14} className="text-[#D61E2B]" /> Escenas en este lugar
           </h3>
           {scenesHere.length === 0 ? (
@@ -130,7 +141,7 @@ export function PlaceDetail() {
           )}
         </div>
         <div className="story-card p-5">
-          <h3 className="text-sm font-semibold text-[#E8E9EB] font-mono uppercase tracking-wider mb-3 flex items-center gap-2">
+          <h3 className="mb-3 flex items-center gap-2 font-mono text-sm font-semibold uppercase tracking-wider text-[#E8E9EB]">
             <Users size={14} className="text-[#D61E2B]" /> Personajes relacionados
           </h3>
           {charsHere.length === 0 ? (
@@ -145,13 +156,24 @@ export function PlaceDetail() {
         </div>
       </div>
 
+      <PlaceFormModal
+        open={formOpen}
+        onClose={() => setFormOpen(false)}
+        worldId={worldId}
+        initial={place}
+        onSubmit={(data) => {
+          updatePlace(place.id, data);
+          toast.success('Lugar actualizado');
+        }}
+      />
+
       <ConfirmDeleteModal
         open={deleteOpen}
         onClose={() => setDeleteOpen(false)}
         message={`¿Enviar a la papelera el lugar «${place.name}»?`}
         onConfirm={() => {
           deletePlace(place.id);
-          navigate(`/world/${worldId}`);
+          goBack();
         }}
       />
     </motion.div>

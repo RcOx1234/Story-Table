@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { BaseModal } from './BaseModal';
+import { ImageInputField } from '@/components/common/ImageInputField';
 import type { MapData } from '@/types';
 
 type Props = {
@@ -73,10 +74,7 @@ export function MapFormModal({ open, onClose, worldId, initial, onSubmit }: Prop
           <label className="mb-1 block text-xs uppercase text-[#5A6078]">Descripción</label>
           <textarea className="story-input h-20 w-full resize-none" value={form.description ?? ''} onChange={(e) => patch({ description: e.target.value })} />
         </div>
-        <div>
-          <label className="mb-1 block text-xs uppercase text-[#5A6078]">Imagen base (URL) *</label>
-          <input className="story-input w-full" value={form.imageUrl} onChange={(e) => patch({ imageUrl: e.target.value })} placeholder="https://..." />
-        </div>
+        <ImageInputField label="Imagen base" value={form.imageUrl} onChange={(v) => patch({ imageUrl: v })} required />
       </div>
     </BaseModal>
   );

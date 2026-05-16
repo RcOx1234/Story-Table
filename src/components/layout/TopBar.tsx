@@ -1,6 +1,7 @@
-import { useAppStore } from '@/store';
-import { Search, Plus, Bell, Command, User, Settings, LogOut, Lightbulb, FileText, Sparkles } from 'lucide-react';
+import { useAppStore, useStore, type AppState } from '@/store';
+import { Search, Plus, Bell, Command, User, Settings, LogOut, Lightbulb, FileText, Sparkles, Download, Upload, CloudUpload } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useRef, useState, type ChangeEvent } from 'react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,14 +12,19 @@ import {
 import { toast } from 'sonner';
 import { isFirebaseConfigured } from '@/lib/firebase';
 import { logout as firebaseLogout } from '@/services/authService';
+import { buildLibraryExport, parseLibraryImport } from '@/lib/storyImportExport';
+import { pushStoryBundle } from '@/services/storyBundleSync';
+import { formatFirestoreSaveError } from '@/lib/firestorePayload';
 
 export function TopBar() {
+  const fileImportRef = useRef<HTMLInputElement>(null);
   const setActiveModal = useAppStore((s) => s.setActiveModal);
   const navigate = useNavigate();
   const user = useAppStore((s) => s.user);
   const logoutStore = useAppStore((s) => s.logout);
   const ideasFree = useAppStore((s) => s.ideas.filter((i) => !i.isDeleted && !i.worldId).length);
   const scenesRecent = useAppStore((s) => s.scenes.filter((sc) => !sc.isDeleted).slice(-3));
+  const [savingCloud, setSavingCloud] = useState(false);
 
   const handleLogout = async () => {
     try {
@@ -29,6 +35,78 @@ export function TopBar() {
     logoutStore();
     toast.success('Sesión cerrada');
     navigate(isFirebaseConfigured() ? '/login' : '/');
+  };
+
+  const handleImportLibrary = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const data = parseLibraryImport(JSON.parse(text));
+      if (!data?.worlds) {
+        toast.error('El archivo no tiene el formato de biblioteca Story Table');
+        return;
+      }
+      if (
+        !window.confirm(
+          'Esto reemplazará todos tus mundos y entidades en este navegador por los del archivo. ¿Continuar?'
+        )
+      ) {
+        return;
+      }
+      useStore.setState({
+        worlds: data.worlds as AppState['worlds'],
+        characters: data.characters as AppState['characters'],
+        scenes: data.scenes as AppState['scenes'],
+        places: data.places as AppState['places'],
+        maps: data.maps as AppState['maps'],
+        plots: data.plots as AppState['plots'],
+        components: data.components as AppState['components'],
+        organizations: data.organizations as AppState['organizations'],
+        ideas: data.ideas as AppState['ideas'],
+        timelines: data.timelines as AppState['timelines'],
+        dashboardWorldIds: [],
+      });
+      toast.success('Biblioteca importada');
+      const uid = useStore.getState().user?.id;
+      if (isFirebaseConfigured() && uid) {
+        void pushStoryBundle(uid)
+          .then(() => toast.success('Biblioteca sincronizada con Firebase'))
+          .catch(() => toast.error('Importado localmente, pero no se pudo subir a Firebase'));
+      }
+    } catch {
+      toast.error('No se pudo leer el JSON');
+    }
+  };
+
+  const exportToFirebase = async () => {
+    const uid = user?.id;
+    if (!uid) {
+      toast.error('Inicia sesión para guardar en Firebase');
+      navigate('/login');
+      return;
+    }
+    setSavingCloud(true);
+    try {
+      await pushStoryBundle(uid);
+      toast.success('Guardado en Firebase');
+    } catch (err) {
+      toast.error(formatFirestoreSaveError(err));
+    } finally {
+      setSavingCloud(false);
+    }
+  };
+
+  const exportLibraryFile = () => {
+    const payload = buildLibraryExport(useStore.getState());
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `story-table-biblioteca-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    toast.success('Biblioteca exportada');
   };
 
   return (
@@ -53,6 +131,19 @@ export function TopBar() {
           <Plus size={16} />
           <span className="hidden sm:inline">Capturar</span>
         </button>
+
+        {isFirebaseConfigured() && (
+          <button
+            type="button"
+            aria-label="Guardar en Firebase"
+            title="Guardar en Firebase"
+            disabled={savingCloud}
+            onClick={() => void exportToFirebase()}
+            className="rounded-xl p-2.5 text-white/90 transition-all hover:bg-[#1E2230] hover:text-white disabled:opacity-50"
+          >
+            <CloudUpload size={20} className={savingCloud ? 'animate-pulse' : ''} />
+          </button>
+        )}
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -104,10 +195,24 @@ export function TopBar() {
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="min-w-[200px] border-[#2A3045] bg-[#111318] text-[#E8E9EB]">
+            <input
+              ref={fileImportRef}
+              type="file"
+              accept="application/json,.json"
+              className="hidden"
+              onChange={(e) => void handleImportLibrary(e)}
+            />
             <div className="border-b border-[#2A3045] px-2 py-2">
               <p className="truncate text-sm font-medium">{user?.displayName || 'Invitado'}</p>
               <p className="truncate text-xs text-[#5A6078]">{user?.email || 'Sin sesión'}</p>
             </div>
+            <DropdownMenuItem className="cursor-pointer focus:bg-[#1E2230]" onClick={() => exportLibraryFile()}>
+              <Download size={14} className="mr-2" /> Exportar biblioteca (JSON)
+            </DropdownMenuItem>
+            <DropdownMenuItem className="cursor-pointer focus:bg-[#1E2230]" onClick={() => fileImportRef.current?.click()}>
+              <Upload size={14} className="mr-2" /> Importar biblioteca…
+            </DropdownMenuItem>
+            <DropdownMenuSeparator className="bg-[#2A3045]" />
             <DropdownMenuItem className="cursor-pointer focus:bg-[#1E2230]" onClick={() => toast.info('Perfil: próximamente')}>
               <User size={14} className="mr-2" /> Mi perfil
             </DropdownMenuItem>

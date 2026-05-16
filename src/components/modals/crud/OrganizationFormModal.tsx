@@ -48,7 +48,7 @@ export function OrganizationFormModal({ open, onClose, worldId, initial, onSubmi
     setForm(initial ? { ...empty(worldId), ...initial, worldId } : empty(worldId));
     setTagsRaw((initial?.tags ?? []).join(', '));
     setErr('');
-  }, [open, initial, worldId]);
+  }, [open, worldId, initial?.id, initial?.updatedAt]);
 
   const patch = (p: Partial<Omit<Organization, 'id' | 'createdAt' | 'updatedAt'>>) => setForm((f) => ({ ...f, ...p }));
 

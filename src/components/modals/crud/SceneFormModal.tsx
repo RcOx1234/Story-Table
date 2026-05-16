@@ -79,7 +79,7 @@ export function SceneFormModal({ open, onClose, worldId, initial, onSubmit }: Pr
         .join('\n')
     );
     setErr('');
-  }, [open, initial, worldId]);
+  }, [open, worldId, initial?.id, initial?.updatedAt]);
 
   const patch = (p: Partial<Omit<Scene, 'id' | 'createdAt' | 'updatedAt'>>) => setForm((f) => ({ ...f, ...p }));
 

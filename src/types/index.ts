@@ -196,6 +196,13 @@ export interface Component {
   history: string;
   target: string;
   effect?: string;
+  imageUrl?: string;
+  /** Campos específicos para tipo carta */
+  letterFrom?: string;
+  letterTo?: string;
+  letterDate?: string;
+  letterSalutation?: string;
+  letterClosing?: string;
   scenes: string[];
   type: 'object' | 'letter' | 'relic' | 'weapon' | 'artifact' | 'other';
   isFavorite: boolean;
@@ -229,6 +236,8 @@ export type IdeaStatus = 'pending' | 'organized';
 export interface Idea {
   id: string;
   worldId: string | null;
+  /** Personaje vinculado (p. ej. quién protagoniza la idea). */
+  linkedCharacterId?: string | null;
   description: string;
   type: 'scene' | 'character' | 'plot' | 'world' | 'dialogue' | 'lore' | 'other';
   references: string[];

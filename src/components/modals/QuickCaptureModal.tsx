@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { X, Type, Mic, Image, Send, Square } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Idea } from '@/types';
+import { ImageInputField } from '@/components/common/ImageInputField';
 
 export function QuickCaptureModal() {
   const activeModal = useAppStore((s) => s.activeModal);
@@ -15,9 +16,7 @@ export function QuickCaptureModal() {
   const [text, setText] = useState('');
   const [ideaType, setIdeaType] = useState<Idea['type']>('scene');
   const [worldId, setWorldId] = useState<string | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [imageDataUrl, setImageDataUrl] = useState('');
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<number | null>(null);
@@ -28,8 +27,7 @@ export function QuickCaptureModal() {
   useEffect(() => {
     if (activeModal !== 'quick-capture') return;
     setText('');
-    setImagePreview(null);
-    setImageDataUrl(null);
+    setImageDataUrl('');
     setAudioDataUrl(null);
     setRecordMs(0);
     setRecording(false);
@@ -47,25 +45,6 @@ export function QuickCaptureModal() {
   );
 
   if (activeModal !== 'quick-capture') return null;
-
-  const readFileAsDataUrl = (file: File) =>
-    new Promise<string>((resolve, reject) => {
-      const r = new FileReader();
-      r.onload = () => resolve(String(r.result));
-      r.onerror = () => reject(new Error('No se pudo leer el archivo'));
-      r.readAsDataURL(file);
-    });
-
-  const onImagePick = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !file.type.startsWith('image/')) {
-      toast.error('Selecciona una imagen');
-      return;
-    }
-    const url = await readFileAsDataUrl(file);
-    setImageDataUrl(url);
-    setImagePreview(url);
-  };
 
   const stopRecording = () => {
     if (timerRef.current) {
@@ -106,7 +85,7 @@ export function QuickCaptureModal() {
       text.trim() ||
       (tab === 'image' && imageDataUrl ? 'Idea con imagen adjunta' : '') ||
       (tab === 'audio' && audioDataUrl ? 'Nota de voz' : '');
-    if (!desc && !imageDataUrl && !audioDataUrl) {
+    if (!desc && !imageDataUrl.trim() && !audioDataUrl) {
       toast.error('Añade texto, imagen o audio');
       return;
     }
@@ -115,7 +94,7 @@ export function QuickCaptureModal() {
       description: desc || '(captura)',
       type: ideaType,
       references: [],
-      imageUrl: imageDataUrl ?? undefined,
+      imageUrl: imageDataUrl.trim() || undefined,
       audioUrl: audioDataUrl ?? undefined,
       status: 'pending',
       isFavorite: false,
@@ -124,8 +103,7 @@ export function QuickCaptureModal() {
     });
     toast.success('Idea guardada');
     setText('');
-    setImagePreview(null);
-    setImageDataUrl(null);
+    setImageDataUrl('');
     setAudioDataUrl(null);
     setActiveModal(null);
   };
@@ -213,27 +191,13 @@ export function QuickCaptureModal() {
 
           {tab === 'image' && (
             <div className="space-y-4">
-              <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => void onImagePick(e)} />
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="flex h-40 w-full flex-col items-center justify-center rounded-xl border-2 border-dashed border-[#2A3045] transition-colors hover:border-[#D61E2B]"
-              >
-                {imagePreview ? (
-                  <img src={imagePreview} alt="" className="max-h-36 max-w-full rounded-lg object-contain" />
-                ) : (
-                  <>
-                    <Image size={32} className="mb-2 text-[#5A6078]" />
-                    <p className="text-sm text-[#8B91A7]">Clic para elegir imagen</p>
-                  </>
-                )}
-              </button>
+              <ImageInputField label="Imagen" value={imageDataUrl} onChange={setImageDataUrl} />
               <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="Descripción (opcional)" className="story-input h-20 w-full resize-none" />
             </div>
           )}
 
-          <div className="mt-4 flex flex-col gap-3 border-t border-[#1E2230] pt-4 sm:flex-row sm:items-center">
-            <select value={ideaType} onChange={(e) => setIdeaType(e.target.value as Idea['type'])} className="story-input text-sm sm:w-40">
+          <div className="mt-4 flex flex-col gap-3 border-t border-[#1E2230] pt-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+            <select value={ideaType} onChange={(e) => setIdeaType(e.target.value as Idea['type'])} className="story-input order-1 w-full text-sm sm:order-none sm:w-40">
               <option value="scene">Escena</option>
               <option value="character">Personaje</option>
               <option value="plot">Trama</option>
@@ -241,7 +205,7 @@ export function QuickCaptureModal() {
               <option value="lore">Lore</option>
               <option value="other">Otro</option>
             </select>
-            <select value={worldId || ''} onChange={(e) => setWorldId(e.target.value || null)} className="story-input flex-1 text-sm">
+            <select value={worldId || ''} onChange={(e) => setWorldId(e.target.value || null)} className="story-input order-2 w-full min-w-0 flex-1 text-sm sm:order-none sm:max-w-xs">
               <option value="">Bandeja de ideas</option>
               {worlds.map((w) => (
                 <option key={w.id} value={w.id}>
@@ -249,7 +213,7 @@ export function QuickCaptureModal() {
                 </option>
               ))}
             </select>
-            <button type="button" onClick={handleSave} className="story-btn-primary flex-1 justify-center sm:flex-initial">
+            <button type="button" onClick={handleSave} className="story-btn-primary order-3 w-full shrink-0 justify-center px-6 sm:order-none sm:w-auto sm:min-w-[132px]">
               <Send size={14} /> Guardar
             </button>
           </div>

@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { useAppStore } from '@/store';
 import { motion } from 'framer-motion';
-import { Plus, Lightbulb, Heart, Tag, ArrowLeft, Trash2 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { Plus, Lightbulb, Heart, Tag, ArrowLeft, Trash2, UserCircle, Pencil } from 'lucide-react';
+import { useNavigationReturn } from '@/hooks/useNavigationReturn';
+import { AudioPlayer } from '@/components/common/AudioPlayer';
 import { IdeaFormModal } from '@/components/modals/crud/IdeaFormModal';
+import { BaseModal } from '@/components/modals/crud/BaseModal';
 import type { Idea } from '@/types';
 import { toast } from 'sonner';
 
@@ -18,26 +20,33 @@ const typeLabels: Record<string, { label: string; color: string }> = {
 };
 
 export function IdeasPage() {
-  const navigate = useNavigate();
+  const goBack = useNavigationReturn('/');
   const ideas = useAppStore((s) => s.ideas.filter((i) => !i.isDeleted));
   const addIdea = useAppStore((s) => s.addIdea);
+  const updateIdea = useAppStore((s) => s.updateIdea);
   const toggleFav = useAppStore((s) => s.toggleFavoriteIdea);
   const deleteIdea = useAppStore((s) => s.deleteIdea);
   const worlds = useAppStore((s) => s.worlds.filter((w) => !w.isDeleted));
+  const getCharactersByWorld = useAppStore((s) => s.getCharactersByWorld);
+
   const [filter, setFilter] = useState('');
   const [formOpen, setFormOpen] = useState(false);
+  const [editingIdea, setEditingIdea] = useState<Idea | null>(null);
+  const [previewIdea, setPreviewIdea] = useState<Idea | null>(null);
 
   const filtered = ideas.filter((i) => !filter || i.type === filter);
 
-  const onSubmit = (data: Omit<Idea, 'id' | 'createdAt' | 'updatedAt'>) => {
+  const onCreateSubmit = (data: Omit<Idea, 'id' | 'createdAt' | 'updatedAt'>) => {
     addIdea(data);
     toast.success('Idea guardada');
   };
 
+  const previewWorldChars = previewIdea?.worldId ? getCharactersByWorld(previewIdea.worldId).filter((c) => !c.isDeleted) : [];
+
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="mx-auto max-w-4xl">
       <div className="mb-6 flex items-center gap-4">
-        <button type="button" onClick={() => navigate('/')} className="rounded-lg p-2 transition-all hover:bg-[#1E2230]">
+        <button type="button" onClick={goBack} className="rounded-lg p-2 transition-all hover:bg-[#1E2230]">
           <ArrowLeft size={20} className="text-[#8B91A7]" />
         </button>
         <div>
@@ -68,7 +77,14 @@ export function IdeasPage() {
             </button>
           ))}
         </div>
-        <button type="button" onClick={() => setFormOpen(true)} className="story-btn-primary ml-auto text-sm">
+        <button
+          type="button"
+          onClick={() => {
+            setEditingIdea(null);
+            setFormOpen(true);
+          }}
+          className="story-btn-primary ml-auto text-sm"
+        >
           <Plus size={16} /> Nueva Idea
         </button>
       </div>
@@ -77,7 +93,14 @@ export function IdeasPage() {
         <div className="py-16 text-center">
           <Lightbulb size={48} className="mx-auto mb-4 text-[#2A3045]" />
           <p className="mb-4 text-[#5A6078]">Tu bandeja de ideas está vacía</p>
-          <button type="button" onClick={() => setFormOpen(true)} className="story-btn-primary text-sm">
+          <button
+            type="button"
+            onClick={() => {
+              setEditingIdea(null);
+              setFormOpen(true);
+            }}
+            className="story-btn-primary text-sm"
+          >
             <Plus size={16} /> Capturar Primera Idea
           </button>
         </div>
@@ -85,23 +108,43 @@ export function IdeasPage() {
         <div className="grid grid-cols-1 gap-3">
           {filtered.map((idea, i) => {
             const world = worlds.find((w) => w.id === idea.worldId);
+            const linked = idea.worldId ? getCharactersByWorld(idea.worldId).find((c) => c.id === idea.linkedCharacterId) : undefined;
             return (
               <motion.div
                 key={idea.id}
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.03 }}
-                className="story-card group flex items-start gap-4 p-4"
+                className="story-card group flex items-stretch gap-3 p-4"
               >
+                {idea.imageUrl ? (
+                  <img
+                    src={idea.imageUrl}
+                    alt=""
+                    className="h-16 w-16 flex-shrink-0 rounded-lg border border-[#2A3045] object-cover"
+                  />
+                ) : (
+                  <motion.div
+                    aria-hidden
+                    className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-lg border border-dashed border-[#2A3045] bg-[#111318]"
+                  >
+                    <Lightbulb size={20} className="text-[#3A4460]" />
+                  </motion.div>
+                )}
                 <button
                   type="button"
                   onClick={() => toggleFav(idea.id)}
-                  className="flex-shrink-0 rounded-lg p-1.5 transition-all hover:bg-[#1E2230]"
+                  className="flex-shrink-0 self-start rounded-lg p-1.5 transition-all hover:bg-[#1E2230]"
                 >
                   <Heart size={14} className={idea.isFavorite ? 'fill-[#D61E2B] text-[#D61E2B]' : 'text-[#5A6078]'} />
                 </button>
-                <div className="min-w-0 flex-1">
+                <button
+                  type="button"
+                  className="min-w-0 flex-1 text-left"
+                  onClick={() => setPreviewIdea(idea)}
+                >
                   <p className="mb-2 text-sm text-[#E8E9EB]">{idea.description}</p>
+                  {idea.audioUrl && <AudioPlayer src={idea.audioUrl} compact className="mb-2 max-w-xs" />}
                   <div className="flex flex-wrap items-center gap-2">
                     <span
                       className="rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider"
@@ -117,16 +160,21 @@ export function IdeasPage() {
                         <Tag size={8} /> {world.name}
                       </span>
                     )}
+                    {linked && (
+                      <span className="flex items-center gap-1 text-[10px] text-[#3B82F6]">
+                        <UserCircle size={10} /> {linked.name}
+                      </span>
+                    )}
                     <span className="text-[10px] text-[#5A6078]">{new Date(idea.createdAt).toLocaleDateString()}</span>
                   </div>
-                </div>
+                </button>
                 <button
                   type="button"
                   onClick={() => {
                     deleteIdea(idea.id);
                     toast.success('Idea enviada a la papelera');
                   }}
-                  className="rounded-lg p-1.5 text-[#5A6078] opacity-0 transition-all hover:bg-[#D61E2B]/10 hover:text-[#D61E2B] group-hover:opacity-100"
+                  className="flex-shrink-0 self-start rounded-lg p-1.5 text-[#5A6078] opacity-0 transition-all hover:bg-[#D61E2B]/10 hover:text-[#D61E2B] group-hover:opacity-100"
                   aria-label="Eliminar"
                 >
                   <Trash2 size={14} />
@@ -137,7 +185,106 @@ export function IdeasPage() {
         </div>
       )}
 
-      <IdeaFormModal open={formOpen} onClose={() => setFormOpen(false)} worldId={null} onSubmit={onSubmit} />
+      <IdeaFormModal
+        open={formOpen}
+        onClose={() => {
+          setFormOpen(false);
+          setEditingIdea(null);
+        }}
+        worldId={null}
+        initial={editingIdea}
+        onSubmit={(data) => {
+          if (editingIdea) {
+            updateIdea(editingIdea.id, data);
+            toast.success('Idea actualizada');
+          } else {
+            onCreateSubmit(data);
+          }
+        }}
+      />
+
+      <BaseModal
+        open={!!previewIdea}
+        onClose={() => setPreviewIdea(null)}
+        title="Detalle de la idea"
+        description={previewIdea ? new Date(previewIdea.createdAt).toLocaleString() : undefined}
+        footer={
+          <>
+            <button type="button" className="story-btn-secondary text-sm" onClick={() => setPreviewIdea(null)}>
+              Cerrar
+            </button>
+            <button
+              type="button"
+              className="story-btn-primary text-sm"
+              onClick={() => {
+                if (!previewIdea) return;
+                setEditingIdea(previewIdea);
+                setPreviewIdea(null);
+                setFormOpen(true);
+              }}
+            >
+              <Pencil size={14} /> Editar
+            </button>
+          </>
+        }
+      >
+        {previewIdea && (
+          <div className="space-y-4">
+            {previewIdea.imageUrl && (
+              <img
+                src={previewIdea.imageUrl}
+                alt=""
+                className="max-h-64 w-full rounded-xl border border-[#2A3045] object-contain"
+              />
+            )}
+            {previewIdea.audioUrl && <AudioPlayer src={previewIdea.audioUrl} />}
+            <p className="whitespace-pre-wrap text-sm leading-relaxed text-[#E8E9EB]">{previewIdea.description}</p>
+            <div className="flex flex-wrap gap-2">
+              <span
+                className="rounded-full px-2 py-0.5 text-[10px] font-medium uppercase"
+                style={{
+                  backgroundColor: `${typeLabels[previewIdea.type]?.color}20`,
+                  color: typeLabels[previewIdea.type]?.color,
+                }}
+              >
+                {typeLabels[previewIdea.type]?.label}
+              </span>
+              {previewIdea.tags?.map((t) => (
+                <span key={t} className="rounded-full bg-[#1E2230] px-2 py-0.5 text-[10px] text-[#8B91A7]">
+                  {t}
+                </span>
+              ))}
+            </div>
+
+            {previewIdea.worldId && previewWorldChars.length > 0 && (
+              <div>
+                <label className="mb-1 flex items-center gap-2 text-xs text-[#5A6078]">
+                  <UserCircle size={12} className="text-[#3B82F6]" /> Personaje que interactúa
+                </label>
+                <select
+                  className="story-input w-full text-sm"
+                  value={previewIdea.linkedCharacterId ?? ''}
+                  onChange={(e) => {
+                    updateIdea(previewIdea.id, { linkedCharacterId: e.target.value || null });
+                    setPreviewIdea({
+                      ...previewIdea,
+                      linkedCharacterId: e.target.value || null,
+                    });
+                    toast.success('Personaje vinculado');
+                  }}
+                >
+                  <option value="">Sin personaje</option>
+                  {previewWorldChars.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+        )}
+      </BaseModal>
     </motion.div>
   );
 }

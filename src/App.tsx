@@ -6,6 +6,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { AuthLayout } from '@/components/layout/AuthLayout';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { Dashboard } from '@/pages/Dashboard';
+import { WorldsPage } from '@/pages/WorldsPage';
 import { WorldView } from '@/pages/WorldView';
 import { CharacterDetail } from '@/pages/CharacterDetail';
 import { SceneDetail } from '@/pages/SceneDetail';
@@ -56,6 +57,7 @@ function AppContent() {
         <Route element={<ProtectedRoute />}>
           <Route element={<AuthLayout />}>
             <Route index element={<Dashboard />} />
+            <Route path="mundos" element={<WorldsPage />} />
             <Route path="world/:worldId" element={<WorldView />} />
             <Route path="world/:worldId/character/:characterId" element={<CharacterDetail />} />
             <Route path="world/:worldId/scene/:sceneId" element={<SceneDetail />} />

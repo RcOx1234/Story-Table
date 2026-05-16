@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { useShallow } from 'zustand/react/shallow';
+import type { TrashEntityType } from '@/lib/trashStorage';
+import type { WorldScopedExport } from '@/lib/storyImportExport';
 import type {
   World, Character, Scene, Place, MapData, Plot, Component, Organization, Idea, Timeline, User, SectionType
 } from '@/types';
@@ -18,6 +20,7 @@ export interface AppState {
   deleteWorld: (id: string) => void;
   restoreWorld: (id: string) => void;
   duplicateWorld: (id: string) => string | null;
+  importWorld: (bundle: WorldScopedExport) => string;
   toggleFavoriteWorld: (id: string) => void;
   toggleFavoriteMap: (id: string) => void;
   getWorldById: (id: string) => World | undefined;
@@ -112,6 +115,11 @@ export interface AppState {
   activeSection: SectionType;
   setActiveSection: (section: SectionType) => void;
 
+  /** Orden manual de mundos en el tablero (ids). Vacío = orden por fecha de actualización. */
+  dashboardWorldIds: string[];
+  setDashboardWorldOrder: (ids: string[]) => void;
+  shiftDashboardWorld: (worldId: string, direction: -1 | 1) => void;
+
   // Trash
   getTrashItems: () => {
     characters: Character[];
@@ -124,6 +132,7 @@ export interface AppState {
     worlds: World[];
   };
   emptyTrash: () => void;
+  permanentlyDeleteTrashItem: (type: TrashEntityType, id: string) => void;
 
   // Favorites
   getFavorites: () => {
@@ -203,6 +212,22 @@ export const useStore = create<AppState>()(
         };
         set((state) => ({ worlds: [...state.worlds, copy] }));
         return nid;
+      },
+      importWorld: (bundle) => {
+        const w = bundle.world;
+        set((state) => ({
+          worlds: [...state.worlds, w],
+          characters: [...state.characters, ...bundle.characters],
+          scenes: [...state.scenes, ...bundle.scenes],
+          places: [...state.places, ...bundle.places],
+          maps: [...state.maps, ...bundle.maps],
+          plots: [...state.plots, ...bundle.plots],
+          components: [...state.components, ...bundle.components],
+          organizations: [...state.organizations, ...bundle.organizations],
+          ideas: [...state.ideas, ...bundle.ideas],
+          timelines: [...state.timelines, ...bundle.timelines],
+        }));
+        return w.id;
       },
       toggleFavoriteWorld: (id) =>
         set((state) => ({
@@ -469,6 +494,25 @@ export const useStore = create<AppState>()(
       activeSection: 'characters',
       setActiveSection: (section) => set({ activeSection: section }),
 
+      dashboardWorldIds: [],
+      setDashboardWorldOrder: (ids) => set({ dashboardWorldIds: ids }),
+      shiftDashboardWorld: (worldId, direction) =>
+        set((state) => {
+          const active = state.worlds.filter((w) => !w.isDeleted);
+          const activeIds = active.map((w) => w.id);
+          let order = state.dashboardWorldIds.filter((id) => activeIds.includes(id));
+          for (const id of activeIds) {
+            if (!order.includes(id)) order.push(id);
+          }
+          const idx = order.indexOf(worldId);
+          if (idx < 0) return state;
+          const ni = idx + direction;
+          if (ni < 0 || ni >= order.length) return state;
+          const next = [...order];
+          [next[idx], next[ni]] = [next[ni]!, next[idx]!];
+          return { dashboardWorldIds: next };
+        }),
+
       // Trash
       getTrashItems: () => {
         const state = get();
@@ -494,6 +538,42 @@ export const useStore = create<AppState>()(
           organizations: state.organizations.filter((o) => !o.isDeleted),
           ideas: state.ideas.filter((i) => !i.isDeleted),
         })),
+      permanentlyDeleteTrashItem: (type, id) =>
+        set((state) => {
+          const remove = <T extends { id: string; isDeleted?: boolean }>(arr: T[]) =>
+            arr.filter((x) => !(x.id === id && x.isDeleted));
+          switch (type) {
+            case 'world':
+              return {
+                worlds: remove(state.worlds),
+                characters: state.characters.filter((c) => c.worldId !== id),
+                scenes: state.scenes.filter((s) => s.worldId !== id),
+                places: state.places.filter((p) => p.worldId !== id),
+                plots: state.plots.filter((p) => p.worldId !== id),
+                components: state.components.filter((c) => c.worldId !== id),
+                organizations: state.organizations.filter((o) => o.worldId !== id),
+                maps: state.maps.filter((m) => m.worldId !== id),
+                timelines: state.timelines.filter((t) => t.worldId !== id),
+                ideas: state.ideas.map((i) => (i.worldId === id ? { ...i, worldId: null } : i)),
+              };
+            case 'character':
+              return { characters: remove(state.characters) };
+            case 'scene':
+              return { scenes: remove(state.scenes) };
+            case 'place':
+              return { places: remove(state.places) };
+            case 'plot':
+              return { plots: remove(state.plots) };
+            case 'component':
+              return { components: remove(state.components) };
+            case 'organization':
+              return { organizations: remove(state.organizations) };
+            case 'idea':
+              return { ideas: remove(state.ideas) };
+            default:
+              return state;
+          }
+        }),
 
       // Favorites
       getFavorites: () => {
@@ -538,6 +618,7 @@ export const useStore = create<AppState>()(
         ideas: state.ideas,
         timelines: state.timelines,
         sidebarOpen: state.sidebarOpen,
+        dashboardWorldIds: state.dashboardWorldIds,
       }),
     }
   )

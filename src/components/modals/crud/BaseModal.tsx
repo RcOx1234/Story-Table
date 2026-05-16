@@ -51,11 +51,12 @@ export function BaseModal({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 14, scale: 0.985 }}
             transition={{ duration: 0.2 }}
-            className={`relative w-full ${maxWidthClass} rounded-[24px] border border-white/10 bg-[#0A0A0A] p-6 shadow-[0_40px_100px_rgba(0,0,0,0.65)] max-h-[90vh] flex flex-col`}
+            className={`relative w-full ${maxWidthClass} rounded-[24px] border border-white/10 bg-gradient-to-b from-[#12141a] to-[#0A0A0A] p-0 shadow-[0_40px_100px_rgba(0,0,0,0.65)] max-h-[90vh] flex flex-col overflow-hidden`}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="mb-4 flex flex-shrink-0 items-start justify-between gap-4">
-              <div>
+            <div className="px-6 pt-6 pb-4 shrink-0 border-b border-white/5 bg-[#0A0A0A]/80">
+            <div className="flex flex-shrink-0 items-start justify-between gap-4">
+              <div className="min-w-0">
                 <h2 id="modal-title" className="text-lg font-semibold text-[#F3F1EA]" style={{ fontFamily: 'Montserrat' }}>
                   {title}
                 </h2>
@@ -70,8 +71,9 @@ export function BaseModal({
                 <X size={20} />
               </button>
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin">{children}</div>
-            {footer && <div className="mt-6 flex flex-shrink-0 justify-end gap-3 border-t border-white/10 pt-4">{footer}</div>}
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4 scrollbar-thin">{children}</div>
+            {footer && <div className="mt-0 flex flex-shrink-0 justify-end gap-3 border-t border-white/10 bg-[#0A0A0A]/90 px-6 py-4">{footer}</div>}
           </motion.div>
         </div>
       )}

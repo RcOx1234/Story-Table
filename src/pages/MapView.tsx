@@ -1,4 +1,5 @@
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
+import { useNavigationReturn, useNavigateWithReturn } from '@/hooks/useNavigationReturn';
 import { useAppStore } from '@/store';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, MapPin, ZoomIn, ZoomOut, Maximize, Plus, Pencil, Trash2, ExternalLink } from 'lucide-react';
@@ -7,12 +8,18 @@ import { MarkerFormModal } from '@/components/modals/crud/MarkerFormModal';
 import { ConfirmDeleteModal } from '@/components/modals/crud/ConfirmDeleteModal';
 import type { MapMarker } from '@/types';
 import { toast } from 'sonner';
+import { purgeMapStorage } from '@/lib/trashStorage';
+import { isFirebaseConfigured } from '@/lib/firebase';
 
 export function MapView() {
   const { worldId, mapId } = useParams<{ worldId: string; mapId: string }>();
-  const navigate = useNavigate();
+  const goBack = useNavigationReturn(`/world/${worldId}`);
+  const navigateWithReturn = useNavigateWithReturn();
   const mapData = useAppStore((s) => s.maps.find((m) => m.id === mapId));
   const updateMap = useAppStore((s) => s.updateMap);
+  const deleteMap = useAppStore((s) => s.deleteMap);
+  const getWorldById = useAppStore((s) => s.getWorldById);
+  const user = useAppStore((s) => s.user);
   const [scale, setScale] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [dragging, setDragging] = useState(false);
@@ -25,6 +32,7 @@ export function MapView() {
   });
   const [selectedMarkerId, setSelectedMarkerId] = useState<string | null>(null);
   const [deleteMarkerId, setDeleteMarkerId] = useState<string | null>(null);
+  const [confirmDeleteMap, setConfirmDeleteMap] = useState(false);
 
   const percentFromEvent = useCallback(
     (clientX: number, clientY: number) => {
@@ -45,7 +53,7 @@ export function MapView() {
     return (
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mx-auto max-w-4xl">
         <div className="mb-6 flex items-center gap-4">
-          <button type="button" onClick={() => navigate(`/world/${worldId}`)} className="rounded-lg p-2 transition-all hover:bg-[#1E2230]">
+          <button type="button" onClick={goBack} className="rounded-lg p-2 transition-all hover:bg-[#1E2230]">
             <ArrowLeft size={20} className="text-[#8B91A7]" />
           </button>
           <h1 className="text-2xl font-bold text-[#E8E9EB]" style={{ fontFamily: 'Montserrat' }}>
@@ -55,7 +63,7 @@ export function MapView() {
         <div className="story-card p-12 text-center">
           <MapPin size={48} className="mx-auto mb-4 text-[#2A3045]" />
           <p className="text-[#5A6078]">Mapa no encontrado</p>
-          <button type="button" className="story-btn-primary mt-4 text-sm" onClick={() => navigate(`/world/${worldId}`)}>
+          <button type="button" className="story-btn-primary mt-4 text-sm" onClick={goBack}>
             Volver al mundo
           </button>
         </div>
@@ -139,11 +147,27 @@ export function MapView() {
 
   const labelFor = (m: MapMarker) => m.label || m.placeName || 'Marcador';
 
+  const handleDeleteMap = async () => {
+    if (!mapData || !worldId) return;
+    const world = getWorldById(worldId);
+    if (user?.id && world && isFirebaseConfigured()) {
+      try {
+        await purgeMapStorage(user.id, mapData, world);
+      } catch {
+        /* borrado local aunque falle Storage */
+      }
+    }
+    deleteMap(mapData.id);
+    toast.success('Mapa eliminado');
+    setConfirmDeleteMap(false);
+    goBack();
+  };
+
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex h-[calc(100vh-120px)] flex-col">
       <div className="mb-4 flex flex-shrink-0 items-center justify-between">
         <div className="flex items-center gap-4">
-          <button type="button" onClick={() => navigate(`/world/${worldId}`)} className="rounded-lg p-2 transition-all hover:bg-[#1E2230]">
+          <button type="button" onClick={goBack} className="rounded-lg p-2 transition-all hover:bg-[#1E2230]">
             <ArrowLeft size={20} className="text-[#8B91A7]" />
           </button>
           <h1 className="text-xl font-bold text-[#E8E9EB]" style={{ fontFamily: 'Montserrat' }}>
@@ -176,6 +200,14 @@ export function MapView() {
             className="rounded-lg bg-[#1E2230] p-2 transition-all hover:bg-[#252A3C]"
           >
             <Maximize size={16} className="text-[#E8E9EB]" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setConfirmDeleteMap(true)}
+            className="rounded-lg bg-[#1E2230] p-2 text-[#D61E2B] transition-all hover:bg-[#D61E2B]/20"
+            aria-label="Eliminar mapa"
+          >
+            <Trash2 size={16} />
           </button>
         </div>
       </div>
@@ -248,7 +280,7 @@ export function MapView() {
                   <button
                     type="button"
                     className="story-btn-secondary text-xs"
-                    onClick={() => navigate(`/world/${worldId}/place/${selectedMarker.placeId}`)}
+                    onClick={() => navigateWithReturn(`/world/${worldId}/place/${selectedMarker.placeId}`)}
                   >
                     <ExternalLink size={12} /> Lugar
                   </button>
@@ -257,7 +289,7 @@ export function MapView() {
                   <button
                     type="button"
                     className="story-btn-secondary text-xs"
-                    onClick={() => navigate(`/world/${worldId}/scene/${selectedMarker.sceneId}`)}
+                    onClick={() => navigateWithReturn(`/world/${worldId}/scene/${selectedMarker.sceneId}`)}
                   >
                     <ExternalLink size={12} /> Escena
                   </button>
@@ -296,6 +328,15 @@ export function MapView() {
         onConfirm={() => {
           if (deleteMarkerId) removeMarker(deleteMarkerId);
         }}
+      />
+
+      <ConfirmDeleteModal
+        open={confirmDeleteMap}
+        onClose={() => setConfirmDeleteMap(false)}
+        title="Eliminar mapa"
+        message={`¿Eliminar "${mapData.name}" permanentemente? Se borrará también su imagen en Storage.`}
+        confirmLabel="Eliminar mapa"
+        onConfirm={() => void handleDeleteMap()}
       />
     </motion.div>
   );

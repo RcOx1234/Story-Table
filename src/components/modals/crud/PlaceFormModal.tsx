@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { BaseModal } from './BaseModal';
+import { ImageInputField } from '@/components/common/ImageInputField';
 import type { Place } from '@/types';
 
 const TYPES: { value: Place['type']; label: string }[] = [
@@ -49,7 +50,7 @@ export function PlaceFormModal({ open, onClose, worldId, initial, onSubmit }: Pr
     setForm(initial ? { ...empty(worldId), ...initial, worldId } : empty(worldId));
     setTagsRaw((initial?.tags ?? []).join(', '));
     setErr('');
-  }, [open, initial, worldId]);
+  }, [open, worldId, initial?.id, initial?.updatedAt]);
 
   const patch = (p: Partial<Omit<Place, 'id' | 'createdAt' | 'updatedAt'>>) => setForm((f) => ({ ...f, ...p }));
 
@@ -111,10 +112,7 @@ export function PlaceFormModal({ open, onClose, worldId, initial, onSubmit }: Pr
             />
           </div>
         ))}
-        <div>
-          <label className="mb-1 block text-xs uppercase text-[#5A6078]">Imagen / mapa (URL)</label>
-          <input className="story-input w-full" value={form.mapUrl} onChange={(e) => patch({ mapUrl: e.target.value })} />
-        </div>
+        <ImageInputField label="Imagen / mapa" value={form.mapUrl} onChange={(v) => patch({ mapUrl: v })} />
         <div>
           <label className="mb-1 block text-xs uppercase text-[#5A6078]">Tags (coma)</label>
           <input className="story-input w-full" value={tagsRaw} onChange={(e) => setTagsRaw(e.target.value)} />
