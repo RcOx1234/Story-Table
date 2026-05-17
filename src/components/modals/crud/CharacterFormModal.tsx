@@ -3,6 +3,7 @@ import { BaseModal } from './BaseModal';
 import { ImageInputField } from '@/components/common/ImageInputField';
 import { useAppStore, useStore } from '@/store';
 import type { Character, CharacterRole, Relationship } from '@/types';
+import { RELATIONSHIP_TYPE_OPTIONS } from '@/lib/relationshipTypes';
 
 const ROLES: { value: CharacterRole; label: string }[] = [
   { value: 'protagonist', label: 'Protagonista' },
@@ -279,12 +280,18 @@ export function CharacterFormModal({ open, onClose, worldId, initial, onSubmit }
                   </option>
                 ))}
             </select>
-            <input
-              className="story-input text-sm"
-              placeholder="Tipo (ej. hermano)"
-              value={relType}
-              onChange={(e) => setRelType(e.target.value)}
-            />
+            <select className="story-input text-sm" value={relType} onChange={(e) => setRelType(e.target.value)}>
+              <option value="">Tipo de relación…</option>
+              {['Familia', 'Vínculos', 'Tensión', 'Otros'].map((group) => (
+                <optgroup key={group} label={group}>
+                  {RELATIONSHIP_TYPE_OPTIONS.filter((o) => o.group === group).map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
             <input
               className="story-input text-sm sm:col-span-1"
               placeholder="Descripción"
@@ -297,11 +304,11 @@ export function CharacterFormModal({ open, onClose, worldId, initial, onSubmit }
             className="story-btn-secondary text-xs"
             onClick={() => {
               const ch = worldCharacters.find((x) => x.id === relCharId);
-              if (!ch || !relType.trim()) return;
+              if (!ch || !relType) return;
               const next: Relationship = {
                 characterId: ch.id,
                 characterName: ch.name,
-                type: relType.trim(),
+                type: relType,
                 description: relDesc.trim(),
               };
               patch({ relationships: [...form.relationships, next] });

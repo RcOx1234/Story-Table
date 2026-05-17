@@ -15,6 +15,7 @@ import { logout as firebaseLogout } from '@/services/authService';
 import { buildLibraryExport, parseLibraryImport } from '@/lib/storyImportExport';
 import { pushStoryBundle } from '@/services/storyBundleSync';
 import { formatFirestoreSaveError } from '@/lib/firestorePayload';
+import { AccountSettingsModal } from '@/components/modals/AccountSettingsModal';
 
 export function TopBar() {
   const fileImportRef = useRef<HTMLInputElement>(null);
@@ -25,6 +26,7 @@ export function TopBar() {
   const ideasFree = useAppStore((s) => s.ideas.filter((i) => !i.isDeleted && !i.worldId).length);
   const scenesRecent = useAppStore((s) => s.scenes.filter((sc) => !sc.isDeleted).slice(-3));
   const [savingCloud, setSavingCloud] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
   const autoSaveEnabled = useAppStore((s) => s.firebaseAutoSaveEnabled);
   const setAutoSaveEnabled = useAppStore((s) => s.setFirebaseAutoSaveEnabled);
 
@@ -231,10 +233,19 @@ export function TopBar() {
               <Upload size={14} className="mr-2" /> Importar biblioteca…
             </DropdownMenuItem>
             <DropdownMenuSeparator className="bg-[#2A3045]" />
-            <DropdownMenuItem className="cursor-pointer focus:bg-[#1E2230]" onClick={() => toast.info('Perfil: próximamente')}>
-              <User size={14} className="mr-2" /> Mi perfil
+            <DropdownMenuItem
+              className="cursor-pointer focus:bg-[#1E2230]"
+              onClick={() => {
+                if (!isFirebaseConfigured() || !user?.isAuthenticated) {
+                  toast.error('Inicia sesión con Firebase para gestionar tu cuenta');
+                  return;
+                }
+                setAccountOpen(true);
+              }}
+            >
+              <User size={14} className="mr-2" /> Cuenta y contraseña
             </DropdownMenuItem>
-            <DropdownMenuItem className="cursor-pointer focus:bg-[#1E2230]" onClick={() => toast.info('Configuración: próximamente')}>
+            <DropdownMenuItem className="cursor-pointer focus:bg-[#1E2230]" onClick={() => setAccountOpen(true)}>
               <Settings size={14} className="mr-2" /> Configuración
             </DropdownMenuItem>
             <DropdownMenuSeparator className="bg-[#2A3045]" />
@@ -244,6 +255,7 @@ export function TopBar() {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+      <AccountSettingsModal open={accountOpen} onClose={() => setAccountOpen(false)} />
     </header>
   );
 }

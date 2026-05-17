@@ -3,8 +3,10 @@ import {
   EmailAuthProvider,
   onAuthStateChanged,
   reauthenticateWithCredential,
+  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut,
+  updatePassword,
   updateProfile,
   type User,
 } from 'firebase/auth';
@@ -29,8 +31,15 @@ function authErrorMessage(code: string): string {
     'auth/weak-password': 'La contraseña debe tener al menos 6 caracteres',
     'auth/invalid-email': 'Email no válido',
     'auth/too-many-requests': 'Demasiados intentos. Espera un momento',
+    'auth/requires-recent-login': 'Vuelve a iniciar sesión y prueba de nuevo',
+    'auth/missing-email': 'Indica un email válido',
   };
   return messages[code] ?? 'Error al autenticar';
+}
+
+function wrapAuthError(err: unknown): Error {
+  const code = err && typeof err === 'object' && 'code' in err ? String((err as { code: string }).code) : '';
+  return new Error(authErrorMessage(code));
 }
 
 export async function loginWithEmail(email: string, password: string): Promise<User> {
@@ -39,8 +48,7 @@ export async function loginWithEmail(email: string, password: string): Promise<U
     const cred = await signInWithEmailAndPassword(auth, email, password);
     return cred.user;
   } catch (err: unknown) {
-    const code = err && typeof err === 'object' && 'code' in err ? String((err as { code: string }).code) : '';
-    throw new Error(authErrorMessage(code));
+    throw wrapAuthError(err);
   }
 }
 
@@ -57,8 +65,28 @@ export async function registerWithEmail(
     }
     return cred.user;
   } catch (err: unknown) {
-    const code = err && typeof err === 'object' && 'code' in err ? String((err as { code: string }).code) : '';
-    throw new Error(authErrorMessage(code));
+    throw wrapAuthError(err);
+  }
+}
+
+export async function sendAccountPasswordReset(email: string): Promise<void> {
+  if (!auth) throw new Error('Firebase no está configurado');
+  try {
+    await sendPasswordResetEmail(auth, email.trim());
+  } catch (err: unknown) {
+    throw wrapAuthError(err);
+  }
+}
+
+export async function changeAccountPassword(currentPassword: string, newPassword: string): Promise<void> {
+  if (!auth?.currentUser?.email) throw new Error('Debes iniciar sesión');
+  if (newPassword.length < 6) throw new Error('La nueva contraseña debe tener al menos 6 caracteres');
+  try {
+    const cred = EmailAuthProvider.credential(auth.currentUser.email, currentPassword);
+    await reauthenticateWithCredential(auth.currentUser, cred);
+    await updatePassword(auth.currentUser, newPassword);
+  } catch (err: unknown) {
+    throw wrapAuthError(err);
   }
 }
 

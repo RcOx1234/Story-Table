@@ -87,7 +87,7 @@ export function OrganizationsSection({ worldId }: Props) {
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.05 }}
-                className="story-card group relative cursor-pointer p-5 transition-all hover:border-[#D61E2B]/40"
+                className="story-card group relative cursor-pointer overflow-hidden p-0 transition-all hover:border-[#D61E2B]/40"
                 role="button"
                 tabIndex={0}
                 onKeyDown={(e) => {
@@ -95,7 +95,7 @@ export function OrganizationsSection({ worldId }: Props) {
                 }}
                 onClick={() => setViewing(org)}
               >
-                <div className="absolute right-3 top-3 flex items-center gap-0.5">
+                <div className="absolute right-2 top-2 z-10 flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
                   <button
                     type="button"
                     aria-label="Favorito"
@@ -115,19 +115,25 @@ export function OrganizationsSection({ worldId }: Props) {
                     onDelete={() => setDeleteId(org.id)}
                   />
                 </div>
-                <div className="mb-2 flex items-center gap-2">
-                  <Building2 size={14} className="text-[#3B82F6]" />
-                  <span className="rounded-full bg-[#1E2230] px-2 py-0.5 text-[10px] uppercase tracking-wider text-[#5A6078]">
+                {org.imageUrl ? (
+                  <div className="aspect-video bg-[#0B0D10]">
+                    <img src={org.imageUrl} alt={org.name} className="h-full w-full object-cover" />
+                  </div>
+                ) : (
+                  <div className="flex aspect-video items-center justify-center bg-[#111318]">
+                    <Building2 size={32} className="text-[#3A4460]" />
+                  </div>
+                )}
+                <motion.div className="p-4" whileHover={{ y: -1 }} transition={{ duration: 0.15 }}>
+                  <span className="mb-2 inline-block rounded-full bg-[#1E2230] px-2 py-0.5 text-[10px] uppercase tracking-wider text-[#5A6078]">
                     {typeLabels[org.type]}
                   </span>
-                </div>
-                <h3 className="mb-2 font-semibold text-[#E8E9EB]">{org.name}</h3>
-                {org.goals && <p className="mb-2 line-clamp-2 text-xs text-[#8B91A7]">{org.goals}</p>}
-                <div className="mt-2 flex items-center justify-between border-t border-[#1E2230] pt-2 text-xs text-[#5A6078]">
-                  <span className="flex items-center gap-1">
+                  <h3 className="mb-1 font-semibold text-[#E8E9EB]">{org.name}</h3>
+                  {org.goals && <p className="mb-2 line-clamp-2 text-xs text-[#8B91A7]">{org.goals}</p>}
+                  <span className="flex items-center gap-1 text-xs text-[#5A6078]">
                     <Crown size={10} /> {org.members.length} miembros
                   </span>
-                </div>
+                </motion.div>
               </motion.div>
             ))}
           </div>

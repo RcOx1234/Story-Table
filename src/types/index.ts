@@ -274,6 +274,14 @@ export type NobleRank =
   | 'commoner'
   | 'other';
 
+/** Miembro de una casa con rol y vínculo jerárquico (árbol familiar). */
+export interface HouseMember {
+  characterId: string;
+  role: string;
+  /** characterId del padre/madre en el árbol (opcional). */
+  parentCharacterId?: string;
+}
+
 /** Casa o familia noble del mundo. */
 export interface House {
   id: string;
@@ -290,6 +298,7 @@ export interface House {
   lineage: string;
   symbols: string;
   territory?: string;
+  members: HouseMember[];
   isFavorite: boolean;
   isDeleted: boolean;
   deletedAt?: string;

@@ -123,7 +123,7 @@ export interface AppState {
 
   // Houses
   houses: House[];
-  addHouse: (house: Omit<House, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  addHouse: (house: Omit<House, 'id' | 'createdAt' | 'updatedAt'>) => string;
   updateHouse: (id: string, data: Partial<House>) => void;
   deleteHouse: (id: string) => void;
   getHousesByWorld: (worldId: string) => House[];
@@ -551,8 +551,15 @@ export const useStore = create<AppState>()(
 
       houses: [],
       addHouse: (house) => {
-        const h: House = { ...house, id: crypto.randomUUID(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+        const h: House = {
+          ...house,
+          members: house.members ?? [],
+          id: crypto.randomUUID(),
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
         set((state) => ({ houses: [...state.houses, h] }));
+        return h.id;
       },
       updateHouse: (id, data) =>
         set((state) => ({

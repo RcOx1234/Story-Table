@@ -8,12 +8,21 @@ import {
 
 type Props = {
   onEdit: () => void;
-  onDelete: () => void;
+  onDelete?: () => void;
+  onViewDetails?: () => void;
   editLabel?: string;
+  viewDetailsLabel?: string;
   className?: string;
 };
 
-export function EntityCardMenu({ onEdit, onDelete, editLabel = 'Editar', className = '' }: Props) {
+export function EntityCardMenu({
+  onEdit,
+  onDelete,
+  onViewDetails,
+  editLabel = 'Editar',
+  viewDetailsLabel = 'Ver detalles',
+  className = '',
+}: Props) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -27,6 +36,17 @@ export function EntityCardMenu({ onEdit, onDelete, editLabel = 'Editar', classNa
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="border-[#2A3045] bg-[#111318] text-[#E8E9EB]">
+        {onViewDetails ? (
+          <DropdownMenuItem
+            className="cursor-pointer focus:bg-[#1E2230]"
+            onSelect={(e) => {
+              e.preventDefault();
+              onViewDetails();
+            }}
+          >
+            {viewDetailsLabel}
+          </DropdownMenuItem>
+        ) : null}
         <DropdownMenuItem
           className="cursor-pointer focus:bg-[#1E2230]"
           onSelect={(e) => {
@@ -36,15 +56,17 @@ export function EntityCardMenu({ onEdit, onDelete, editLabel = 'Editar', classNa
         >
           {editLabel}
         </DropdownMenuItem>
-        <DropdownMenuItem
-          className="cursor-pointer text-[#D61E2B] focus:bg-[#D61E2B]/10"
-          onSelect={(e) => {
-            e.preventDefault();
-            onDelete();
-          }}
-        >
-          <Trash2 size={12} className="mr-2 inline" /> Eliminar
-        </DropdownMenuItem>
+        {onDelete ? (
+          <DropdownMenuItem
+            className="cursor-pointer text-[#D61E2B] focus:bg-[#D61E2B]/10"
+            onSelect={(e) => {
+              e.preventDefault();
+              onDelete();
+            }}
+          >
+            <Trash2 size={12} className="mr-2 inline" /> Eliminar
+          </DropdownMenuItem>
+        ) : null}
       </DropdownMenuContent>
     </DropdownMenu>
   );

@@ -2,7 +2,13 @@ import { useMemo, useState } from 'react';
 import { useNavigateWithReturn } from '@/hooks/useNavigationReturn';
 import { useAppStore } from '@/store';
 import { motion } from 'framer-motion';
-import { Plus, Clock, ChevronRight } from 'lucide-react';
+import { Plus, Clock, ChevronRight, Pencil, Trash2, MoreVertical } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import type { Timeline } from '@/types';
 import { TimelineFormModal } from '@/components/modals/crud/TimelineFormModal';
 import { ConfirmDeleteModal } from '@/components/modals/crud/ConfirmDeleteModal';
@@ -35,6 +41,7 @@ export function TimelinesSection({ worldId }: Props) {
 
   const activeId = activeTimeline || timelines[0]?.id;
   const active = timelines.find((t) => t.id === activeId);
+  const lineColor = active?.color ?? '#D61E2B';
   const timelineScenes = scenes.filter((s) => s.timelineId === activeId);
   const timelineFacts = facts.filter((f) => f.timelineId === activeId);
 
@@ -137,29 +144,7 @@ export function TimelinesSection({ worldId }: Props) {
             </button>
           ))}
         </div>
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            disabled={!activeId}
-            onClick={() => {
-              setPickedSceneIds([]);
-              setAssignScenesOpen(true);
-            }}
-            className="story-btn-secondary text-sm"
-          >
-            Añadir escena
-          </button>
-          <button
-            type="button"
-            disabled={!activeId}
-            onClick={() => {
-              setPickedFactIds([]);
-              setAssignFactsOpen(true);
-            }}
-            className="story-btn-secondary text-sm"
-          >
-            Añadir hecho
-          </button>
+        <motion.div className="flex items-center gap-2" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }}>
           <button
             type="button"
             onClick={() => {
@@ -167,16 +152,20 @@ export function TimelinesSection({ worldId }: Props) {
               setEditing(tl ?? null);
               setFormOpen(true);
             }}
-            className="story-btn-secondary text-sm"
+            className="rounded-lg p-2 text-[#8B91A7] transition-all hover:bg-[#1E2230] hover:text-[#E8E9EB]"
+            title="Editar línea"
+            aria-label="Editar línea"
           >
-            Editar línea
+            <Pencil size={16} />
           </button>
           <button
             type="button"
             onClick={() => activeId && setDeleteId(activeId)}
-            className="story-btn-secondary text-sm text-[#D61E2B] hover:border-[#D61E2B]/40"
+            className="rounded-lg p-2 text-[#5A6078] transition-all hover:bg-[#1E2230] hover:text-[#D61E2B]"
+            title="Eliminar línea"
+            aria-label="Eliminar línea"
           >
-            Eliminar línea
+            <Trash2 size={16} />
           </button>
           <button
             type="button"
@@ -184,11 +173,11 @@ export function TimelinesSection({ worldId }: Props) {
               setEditing(null);
               setFormOpen(true);
             }}
-            className="story-btn-secondary text-sm"
+            className="story-btn-secondary flex items-center gap-1.5 text-sm"
           >
-            <Plus size={16} /> Nueva Línea
+            <Plus size={14} /> Línea
           </button>
-        </div>
+        </motion.div>
       </div>
 
       {active && (
@@ -245,7 +234,68 @@ export function TimelinesSection({ worldId }: Props) {
             </motion.div>
           ))}
           {timelineScenes.length === 0 && timelineFacts.length === 0 && (
-            <div className="ml-10 text-sm text-[#5A6078]">No hay escenas ni hechos en esta línea temporal</div>
+            <div className="ml-10 flex flex-col items-start gap-3 py-4">
+              <p className="text-sm text-[#5A6078]">No hay escenas ni hechos en esta línea temporal</p>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    disabled={!activeId}
+                    className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                    style={{ backgroundColor: lineColor, boxShadow: `0 6px 20px ${lineColor}55` }}
+                  >
+                    <Plus size={14} /> Agregar
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="border-[#2A3045] bg-[#111318] text-[#E8E9EB]">
+                  <DropdownMenuItem
+                    className="cursor-pointer focus:bg-[#1E2230]"
+                    onClick={() => {
+                      setPickedSceneIds([]);
+                      setAssignScenesOpen(true);
+                    }}
+                  >
+                    Añadir escena
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="cursor-pointer focus:bg-[#1E2230]"
+                    onClick={() => {
+                      setPickedFactIds([]);
+                      setAssignFactsOpen(true);
+                    }}
+                  >
+                    Añadir hecho
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          )}
+          {(timelineScenes.length > 0 || timelineFacts.length > 0) && (
+            <div className="ml-10 pt-2">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-opacity hover:opacity-90"
+                    style={{
+                      color: lineColor,
+                      borderColor: `${lineColor}66`,
+                      backgroundColor: `${lineColor}18`,
+                    }}
+                  >
+                    <MoreVertical size={12} /> Agregar a la línea
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="border-[#2A3045] bg-[#111318] text-[#E8E9EB]">
+                  <DropdownMenuItem className="cursor-pointer focus:bg-[#1E2230]" onClick={() => { setPickedSceneIds([]); setAssignScenesOpen(true); }}>
+                    Escena
+                  </DropdownMenuItem>
+                  <DropdownMenuItem className="cursor-pointer focus:bg-[#1E2230]" onClick={() => { setPickedFactIds([]); setAssignFactsOpen(true); }}>
+                    Hecho
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           )}
         </div>
       </div>

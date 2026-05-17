@@ -9,6 +9,7 @@ import { Dashboard } from '@/pages/Dashboard';
 import { WorldsPage } from '@/pages/WorldsPage';
 import { WorldView } from '@/pages/WorldView';
 import { CharacterDetail } from '@/pages/CharacterDetail';
+import { HouseDetail } from '@/pages/HouseDetail';
 import { SceneDetail } from '@/pages/SceneDetail';
 import { IdeasPage } from '@/pages/IdeasPage';
 import { FavoritesPage } from '@/pages/FavoritesPage';
@@ -60,6 +61,7 @@ function AppContent() {
             <Route path="mundos" element={<WorldsPage />} />
             <Route path="world/:worldId" element={<WorldView />} />
             <Route path="world/:worldId/character/:characterId" element={<CharacterDetail />} />
+            <Route path="world/:worldId/house/:houseId" element={<HouseDetail />} />
             <Route path="world/:worldId/scene/:sceneId" element={<SceneDetail />} />
             <Route path="world/:worldId/place/:placeId" element={<PlaceDetail />} />
             <Route path="world/:worldId/map/:mapId" element={<MapView />} />

@@ -3,7 +3,13 @@ import { useParams } from 'react-router-dom';
 import { useNavigationReturn } from '@/hooks/useNavigationReturn';
 import { useAppStore } from '@/store';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Heart, Edit2, Users, Sparkles, Trash2 } from 'lucide-react';
+import { ArrowLeft, Heart, Edit2, Users, Sparkles, Trash2, Plus, Castle } from 'lucide-react';
+import { RELATIONSHIP_TYPE_OPTIONS, relationshipTypeLabel } from '@/lib/relationshipTypes';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { EntityReference } from '@/components/common/EntityReference';
 import { ConfirmDeleteModal } from '@/components/modals/crud/ConfirmDeleteModal';
 import { toast } from 'sonner';
@@ -67,14 +73,20 @@ export function CharacterDetail() {
   const worldCharacters = useAppStore((s) =>
     worldId ? s.getCharactersByWorld(worldId).filter((ch) => !ch.isDeleted) : []
   );
+  const houses = useAppStore((s) => (worldId ? s.getHousesByWorld(worldId) : []));
 
   const [activeTab, setActiveTab] = useState<TabType>('info');
   const [infoSub, setInfoSub] = useState<InfoSub>('physical');
   const [formOpen, setFormOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [addRelOpen, setAddRelOpen] = useState(false);
   const [addRelCharId, setAddRelCharId] = useState('');
   const [addRelType, setAddRelType] = useState('');
   const [addRelDesc, setAddRelDesc] = useState('');
+
+  const linkedHouse = character
+    ? houses.find((h) => h.id === character.houseId) ?? houses.find((h) => h.name === character.house)
+    : undefined;
 
   if (!character || !worldId) {
     return (
@@ -136,7 +148,14 @@ export function CharacterDetail() {
               >
                 {roleLabels[character.role] ?? character.role}
               </span>
-              {character.house ? <span className="text-xs text-[#5A6078]">{character.house}</span> : null}
+              {linkedHouse ? (
+                <span className="flex items-center gap-1 rounded-full bg-[#1E2230] px-2 py-0.5 text-xs text-[#8B91A7]">
+                  <Castle size={10} className="text-[#EAB308]" />
+                  {linkedHouse.name}
+                </span>
+              ) : character.house ? (
+                <span className="text-xs text-[#5A6078]">{character.house}</span>
+              ) : null}
             </div>
           </div>
         </div>
@@ -180,6 +199,12 @@ export function CharacterDetail() {
               <span className="text-sm text-[#8B91A7]">{statusLabels[character.status].label}</span>
             </div>
             <p className="text-sm text-[#5A6078]">{character.age} años</p>
+            {linkedHouse && (
+              <p className="mt-2 flex items-center justify-center gap-1.5 text-xs text-[#8B91A7]">
+                <Castle size={12} className="text-[#EAB308]" />
+                Casa {linkedHouse.name}
+              </p>
+            )}
             {character.tags?.length > 0 && (
               <div className="mt-3 flex flex-wrap justify-center gap-1">
                 {character.tags.map((t) => (
@@ -267,62 +292,89 @@ export function CharacterDetail() {
 
           {activeTab === 'relationships' && (
             <div className="space-y-6">
-              <div className="story-card space-y-3 p-4">
-                <h4 className="text-xs font-mono uppercase tracking-wider text-[#5A6078]">Añadir familiar o vínculo</h4>
-                <div className="grid gap-2 sm:grid-cols-3">
-                  <select
-                    className="story-input text-sm"
-                    value={addRelCharId}
-                    onChange={(e) => setAddRelCharId(e.target.value)}
-                  >
-                    <option value="">Personaje…</option>
-                    {worldCharacters
-                      .filter((ch) => ch.id !== character.id)
-                      .map((ch) => (
-                        <option key={ch.id} value={ch.id}>
-                          {ch.name}
-                        </option>
+              <motion.div
+                className="flex items-center justify-between gap-2"
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.2 }}
+              >
+                <h4 className="text-xs font-mono uppercase tracking-wider text-[#5A6078]">Vínculos</h4>
+                <DropdownMenu open={addRelOpen} onOpenChange={setAddRelOpen}>
+                  <DropdownMenuTrigger asChild>
+                    <button type="button" className="story-btn-secondary flex items-center gap-1.5 px-3 py-1.5 text-xs">
+                      <Plus size={14} /> Agregar
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-72 border-[#2A3045] bg-[#111318] p-3 text-[#E8E9EB]">
+                    <p className="mb-2 text-[10px] font-mono uppercase text-[#5A6078]">Nuevo vínculo</p>
+                    <select
+                      className="story-input mb-2 w-full text-sm"
+                      value={addRelCharId}
+                      onChange={(e) => setAddRelCharId(e.target.value)}
+                    >
+                      <option value="">Personaje…</option>
+                      {worldCharacters
+                        .filter((ch) => ch.id !== character.id)
+                        .map((ch) => (
+                          <option key={ch.id} value={ch.id}>
+                            {ch.name}
+                          </option>
+                        ))}
+                    </select>
+                    <select
+                      className="story-input mb-2 w-full text-sm"
+                      value={addRelType}
+                      onChange={(e) => setAddRelType(e.target.value)}
+                    >
+                      <option value="">Tipo de relación…</option>
+                      {['Familia', 'Vínculos', 'Tensión', 'Otros'].map((group) => (
+                        <optgroup key={group} label={group}>
+                          {RELATIONSHIP_TYPE_OPTIONS.filter((o) => o.group === group).map((o) => (
+                            <option key={o.value} value={o.value}>
+                              {o.label}
+                            </option>
+                          ))}
+                        </optgroup>
                       ))}
-                  </select>
-                  <input
-                    className="story-input text-sm"
-                    placeholder="Tipo (ej. hermano, madre)"
-                    value={addRelType}
-                    onChange={(e) => setAddRelType(e.target.value)}
-                  />
-                  <input
-                    className="story-input text-sm"
-                    placeholder="Descripción"
-                    value={addRelDesc}
-                    onChange={(e) => setAddRelDesc(e.target.value)}
-                  />
-                </div>
-                <button
-                  type="button"
-                  className="story-btn-primary text-sm"
-                  onClick={() => {
-                    const ch = worldCharacters.find((x) => x.id === addRelCharId);
-                    if (!ch || !addRelType.trim()) return;
-                    updateCharacter(character.id, {
-                      relationships: [
-                        ...character.relationships,
-                        {
-                          characterId: ch.id,
-                          characterName: ch.name,
-                          type: addRelType.trim(),
-                          description: addRelDesc.trim(),
-                        },
-                      ],
-                    });
-                    setAddRelCharId('');
-                    setAddRelType('');
-                    setAddRelDesc('');
-                    toast.success('Relación añadida');
-                  }}
-                >
-                  Guardar relación
-                </button>
-              </div>
+                    </select>
+                    <input
+                      className="story-input mb-2 w-full text-sm"
+                      placeholder="Descripción (opcional)"
+                      value={addRelDesc}
+                      onChange={(e) => setAddRelDesc(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      className="story-btn-primary w-full text-xs"
+                      onClick={() => {
+                        const ch = worldCharacters.find((x) => x.id === addRelCharId);
+                        if (!ch || !addRelType) {
+                          toast.error('Elige personaje y tipo de relación');
+                          return;
+                        }
+                        updateCharacter(character.id, {
+                          relationships: [
+                            ...character.relationships,
+                            {
+                              characterId: ch.id,
+                              characterName: ch.name,
+                              type: addRelType,
+                              description: addRelDesc.trim(),
+                            },
+                          ],
+                        });
+                        setAddRelCharId('');
+                        setAddRelType('');
+                        setAddRelDesc('');
+                        setAddRelOpen(false);
+                        toast.success('Relación añadida');
+                      }}
+                    >
+                      Guardar
+                    </button>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </motion.div>
               {(['family', 'friends', 'rivals', 'other'] as const).map((bucket) => (
                 <div key={bucket}>
                   <h4 className="mb-2 text-xs font-mono uppercase tracking-wider text-[#D61E2B]">{relSectionLabels[bucket]}</h4>
@@ -350,7 +402,7 @@ export function CharacterDetail() {
                                 label={rel.characterName}
                               />
                               <span className="rounded-full bg-[#D61E2B]/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-[#D61E2B]">
-                                {rel.type}
+                                {relationshipTypeLabel(rel.type)}
                               </span>
                             </div>
                             <p className="text-xs text-[#8B91A7]">{rel.description}</p>

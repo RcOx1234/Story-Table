@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 import { BookOpen, Feather, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 import { isFirebaseConfigured } from '@/lib/firebase';
-import { loginWithEmail } from '@/services/authService';
+import { loginWithEmail, sendAccountPasswordReset } from '@/services/authService';
 
 export function LoginPage() {
   const user = useAppStore((s) => s.user);
@@ -14,6 +14,7 @@ export function LoginPage() {
   const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
 
   if (user?.isAuthenticated) {
     return (
@@ -106,6 +107,30 @@ export function LoginPage() {
               <BookOpen size={16} />
               {loading ? 'Entrando…' : 'Entrar'}
             </button>
+            {isFirebaseConfigured() && (
+              <button
+                type="button"
+                disabled={resetLoading || !email.trim()}
+                className="w-full text-center text-xs text-[#8B91A7] underline-offset-2 hover:text-[#D61E2B] hover:underline disabled:opacity-50"
+                onClick={async () => {
+                  if (!email.trim()) {
+                    toast.error('Escribe tu email primero');
+                    return;
+                  }
+                  setResetLoading(true);
+                  try {
+                    await sendAccountPasswordReset(email.trim());
+                    toast.success('Revisa tu correo para restablecer la contraseña');
+                  } catch (err) {
+                    toast.error(err instanceof Error ? err.message : 'No se pudo enviar el correo');
+                  } finally {
+                    setResetLoading(false);
+                  }
+                }}
+              >
+                {resetLoading ? 'Enviando…' : '¿Olvidaste tu contraseña?'}
+              </button>
+            )}
           </form>
         </div>
       </motion.div>

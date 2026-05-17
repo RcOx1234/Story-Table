@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useAppStore } from '@/store';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Search, X, Globe, FileText, MapPin, Lightbulb, Command, Map } from 'lucide-react';
+import { Search, X, Globe, FileText, MapPin, Lightbulb, Command, Map, Castle, Route, Building2 } from 'lucide-react';
 
 export function SearchModal() {
   const activeModal = useAppStore((s) => s.activeModal);
@@ -19,6 +19,15 @@ export function SearchModal() {
   const scenes = useAppStore((s) => s.scenes.filter((sc) => !sc.isDeleted && (!query || sc.title.toLowerCase().includes(query.toLowerCase()))));
   const places = useAppStore((s) => s.places.filter((p) => !p.isDeleted && (!query || p.name.toLowerCase().includes(query.toLowerCase()))));
   const mapsList = useAppStore((s) => s.maps.filter((m) => !query || m.name.toLowerCase().includes(query.toLowerCase())));
+  const houses = useAppStore((s) =>
+    s.houses.filter((h) => !h.isDeleted && (!query || h.name.toLowerCase().includes(query.toLowerCase()) || h.motto.toLowerCase().includes(query.toLowerCase())))
+  );
+  const plots = useAppStore((s) =>
+    s.plots.filter((p) => !p.isDeleted && (!query || p.title.toLowerCase().includes(query.toLowerCase())))
+  );
+  const organizations = useAppStore((s) =>
+    s.organizations.filter((o) => !o.isDeleted && (!query || o.name.toLowerCase().includes(query.toLowerCase())))
+  );
   const ideas = useAppStore((s) => s.ideas.filter((i) => !i.isDeleted && (!query || i.description.toLowerCase().includes(query.toLowerCase()))));
 
   useEffect(() => {
@@ -50,11 +59,23 @@ export function SearchModal() {
     { id: 'scenes', label: 'Escenas' },
     { id: 'places', label: 'Lugares' },
     { id: 'maps', label: 'Mapas' },
+    { id: 'houses', label: 'Casas' },
+    { id: 'plots', label: 'Tramas' },
+    { id: 'organizations', label: 'Organizaciones' },
     { id: 'ideas', label: 'Ideas' },
   ];
 
   const hasResults =
-    worlds.length + characters.length + scenes.length + places.length + mapsList.length + ideas.length > 0;
+    worlds.length +
+      characters.length +
+      scenes.length +
+      places.length +
+      mapsList.length +
+      houses.length +
+      plots.length +
+      organizations.length +
+      ideas.length >
+    0;
 
   const handleNavigate = (path: string) => {
     navigate(path);
@@ -194,6 +215,61 @@ export function SearchModal() {
                       <div className="flex-1 min-w-0">
                         <p className="text-sm text-[#E8E9EB] truncate">{m.name}</p>
                         <p className="text-xs text-[#5A6078] truncate">{m.description || 'Mapa'}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {(filter === 'all' || filter === 'houses') && houses.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-mono uppercase tracking-wider text-[#5A6078] px-2 py-1">Casas</p>
+                  {houses.map((h) => (
+                    <button
+                      key={h.id}
+                      onClick={() => handleNavigate(`/world/${h.worldId}?tab=houses`)}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-[#1E2230] transition-all text-left"
+                    >
+                      <Castle size={16} className="text-[#EAB308] flex-shrink-0" />
+                      <motion.div className="flex-1 min-w-0" whileHover={{ x: 2 }} transition={{ duration: 0.15 }}>
+                        <p className="text-sm text-[#E8E9EB] truncate">{h.name}</p>
+                        {h.motto && <p className="text-xs text-[#5A6078] truncate">{h.motto}</p>}
+                      </motion.div>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {(filter === 'all' || filter === 'plots') && plots.length > 0 && (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.15 }}>
+                  <p className="text-[10px] font-mono uppercase tracking-wider text-[#5A6078] px-2 py-1">Tramas</p>
+                  {plots.map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() => handleNavigate(`/world/${p.worldId}?tab=plots`)}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-[#1E2230] transition-all text-left"
+                    >
+                      <Route size={16} className="text-[#D61E2B] flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-[#E8E9EB] truncate">{p.title}</p>
+                      </div>
+                    </button>
+                  ))}
+                </motion.div>
+              )}
+
+              {(filter === 'all' || filter === 'organizations') && organizations.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-mono uppercase tracking-wider text-[#5A6078] px-2 py-1">Organizaciones</p>
+                  {organizations.map((o) => (
+                    <button
+                      key={o.id}
+                      onClick={() => handleNavigate(`/world/${o.worldId}?tab=organizations`)}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-[#1E2230] transition-all text-left"
+                    >
+                      <Building2 size={16} className="text-[#3B82F6] flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-[#E8E9EB] truncate">{o.name}</p>
                       </div>
                     </button>
                   ))}

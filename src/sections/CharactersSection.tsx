@@ -2,17 +2,12 @@ import { useState } from 'react';
 import { useNavigateWithReturn } from '@/hooks/useNavigationReturn';
 import { useAppStore } from '@/store';
 import { motion } from 'framer-motion';
-import { Plus, Search, Heart, MoreVertical, Trash2, GripVertical } from 'lucide-react';
+import { Plus, Search, Heart } from 'lucide-react';
+import { EntityCardMenu } from '@/components/common/EntityCardMenu';
 import type { Character } from '@/types';
 import { CharacterFormModal } from '@/components/modals/crud/CharacterFormModal';
 import { ConfirmDeleteModal } from '@/components/modals/crud/ConfirmDeleteModal';
 import { toast } from 'sonner';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 
 const roleLabels: Record<string, { label: string; color: string }> = {
   protagonist: { label: 'Protagonista', color: '#22C55E' },
@@ -46,13 +41,12 @@ export function CharactersSection({ worldId }: Props) {
   const updateCharacter = useAppStore((s) => s.updateCharacter);
   const deleteCharacter = useAppStore((s) => s.deleteCharacter);
   const toggleFavorite = useAppStore((s) => s.toggleFavoriteCharacter);
-  const setCharacterOrder = useAppStore((s) => s.setCharacterOrder);
+  const houses = useAppStore((s) => s.getHousesByWorld(worldId));
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Character | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [dragId, setDragId] = useState<string | null>(null);
 
   const filtered = characters.filter((c) => {
     const matchSearch =
@@ -63,17 +57,9 @@ export function CharactersSection({ worldId }: Props) {
     return matchSearch && matchRole;
   });
 
-  const reorder = (fromId: string, toId: string) => {
-    if (fromId === toId) return;
-    const ids = filtered.map((c) => c.id);
-    const from = ids.indexOf(fromId);
-    const to = ids.indexOf(toId);
-    if (from < 0 || to < 0) return;
-    const next = [...ids];
-    const [moved] = next.splice(from, 1);
-    next.splice(to, 0, moved!);
-    const rest = characters.map((c) => c.id).filter((id) => !next.includes(id));
-    setCharacterOrder(worldId, [...next, ...rest]);
+  const houseName = (char: Character) => {
+    if (char.houseId) return houses.find((h) => h.id === char.houseId)?.name ?? char.house;
+    return char.house;
   };
 
   const onSubmit = (data: Omit<Character, 'id' | 'createdAt' | 'updatedAt'>) => {
@@ -89,8 +75,18 @@ export function CharactersSection({ worldId }: Props) {
 
   return (
     <div>
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row">
-        <div className="relative flex-1">
+      <motion.div
+        className="mb-6 flex flex-col gap-3 sm:flex-row"
+        initial={{ opacity: 0, y: -6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.2 }}
+      >
+        <motion.div
+          className="relative flex-1"
+          initial={{ opacity: 0, x: -8 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.05 }}
+        >
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5A6078]" />
           <input
             type="text"
@@ -99,7 +95,7 @@ export function CharactersSection({ worldId }: Props) {
             onChange={(e) => setSearch(e.target.value)}
             className="story-input w-full pl-10"
           />
-        </div>
+        </motion.div>
         <div className="flex gap-2">
           <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className="story-input text-sm">
             <option value="">Todos los roles</option>
@@ -120,7 +116,7 @@ export function CharactersSection({ worldId }: Props) {
             <Plus size={16} /> Agregar
           </button>
         </div>
-      </div>
+      </motion.div>
 
       {filtered.length === 0 ? (
         <div className="py-16 text-center">
@@ -141,27 +137,13 @@ export function CharactersSection({ worldId }: Props) {
           {filtered.map((char, i) => (
             <motion.div
               key={char.id}
-              draggable
-              onDragStart={() => setDragId(char.id)}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={() => {
-                if (dragId) reorder(dragId, char.id);
-                setDragId(null);
-              }}
-              onDragEnd={() => setDragId(null)}
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.05 }}
               onClick={() => navigateWithReturn(`/world/${worldId}/character/${char.id}`)}
-              className={`story-card group relative cursor-pointer p-5 pl-8 ${dragId === char.id ? 'opacity-60 ring-2 ring-[#D61E2B]/40' : ''}`}
+              className="story-card group relative cursor-pointer p-5"
             >
-              <div
-                className="absolute left-2 top-3 cursor-grab p-1 text-[#3A4460] active:cursor-grabbing"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <GripVertical size={14} />
-              </div>
-              <div className="absolute right-10 top-3 flex gap-1">
+              <div className="absolute right-2 top-2 z-10 flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
                 <button
                   type="button"
                   aria-label="Favorito"
@@ -173,51 +155,31 @@ export function CharactersSection({ worldId }: Props) {
                 >
                   <Heart size={14} className={char.isFavorite ? 'fill-[#D61E2B] text-[#D61E2B]' : 'text-[#5A6078]'} />
                 </button>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      type="button"
-                      aria-label="Menú"
-                      onClick={(e) => e.stopPropagation()}
-                      className="rounded-lg p-1.5 transition-all hover:bg-[#1E2230]"
-                    >
-                      <MoreVertical size={14} className="text-[#5A6078]" />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="border-[#2A3045] bg-[#111318] text-[#E8E9EB]">
-                    <DropdownMenuItem
-                      className="cursor-pointer focus:bg-[#1E2230]"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        e.preventDefault();
-                        setEditing(char);
-                        setFormOpen(true);
-                      }}
-                    >
-                      Editar
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      className="cursor-pointer text-[#D61E2B] focus:bg-[#D61E2B]/10"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        setDeleteId(char.id);
-                      }}
-                    >
-                      <Trash2 size={12} className="mr-2 inline" /> Eliminar
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <EntityCardMenu
+                  onEdit={() => {
+                    setEditing(char);
+                    setFormOpen(true);
+                  }}
+                  onDelete={() => setDeleteId(char.id)}
+                />
               </div>
               <div className="mx-auto mb-3 h-16 w-16 overflow-hidden rounded-full bg-[#1E2230]">
                 {char.images[0] ? (
                   <img src={char.images[0]} alt={char.name} className="h-full w-full object-cover" />
                 ) : (
-                  <div className="flex h-full w-full items-center justify-center text-xl font-semibold text-[#8B91A7]">{char.name.charAt(0)}</div>
+                  <div className="flex h-full w-full items-center justify-center text-xl font-semibold text-[#8B91A7]">
+                    {char.name.charAt(0)}
+                  </div>
                 )}
               </div>
               <h3 className="mb-1 truncate text-center font-semibold text-[#E8E9EB]">{char.name}</h3>
               {char.alias && <p className="mb-2 truncate text-center text-xs text-[#5A6078]">"{char.alias}"</p>}
-              <div className="mb-3 flex items-center justify-center gap-2">
+              <motion.div
+                className="mb-3 flex items-center justify-center gap-2"
+                initial={false}
+                whileHover={{ scale: 1.02 }}
+                transition={{ duration: 0.15 }}
+              >
                 <span
                   className="rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider"
                   style={{
@@ -228,8 +190,8 @@ export function CharactersSection({ worldId }: Props) {
                   {roleLabels[char.role]?.label}
                 </span>
                 <span className="h-2 w-2 rounded-full" style={{ backgroundColor: statusColors[char.status] }} title={char.status} />
-              </div>
-              {char.house && <p className="truncate text-center text-xs text-[#5A6078]">{char.house}</p>}
+              </motion.div>
+              {houseName(char) && <p className="truncate text-center text-xs text-[#5A6078]">{houseName(char)}</p>}
               <div className="mt-3 flex items-center justify-between border-t border-[#1E2230] pt-3 text-xs text-[#5A6078]">
                 <span>{char.age || '?'} años</span>
                 <span>{char.relationships.length} relaciones</span>
