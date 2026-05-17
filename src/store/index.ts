@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import { useShallow } from 'zustand/react/shallow';
 import type { TrashEntityType } from '@/lib/trashStorage';
 import type { WorldScopedExport } from '@/lib/storyImportExport';
+import { applyEmptyStorySlice } from '@/services/storyBundleSync';
 import type {
   World,
   Character,
@@ -216,7 +217,10 @@ export const useStore = create<AppState>()(
       // Auth
       user: null,
       login: (user) => set({ user }),
-      logout: () => set({ user: null }),
+      logout: () => {
+        applyEmptyStorySlice();
+        set({ user: null });
+      },
 
       // Worlds
       worlds: [],

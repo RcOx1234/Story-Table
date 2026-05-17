@@ -27,6 +27,30 @@ type StorySlice = Pick<
   | 'characterOrderByWorld'
 >;
 
+export const EMPTY_STORY_SLICE: StorySlice = {
+  worlds: [],
+  characters: [],
+  scenes: [],
+  places: [],
+  maps: [],
+  plots: [],
+  components: [],
+  organizations: [],
+  ideas: [],
+  timelines: [],
+  houses: [],
+  worldFacts: [],
+  worldData: [],
+  placeCollections: [],
+  mapCollections: [],
+  characterOrderByWorld: {},
+};
+
+/** Vacía la biblioteca local (p. ej. al cerrar sesión). */
+export function applyEmptyStorySlice(): void {
+  useStore.setState(EMPTY_STORY_SLICE);
+}
+
 export function getStorySlice(): StorySlice {
   const s = useStore.getState();
   return {

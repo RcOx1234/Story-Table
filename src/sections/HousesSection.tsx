@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigateWithReturn } from '@/hooks/useNavigationReturn';
 import { useAppStore } from '@/store';
 import { motion } from 'framer-motion';
@@ -21,6 +21,28 @@ const nobleRankLabels: Record<NobleRank, string> = {
   other: 'Otro',
 };
 
+const NOBLE_RANK_ORDER: Record<NobleRank, number> = {
+  emperor: 0,
+  king: 1,
+  duke: 2,
+  marquis: 3,
+  count: 4,
+  baron: 5,
+  knight: 6,
+  commoner: 7,
+  other: 8,
+};
+
+type HouseSortMode = 'relevance' | 'name' | 'rank' | 'influence' | 'members';
+
+const SORT_LABELS: Record<HouseSortMode, string> = {
+  relevance: 'Relevancia',
+  name: 'Nombre',
+  rank: 'Rango noble',
+  influence: 'Influencia',
+  members: 'Nº miembros',
+};
+
 interface Props {
   worldId: string;
 }
@@ -36,13 +58,42 @@ export function HousesSection({ worldId }: Props) {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<House | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<HouseSortMode>('relevance');
 
-  const filtered = houses.filter(
-    (h) =>
-      !search ||
-      h.name.toLowerCase().includes(search.toLowerCase()) ||
-      h.motto.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = useMemo(() => {
+    const matched = houses.filter(
+      (h) =>
+        !search ||
+        h.name.toLowerCase().includes(search.toLowerCase()) ||
+        h.motto.toLowerCase().includes(search.toLowerCase())
+    );
+    const sorted = [...matched];
+    switch (sortBy) {
+      case 'name':
+        sorted.sort((a, b) => a.name.localeCompare(b.name, 'es'));
+        break;
+      case 'rank':
+        sorted.sort((a, b) => NOBLE_RANK_ORDER[a.nobleRank] - NOBLE_RANK_ORDER[b.nobleRank]);
+        break;
+      case 'influence':
+        sorted.sort((a, b) => b.influenceLevel - a.influenceLevel);
+        break;
+      case 'members':
+        sorted.sort((a, b) => (b.members?.length ?? 0) - (a.members?.length ?? 0));
+        break;
+      case 'relevance':
+      default:
+        sorted.sort((a, b) => {
+          if (a.isFavorite !== b.isFavorite) return a.isFavorite ? -1 : 1;
+          const rankDiff = NOBLE_RANK_ORDER[a.nobleRank] - NOBLE_RANK_ORDER[b.nobleRank];
+          if (rankDiff !== 0) return rankDiff;
+          if (b.influenceLevel !== a.influenceLevel) return b.influenceLevel - a.influenceLevel;
+          return (b.members?.length ?? 0) - (a.members?.length ?? 0);
+        });
+        break;
+    }
+    return sorted;
+  }, [houses, search, sortBy]);
 
   const parentName = (id?: string) => houses.find((h) => h.id === id)?.name;
 
@@ -70,7 +121,7 @@ export function HousesSection({ worldId }: Props) {
 
   return (
     <div>
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="relative flex-1">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5A6078]" />
           <input
@@ -81,7 +132,19 @@ export function HousesSection({ worldId }: Props) {
             className="story-input w-full pl-10"
           />
         </div>
-        <button type="button" onClick={openNew} className="story-btn-primary text-sm">
+        <select
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value as HouseSortMode)}
+          className="story-input min-w-[160px] text-sm"
+          aria-label="Ordenar casas"
+        >
+          {(Object.keys(SORT_LABELS) as HouseSortMode[]).map((key) => (
+            <option key={key} value={key}>
+              {SORT_LABELS[key]}
+            </option>
+          ))}
+        </select>
+        <button type="button" onClick={openNew} className="story-btn-primary shrink-0 text-sm">
           <Plus size={16} /> Agregar
         </button>
       </div>

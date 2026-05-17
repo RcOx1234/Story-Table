@@ -20,7 +20,7 @@ import { LoginPage } from '@/pages/LoginPage';
 import { Toaster } from '@/components/ui/sonner';
 import { isFirebaseConfigured } from '@/lib/firebase';
 import { subscribeToAuth } from '@/services/authService';
-import { pullStoryBundle, pushStoryBundle } from '@/services/storyBundleSync';
+import { applyEmptyStorySlice, pullStoryBundle, pushStoryBundle } from '@/services/storyBundleSync';
 
 function AppContent() {
   const seeded = useRef(false);
@@ -28,15 +28,21 @@ function AppContent() {
   useEffect(() => {
     if (seeded.current) return;
     seeded.current = true;
-    seedData(useStore);
+    if (!isFirebaseConfigured()) {
+      seedData(useStore);
+    }
   }, []);
 
   useEffect(() => {
     if (!isFirebaseConfigured()) return;
     let cancelled = false;
     const unsub = subscribeToAuth((u) => {
+      if (!u) {
+        if (!cancelled) applyEmptyStorySlice();
+        return;
+      }
       void (async () => {
-        if (!u || cancelled) return;
+        if (cancelled) return;
         try {
           const pulled = await pullStoryBundle(u.uid);
           if (!pulled) await pushStoryBundle(u.uid);
