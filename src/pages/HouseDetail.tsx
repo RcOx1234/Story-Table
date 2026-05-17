@@ -1,13 +1,14 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useNavigationReturn } from '@/hooks/useNavigationReturn';
-import { useAppStore } from '@/store';
+import { useAppStore, useStore } from '@/store';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Heart, Edit2, Trash2, Castle, Users, ScrollText } from 'lucide-react';
 import type { NobleRank } from '@/types';
 import { FamilyTree } from '@/components/houses/FamilyTree';
 import { EntityReference } from '@/components/common/EntityReference';
 import { houseMemberRoleLabel } from '@/lib/houseMemberRoles';
+import { migrateHouseGenealogy } from '@/lib/houseGenealogyMigrate';
 import { HouseFormModal } from '@/components/modals/crud/HouseFormModal';
 import { ConfirmDeleteModal } from '@/components/modals/crud/ConfirmDeleteModal';
 import { toast } from 'sonner';
@@ -43,6 +44,8 @@ export function HouseDetail() {
   const house = useAppStore((s) => s.houses.find((h) => h.id === houseId && !h.isDeleted));
   const houses = useAppStore((s) => (worldId ? s.getHousesByWorld(worldId) : []));
   const characters = useAppStore((s) => (worldId ? s.getCharactersByWorld(worldId) : []));
+  const timelines = useAppStore((s) => s.timelines.filter((t) => t.worldId === worldId));
+  const houseGenealogy = useMemo(() => (house ? migrateHouseGenealogy(house) : null), [house]);
   const updateHouse = useAppStore((s) => s.updateHouse);
   const deleteHouse = useAppStore((s) => s.deleteHouse);
 
@@ -194,7 +197,16 @@ export function HouseDetail() {
                       })}
                     </div>
                   </div>
-                  <FamilyTree worldId={worldId} members={members} characters={characters} />
+                  <p className="mb-3 text-xs text-[#5A6078]">
+                    Miembros oficiales: {members.length} · Personas en el árbol:{' '}
+                    {houseGenealogy?.familyPeople?.length ?? members.length}
+                  </p>
+                  <FamilyTree
+                    worldId={worldId!}
+                    house={houseGenealogy ?? house}
+                    characters={characters}
+                    timelines={timelines}
+                  />
                 </>
               )}
             </motion.div>
@@ -208,7 +220,20 @@ export function HouseDetail() {
         worldId={worldId}
         initial={house}
         onSubmit={(data) => {
+          const previousIds = (house.members ?? []).map((m) => m.characterId);
+          const nextIds = (data.members ?? []).map((m) => m.characterId);
+          const removedIds = previousIds.filter((id) => !nextIds.includes(id));
           updateHouse(house.id, data);
+          for (const m of data.members ?? []) {
+            useStore.getState().updateCharacter(m.characterId, { houseId: house.id, house: data.name });
+          }
+          const allChars = useStore.getState().characters;
+          for (const id of removedIds) {
+            const ch = allChars.find((c) => c.id === id);
+            if (ch?.houseId === house.id) {
+              useStore.getState().updateCharacter(id, { houseId: undefined, house: '' });
+            }
+          }
           toast.success('Casa actualizada');
         }}
       />

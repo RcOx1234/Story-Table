@@ -165,6 +165,10 @@ export interface AppState {
   firebaseAutoSaveEnabled: boolean;
   setFirebaseAutoSaveEnabled: (enabled: boolean) => void;
 
+  /** Sincronización inicial de biblioteca desde Firebase. */
+  storyDataLoading: boolean;
+  setStoryDataLoading: (loading: boolean) => void;
+
   // UI State
   sidebarOpen: boolean;
   toggleSidebar: () => void;
@@ -649,6 +653,9 @@ export const useStore = create<AppState>()(
 
       firebaseAutoSaveEnabled: true,
       setFirebaseAutoSaveEnabled: (enabled) => set({ firebaseAutoSaveEnabled: enabled }),
+
+      storyDataLoading: false,
+      setStoryDataLoading: (loading) => set({ storyDataLoading: loading }),
 
       // UI State
       sidebarOpen: true,

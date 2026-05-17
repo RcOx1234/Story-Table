@@ -6,7 +6,7 @@ import { BookOpen, Feather, Eye, EyeOff, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
 import { isFirebaseConfigured } from '@/lib/firebase';
 import { loginWithEmail, registerWithEmail, sendAccountPasswordReset } from '@/services/authService';
-import { pullStoryBundle } from '@/services/storyBundleSync';
+import { hydrateStoryBundleFromFirebase } from '@/services/storyBundleSync';
 
 type AuthMode = 'login' | 'register';
 
@@ -30,6 +30,7 @@ export function LoginPage() {
   }
 
   const finishAuth = async (fbUser: { uid: string; email: string | null; displayName: string | null; photoURL: string | null }) => {
+    await hydrateStoryBundleFromFirebase(fbUser.uid);
     login({
       id: fbUser.uid,
       email: fbUser.email ?? email,
@@ -37,11 +38,6 @@ export function LoginPage() {
       photoURL: fbUser.photoURL ?? '',
       isAuthenticated: true,
     });
-    try {
-      await pullStoryBundle(fbUser.uid);
-    } catch {
-      /* datos locales hasta que sincronice */
-    }
     toast.success(mode === 'register' ? 'Cuenta creada. Bienvenido/a' : 'Bienvenido/a');
   };
 

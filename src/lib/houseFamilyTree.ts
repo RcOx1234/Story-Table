@@ -1,146 +1,192 @@
 import type { Character, HouseMember } from '@/types';
-import { houseMemberRoleLabel } from '@/lib/houseMemberRoles';
+import { normalizeHouseMember } from '@/lib/houseMemberNormalize';
+import { houseMemberRoleLabel, houseMemberRoleSort } from '@/lib/houseMemberRoles';
 
-/** Nivel por defecto según el rol (0 = más alto en la casa). */
-const ROLE_TIER: Record<string, number> = {
-  patriarca: 0,
-  matriarca: 0,
-  regente: 0,
-  abuelo: 0,
-  abuela: 0,
-  padre: 1,
-  madre: 1,
-  heredero: 1,
-  heredera: 1,
-  tio: 1,
-  tia: 1,
-  esposo: 1,
-  esposa: 1,
-  consorte: 1,
-  hijo: 2,
-  hija: 2,
-  hermano: 2,
-  hermana: 2,
-  primo: 2,
-  prima: 2,
-  bastardo: 2,
-  sirviente: 3,
-  other: 3,
-};
-
-const ROLES_NEEDING_PARENT = new Set(['hijo', 'hija', 'bastardo']);
-
-const LEADER_ROLES = ['patriarca', 'matriarca', 'regente', 'padre', 'madre', 'abuelo', 'abuela'] as const;
-
-export function roleNeedsParent(role: string): boolean {
-  return ROLES_NEEDING_PARENT.has(role);
-}
-
-export function suggestParentCharacterId(role: string, members: HouseMember[]): string | undefined {
-  if (!roleNeedsParent(role)) return undefined;
-  const leaders = members.filter((m) => LEADER_ROLES.includes(m.role as (typeof LEADER_ROLES)[number]));
-  if (role === 'hijo' || role === 'hija') {
-    const padre = members.find((m) => m.role === 'padre');
-    const madre = members.find((m) => m.role === 'madre');
-    return padre?.characterId ?? madre?.characterId ?? leaders[0]?.characterId;
-  }
-  return leaders[0]?.characterId;
-}
-
-const TIER_LABELS: Record<number, string> = {
-  0: 'Cabeza de la casa',
-  1: 'Generación parental',
-  2: 'Descendencia',
-  3: 'Otros miembros',
-};
-
-export type FamilyTreeEntry = {
+export interface FamilyTreeNode {
   member: HouseMember;
   character: Character;
+  spouseCharacters: Character[];
+  parentIds: string[];
+  childIds: string[];
   depth: number;
-  parentName?: string;
-};
+  branch?: string;
+  warnings?: string[];
+}
 
-export type FamilyTreeGeneration = {
+export interface FamilyTreeGeneration {
   depth: number;
   label: string;
-  entries: FamilyTreeEntry[];
+  entries: FamilyTreeNode[];
+}
+
+export type FamilyTreeResult = {
+  generations: FamilyTreeGeneration[];
+  unlinked: FamilyTreeNode[];
+  conflicts: FamilyTreeNode[];
 };
 
-function defaultTier(role: string): number {
-  return ROLE_TIER[role] ?? 2;
+const DEPTH_LABELS: Record<number, string> = {
+  0: 'Fundadores / raíz',
+  1: 'Primera generación',
+  2: 'Segunda generación',
+  3: 'Tercera generación',
+};
+
+function parentIdsOf(m: HouseMember): string[] {
+  return [m.fatherId, m.motherId, ...(m.adoptedParentIds ?? [])].filter(
+    (id): id is string => Boolean(id)
+  );
 }
 
-/** Profundidad en el árbol: prioriza vínculo padre/hijo; si no hay, usa el rol. */
-export function computeMemberDepth(
-  member: HouseMember,
-  membersByChar: Map<string, HouseMember>,
-  memo: Map<string, number>,
-  visiting = new Set<string>()
-): number {
-  const id = member.characterId;
-  if (memo.has(id)) return memo.get(id)!;
-  if (visiting.has(id)) return defaultTier(member.role);
+function sortNodes(a: FamilyTreeNode, b: FamilyTreeNode): number {
+  if (a.member.isFounder !== b.member.isFounder) return a.member.isFounder ? -1 : 1;
+  const sa = a.member.successionOrder ?? 999;
+  const sb = b.member.successionOrder ?? 999;
+  if (sa !== sb) return sa - sb;
+  const ra = houseMemberRoleSort(String(a.member.role));
+  const rb = houseMemberRoleSort(String(b.member.role));
+  if (ra !== rb) return ra - rb;
+  return a.character.name.localeCompare(b.character.name, 'es');
+}
 
-  visiting.add(id);
-  let depth: number;
+function detectCycle(memberIds: Set<string>, membersByChar: Map<string, HouseMember>): Set<string> {
+  const cyclic = new Set<string>();
+  const visit = (id: string, stack: Set<string>): boolean => {
+    if (stack.has(id)) {
+      cyclic.add(id);
+      return true;
+    }
+    stack.add(id);
+    const m = membersByChar.get(id);
+    let found = false;
+    if (m) {
+      for (const pid of parentIdsOf(m)) {
+        if (!memberIds.has(pid)) continue;
+        if (visit(pid, stack)) {
+          cyclic.add(id);
+          found = true;
+        }
+      }
+    }
+    stack.delete(id);
+    return found;
+  };
+  for (const id of memberIds) visit(id, new Set());
+  return cyclic;
+}
 
-  const parentId = member.parentCharacterId;
-  if (parentId && parentId !== id && membersByChar.has(parentId)) {
-    const parent = membersByChar.get(parentId)!;
-    depth = computeMemberDepth(parent, membersByChar, memo, visiting) + 1;
-  } else {
-    depth = defaultTier(member.role);
+export function buildFamilyTree(
+  members: HouseMember[],
+  characters: Character[]
+): FamilyTreeResult {
+  const charMap = new Map(characters.map((c) => [c.id, c]));
+  const normalized = members
+    .map(normalizeHouseMember)
+    .filter((m) => charMap.has(m.characterId));
+  const membersByChar = new Map(normalized.map((m) => [m.characterId, m]));
+  const memberIds = new Set(normalized.map((m) => m.characterId));
+
+  const childrenByParentId = new Map<string, string[]>();
+  for (const m of normalized) {
+    for (const pid of parentIdsOf(m)) {
+      if (!memberIds.has(pid)) continue;
+      const list = childrenByParentId.get(pid) ?? [];
+      if (!list.includes(m.characterId)) list.push(m.characterId);
+      childrenByParentId.set(pid, list);
+    }
   }
 
-  visiting.delete(id);
-  memo.set(id, depth);
-  return depth;
+  const cyclicIds = detectCycle(memberIds, membersByChar);
+  const depths = new Map<string, number>();
+
+  const roots = normalized.filter(
+    (m) =>
+      m.isFounder ||
+      parentIdsOf(m).filter((id) => memberIds.has(id)).length === 0
+  );
+
+  const queue: { id: string; depth: number }[] = roots.map((m) => ({ id: m.characterId, depth: 0 }));
+  const seen = new Set<string>();
+
+  while (queue.length > 0) {
+    const { id, depth } = queue.shift()!;
+    if (seen.has(id)) {
+      const prev = depths.get(id) ?? depth;
+      depths.set(id, Math.min(prev, depth));
+      continue;
+    }
+    seen.add(id);
+    depths.set(id, depth);
+
+    const children = childrenByParentId.get(id) ?? [];
+    for (const childId of children) {
+      if (cyclicIds.has(childId)) continue;
+      queue.push({ id: childId, depth: depth + 1 });
+    }
+  }
+
+  const nodes: FamilyTreeNode[] = normalized.map((m) => {
+    const spouseCharacters = (m.spouseIds ?? [])
+      .filter((id) => memberIds.has(id) && id !== m.characterId)
+      .map((id) => charMap.get(id)!)
+      .filter(Boolean);
+
+    const nodeWarnings: string[] = [];
+    for (const pid of parentIdsOf(m)) {
+      if (!memberIds.has(pid)) {
+        nodeWarnings.push('Este personaje tiene como padre/madre a alguien que no pertenece a la casa.');
+      }
+    }
+    if (cyclicIds.has(m.characterId)) {
+      nodeWarnings.push('Esta relación crea un ciclo familiar.');
+    }
+
+    const depth = depths.get(m.characterId);
+    const isUnlinked =
+      depth === undefined &&
+      !m.isFounder &&
+      parentIdsOf(m).filter((id) => memberIds.has(id)).length === 0;
+
+    return {
+      member: m,
+      character: charMap.get(m.characterId)!,
+      spouseCharacters,
+      parentIds: parentIdsOf(m).filter((id) => memberIds.has(id)),
+      childIds: childrenByParentId.get(m.characterId) ?? [],
+      depth: depth ?? (isUnlinked ? -1 : 0),
+      branch: m.branch,
+      warnings: nodeWarnings.length ? nodeWarnings : undefined,
+    };
+  });
+
+  const unlinked = nodes.filter((n) => n.depth < 0).sort(sortNodes);
+  const conflicts = nodes.filter((n) => cyclicIds.has(n.member.characterId)).sort(sortNodes);
+  const linked = nodes.filter((n) => n.depth >= 0 && !cyclicIds.has(n.member.characterId));
+
+  const byDepth = new Map<number, FamilyTreeNode[]>();
+  for (const n of linked) {
+    const list = byDepth.get(n.depth) ?? [];
+    list.push(n);
+    byDepth.set(n.depth, list);
+  }
+
+  const generations: FamilyTreeGeneration[] = [...byDepth.keys()]
+    .sort((a, b) => a - b)
+    .map((depth) => ({
+      depth,
+      label: DEPTH_LABELS[depth] ?? `Generación ${depth + 1}`,
+      entries: (byDepth.get(depth) ?? []).sort(sortNodes),
+    }));
+
+  return { generations, unlinked, conflicts };
 }
 
+/** @deprecated Usar buildFamilyTree */
 export function buildFamilyGenerations(
   members: HouseMember[],
   characters: Character[]
 ): FamilyTreeGeneration[] {
-  const charMap = new Map(characters.map((c) => [c.id, c]));
-  const membersByChar = new Map(members.map((m) => [m.characterId, m]));
-  const memo = new Map<string, number>();
-
-  const entries: FamilyTreeEntry[] = members
-    .filter((m) => charMap.has(m.characterId))
-    .map((m) => {
-      const parentId = m.parentCharacterId;
-      const parentName =
-        parentId && membersByChar.has(parentId)
-          ? charMap.get(parentId)?.name
-          : undefined;
-      return {
-        member: m,
-        character: charMap.get(m.characterId)!,
-        depth: computeMemberDepth(m, membersByChar, memo),
-        parentName,
-      };
-    });
-
-  const byDepth = new Map<number, FamilyTreeEntry[]>();
-  for (const e of entries) {
-    const list = byDepth.get(e.depth) ?? [];
-    list.push(e);
-    byDepth.set(e.depth, list);
-  }
-
-  const depths = [...byDepth.keys()].sort((a, b) => a - b);
-
-  return depths.map((depth) => ({
-    depth,
-    label: TIER_LABELS[depth] ?? (depth >= 3 ? TIER_LABELS[3] : `Nivel ${depth + 1}`),
-    entries: (byDepth.get(depth) ?? []).sort((a, b) => {
-      const ta = defaultTier(a.member.role);
-      const tb = defaultTier(b.member.role);
-      if (ta !== tb) return ta - tb;
-      return a.character.name.localeCompare(b.character.name, 'es');
-    }),
-  }));
+  return buildFamilyTree(members, characters).generations;
 }
 
 export function formatMemberRole(role: string): string {

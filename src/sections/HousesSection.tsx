@@ -3,7 +3,8 @@ import { useNavigateWithReturn } from '@/hooks/useNavigationReturn';
 import { useAppStore } from '@/store';
 import { motion } from 'framer-motion';
 import { Plus, Search, Heart, Castle } from 'lucide-react';
-import type { House, NobleRank } from '@/types';
+import type { House, HouseMember, NobleRank } from '@/types';
+import { useStore } from '@/store';
 import { HouseFormModal } from '@/components/modals/crud/HouseFormModal';
 import { ConfirmDeleteModal } from '@/components/modals/crud/ConfirmDeleteModal';
 import { EntityCardMenu } from '@/components/common/EntityCardMenu';
@@ -97,18 +98,37 @@ export function HousesSection({ worldId }: Props) {
 
   const parentName = (id?: string) => houses.find((h) => h.id === id)?.name;
 
+  const syncHouseMembers = (
+    houseId: string,
+    houseName: string,
+    data: Omit<House, 'id' | 'createdAt' | 'updatedAt'>,
+    previousMembers: HouseMember[] = []
+  ) => {
+    const previousIds = previousMembers.map((m) => m.characterId);
+    const nextIds = (data.members ?? []).map((m) => m.characterId);
+    const removedIds = previousIds.filter((id) => !nextIds.includes(id));
+
+    for (const m of data.members ?? []) {
+      updateCharacter(m.characterId, { houseId, house: houseName });
+    }
+
+    const allChars = useStore.getState().characters;
+    for (const id of removedIds) {
+      const ch = allChars.find((c) => c.id === id);
+      if (ch?.houseId === houseId) {
+        updateCharacter(id, { houseId: undefined, house: '' });
+      }
+    }
+  };
+
   const onSubmit = (data: Omit<House, 'id' | 'createdAt' | 'updatedAt'>) => {
     if (editing) {
       updateHouse(editing.id, data);
-      for (const m of data.members ?? []) {
-        updateCharacter(m.characterId, { houseId: editing.id, house: data.name });
-      }
+      syncHouseMembers(editing.id, data.name, data, editing.members ?? []);
       toast.success('Casa actualizada');
     } else {
       const newId = addHouse(data);
-      for (const m of data.members ?? []) {
-        updateCharacter(m.characterId, { houseId: newId, house: data.name });
-      }
+      syncHouseMembers(newId, data.name, data);
       toast.success('Casa guardada');
     }
     setEditing(null);

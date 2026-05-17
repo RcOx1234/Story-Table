@@ -2,7 +2,6 @@ import { uploadFileToUserPath } from '@/services/storageService';
 import { pathInWorld, storageSlug, worldStorageFolder } from '@/lib/storagePaths';
 
 const FIRESTORE_DOC_LIMIT = 1_048_576;
-const SAFE_LIMIT = 900_000;
 
 /** Elimina `undefined` (Firestore los rechaza) y normaliza el árbol. */
 export function deepSanitizeForFirestore<T>(value: T): T {
@@ -178,6 +177,108 @@ async function inlineDataUrls(uid: string, payload: Record<string, unknown>): Pr
     }
   }
 
+  const houses = clone.houses as Array<Record<string, unknown>> | undefined;
+  if (Array.isArray(houses)) {
+    for (const h of houses) {
+      const world = worldIndex.get(String(h.worldId));
+      if (!world) continue;
+      const houseFolder = storageSlug(String(h.name ?? 'casa'), String(h.id));
+      for (const field of ['imageUrl', 'coatOfArms'] as const) {
+        const url = h[field];
+        if (typeof url === 'string' && url.startsWith('data:')) {
+          const ext = extFromMime(dataUrlToBlob(url).type);
+          h[field] = await replaceDataUrl(
+            uid,
+            pathInWorld(world.name, world.id, 'casas', houseFolder, `${field}.${ext}`),
+            url
+          );
+        }
+      }
+    }
+  }
+
+  const worldFacts = clone.worldFacts as Array<Record<string, unknown>> | undefined;
+  if (Array.isArray(worldFacts)) {
+    for (const f of worldFacts) {
+      const world = worldIndex.get(String(f.worldId));
+      if (!world || !Array.isArray(f.images)) continue;
+      const factFolder = storageSlug(String(f.title ?? 'hecho'), String(f.id));
+      const next: string[] = [];
+      for (let i = 0; i < f.images.length; i++) {
+        const url = f.images[i];
+        if (typeof url === 'string' && url.startsWith('data:')) {
+          const ext = extFromMime(dataUrlToBlob(url).type);
+          next.push(
+            await replaceDataUrl(
+              uid,
+              pathInWorld(world.name, world.id, 'hechos', factFolder, `img-${i}.${ext}`),
+              url
+            )
+          );
+        } else if (typeof url === 'string') {
+          next.push(url);
+        }
+      }
+      f.images = next;
+    }
+  }
+
+  const worldData = clone.worldData as Array<Record<string, unknown>> | undefined;
+  if (Array.isArray(worldData)) {
+    for (const d of worldData) {
+      const world = worldIndex.get(String(d.worldId));
+      if (!world || !Array.isArray(d.images)) continue;
+      const datumFolder = storageSlug(String(d.title ?? 'dato'), String(d.id));
+      const next: string[] = [];
+      for (let i = 0; i < d.images.length; i++) {
+        const url = d.images[i];
+        if (typeof url === 'string' && url.startsWith('data:')) {
+          const ext = extFromMime(dataUrlToBlob(url).type);
+          next.push(
+            await replaceDataUrl(
+              uid,
+              pathInWorld(world.name, world.id, 'datos', datumFolder, `img-${i}.${ext}`),
+              url
+            )
+          );
+        } else if (typeof url === 'string') {
+          next.push(url);
+        }
+      }
+      d.images = next;
+    }
+  }
+
+  const placeCollections = clone.placeCollections as Array<Record<string, unknown>> | undefined;
+  if (Array.isArray(placeCollections)) {
+    for (const c of placeCollections) {
+      const world = worldIndex.get(String(c.worldId));
+      if (!world || typeof c.imageUrl !== 'string' || !c.imageUrl.startsWith('data:')) continue;
+      const ext = extFromMime(dataUrlToBlob(c.imageUrl).type);
+      const folder = storageSlug(String(c.name ?? 'coleccion'), String(c.id));
+      c.imageUrl = await replaceDataUrl(
+        uid,
+        pathInWorld(world.name, world.id, 'colecciones-lugares', folder, `portada.${ext}`),
+        c.imageUrl
+      );
+    }
+  }
+
+  const mapCollections = clone.mapCollections as Array<Record<string, unknown>> | undefined;
+  if (Array.isArray(mapCollections)) {
+    for (const c of mapCollections) {
+      const world = worldIndex.get(String(c.worldId));
+      if (!world || typeof c.imageUrl !== 'string' || !c.imageUrl.startsWith('data:')) continue;
+      const ext = extFromMime(dataUrlToBlob(c.imageUrl).type);
+      const folder = storageSlug(String(c.name ?? 'coleccion-mapas'), String(c.id));
+      c.imageUrl = await replaceDataUrl(
+        uid,
+        pathInWorld(world.name, world.id, 'colecciones-mapas', folder, `portada.${ext}`),
+        c.imageUrl
+      );
+    }
+  }
+
   const ideas = clone.ideas as Array<Record<string, unknown>> | undefined;
   if (Array.isArray(ideas)) {
     for (const idea of ideas) {
@@ -224,25 +325,43 @@ function hasDataUrls(value: unknown): boolean {
   return false;
 }
 
-/** Prepara el bundle para Firestore: sanitiza y sube imágenes/audio embebidos a Storage. */
-export async function prepareStoryBundleForFirestore(
+/** Comprueba que un documento individual no supere 1 MiB. */
+export function assertEntityUnderFirestoreLimit(data: unknown, label: string): void {
+  const bytes = estimateBytes(data);
+  if (bytes > FIRESTORE_DOC_LIMIT) {
+    throw new Error(
+      `El documento "${label}" (${Math.round(bytes / 1024)} KB) supera el límite de Firestore (1 MB). Reduce imágenes embebidas o exporta un JSON de respaldo.`
+    );
+  }
+}
+
+/** Prepara el slice de biblioteca: sanitiza y sube data URLs a Storage (sin límite global). */
+export async function prepareStorySliceForFirestore(
   uid: string,
   payload: Record<string, unknown>
 ): Promise<Record<string, unknown>> {
   let sanitized = deepSanitizeForFirestore(payload) as Record<string, unknown>;
 
-  if (hasDataUrls(sanitized) || estimateBytes(sanitized) > SAFE_LIMIT) {
+  if (hasDataUrls(sanitized)) {
     sanitized = await inlineDataUrls(uid, sanitized);
     sanitized = deepSanitizeForFirestore(sanitized) as Record<string, unknown>;
   }
 
+  return sanitized;
+}
+
+/** @deprecated Usar prepareStorySliceForFirestore + guardado en subcolecciones. */
+export async function prepareStoryBundleForFirestore(
+  uid: string,
+  payload: Record<string, unknown>
+): Promise<Record<string, unknown>> {
+  const sanitized = await prepareStorySliceForFirestore(uid, payload);
   const bytes = estimateBytes(sanitized);
   if (bytes > FIRESTORE_DOC_LIMIT) {
     throw new Error(
       `La biblioteca (${Math.round(bytes / 1024)} KB) supera el límite de Firestore (1 MB). Exporta un JSON de respaldo.`
     );
   }
-
   return sanitized;
 }
 

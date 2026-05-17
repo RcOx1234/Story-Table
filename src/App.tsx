@@ -20,7 +20,7 @@ import { LoginPage } from '@/pages/LoginPage';
 import { Toaster } from '@/components/ui/sonner';
 import { isFirebaseConfigured } from '@/lib/firebase';
 import { subscribeToAuth } from '@/services/authService';
-import { applyEmptyStorySlice, pullStoryBundle, pushStoryBundle } from '@/services/storyBundleSync';
+import { applyEmptyStorySlice, hydrateStoryBundleFromFirebase } from '@/services/storyBundleSync';
 
 function AppContent() {
   const seeded = useRef(false);
@@ -41,15 +41,7 @@ function AppContent() {
         if (!cancelled) applyEmptyStorySlice();
         return;
       }
-      void (async () => {
-        if (cancelled) return;
-        try {
-          const pulled = await pullStoryBundle(u.uid);
-          if (!pulled) await pushStoryBundle(u.uid);
-        } catch {
-          /* sync opcional; la app sigue con estado local */
-        }
-      })();
+      if (!cancelled) void hydrateStoryBundleFromFirebase(u.uid);
     });
     return () => {
       cancelled = true;

@@ -274,12 +274,82 @@ export type NobleRank =
   | 'commoner'
   | 'other';
 
-/** Miembro de una casa con rol y vínculo jerárquico (árbol familiar). */
+export type HouseMemberRole =
+  | 'head'
+  | 'heir'
+  | 'consort'
+  | 'blood'
+  | 'adopted'
+  | 'bastard'
+  | 'servant'
+  | 'guard'
+  | 'ally'
+  | 'other';
+
+/** Miembro oficial de la casa (político / legal / narrativo). */
 export interface HouseMember {
   characterId: string;
-  role: string;
-  /** characterId del padre/madre en el árbol (opcional). */
+  role: HouseMemberRole | string;
+  title?: string;
+  branch?: string;
+  successionOrder?: number | null;
+  isFounder?: boolean;
+  joinedAtTimelineId?: string | null;
+
+  /** @deprecated Migrado a familyRelations / familyUnits */
+  fatherId?: string | null;
+  motherId?: string | null;
+  adoptedParentIds?: string[];
+  spouseIds?: string[];
+  relationNote?: string;
   parentCharacterId?: string;
+}
+
+export type HouseFamilyConnectionType =
+  | 'blood'
+  | 'marriage'
+  | 'adoption'
+  | 'external'
+  | 'alternate_timeline'
+  | 'unknown';
+
+/** Persona en el árbol (puede no ser miembro oficial). */
+export interface HouseFamilyPerson {
+  characterId: string;
+  isHouseMember: boolean;
+  connectionType: HouseFamilyConnectionType;
+  displayLabel?: string;
+  branch?: string;
+  notes?: string;
+  externalHouseName?: string;
+}
+
+export type HouseFamilyRelationType =
+  | 'parent_child'
+  | 'spouse'
+  | 'ex_spouse'
+  | 'partner'
+  | 'adoptive_parent_child';
+
+export interface HouseFamilyRelation {
+  id: string;
+  type: HouseFamilyRelationType;
+  fromCharacterId: string;
+  toCharacterId: string;
+  timelineId?: string | null;
+  timelineIds?: string[];
+  familyUnitId?: string;
+  notes?: string;
+}
+
+export interface HouseFamilyUnit {
+  id: string;
+  parentIds: string[];
+  childIds: string[];
+  relationType: 'biological' | 'adoptive' | 'unknown' | 'alternate';
+  timelineId?: string | null;
+  timelineIds?: string[];
+  label?: string;
 }
 
 /** Casa o familia noble del mundo. */
@@ -299,6 +369,10 @@ export interface House {
   symbols: string;
   territory?: string;
   members: HouseMember[];
+  /** Personas visibles en el árbol (incluye externos). */
+  familyPeople?: HouseFamilyPerson[];
+  familyRelations?: HouseFamilyRelation[];
+  familyUnits?: HouseFamilyUnit[];
   isFavorite: boolean;
   isDeleted: boolean;
   deletedAt?: string;

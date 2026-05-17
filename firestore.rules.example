@@ -5,7 +5,8 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Cada usuario solo accede a su propia árbol bajo users/{uid}/...
+    // Cada usuario solo accede a su árbol bajo users/{uid}/...
+    // Incluye storyTable/biblioteca y subcolecciones (characters, houses, etc.).
     match /users/{userId}/{document=**} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }

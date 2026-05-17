@@ -5,6 +5,7 @@ import type {
   WorldFact,
   WorldDatum,
   PlaceCollection,
+  MapCollection,
   Scene,
   Place,
   MapData,
@@ -16,7 +17,9 @@ import type {
 } from '@/types';
 import type { AppState } from '@/store';
 
-export const STORY_EXPORT_VERSION = 1 as const;
+export const STORY_EXPORT_VERSION = 2 as const;
+/** Compatibilidad con exportaciones v1. */
+export const STORY_EXPORT_VERSION_LEGACY = 1 as const;
 
 export type StoryTableLibraryExport = {
   v: typeof STORY_EXPORT_VERSION;
@@ -35,6 +38,9 @@ export type StoryTableLibraryExport = {
   worldFacts: WorldFact[];
   worldData: WorldDatum[];
   placeCollections: PlaceCollection[];
+  mapCollections: MapCollection[];
+  characterOrderByWorld: Record<string, string[]>;
+  dashboardWorldIds: string[];
 };
 
 export type WorldScopedExport = {
@@ -70,6 +76,9 @@ export function buildLibraryExport(state: AppState): StoryTableLibraryExport {
     worldFacts: state.worldFacts,
     worldData: state.worldData,
     placeCollections: state.placeCollections,
+    mapCollections: state.mapCollections,
+    characterOrderByWorld: state.characterOrderByWorld,
+    dashboardWorldIds: state.dashboardWorldIds,
   };
 }
 
@@ -96,11 +105,69 @@ function isRecord(x: unknown): x is Record<string, unknown> {
   return typeof x === 'object' && x !== null && !Array.isArray(x);
 }
 
-/** Aplica un JSON de biblioteca completa (validación mínima). */
+const LIBRARY_REQUIRED_ARRAYS = [
+  'worlds',
+  'characters',
+  'scenes',
+  'places',
+  'maps',
+  'plots',
+  'components',
+  'organizations',
+  'ideas',
+  'timelines',
+] as const;
+
+const LIBRARY_OPTIONAL_ARRAYS = [
+  'houses',
+  'worldFacts',
+  'worldData',
+  'placeCollections',
+  'mapCollections',
+] as const;
+
+/** Aplica un JSON de biblioteca completa (v1 o v2). */
 export function parseLibraryImport(raw: unknown): Partial<StoryTableLibraryExport> | null {
-  if (!isRecord(raw) || raw.v !== STORY_EXPORT_VERSION) return null;
-  const keys = [
-    'worlds',
+  if (!isRecord(raw)) return null;
+  const v = raw.v;
+  if (v !== STORY_EXPORT_VERSION && v !== STORY_EXPORT_VERSION_LEGACY) return null;
+
+  for (const k of LIBRARY_REQUIRED_ARRAYS) {
+    if (!Array.isArray(raw[k])) return null;
+  }
+
+  const out: Partial<StoryTableLibraryExport> = {
+    v: STORY_EXPORT_VERSION,
+    exportedAt: String(raw.exportedAt ?? ''),
+  };
+
+  for (const k of [...LIBRARY_REQUIRED_ARRAYS, ...LIBRARY_OPTIONAL_ARRAYS]) {
+    if (Array.isArray(raw[k])) {
+      (out as Record<string, unknown>)[k] = raw[k];
+    } else if (LIBRARY_OPTIONAL_ARRAYS.includes(k as (typeof LIBRARY_OPTIONAL_ARRAYS)[number])) {
+      (out as Record<string, unknown>)[k] = [];
+    }
+  }
+
+  const order = raw.characterOrderByWorld;
+  out.characterOrderByWorld =
+    order && typeof order === 'object' && !Array.isArray(order)
+      ? (order as Record<string, string[]>)
+      : {};
+
+  const dash = raw.dashboardWorldIds;
+  out.dashboardWorldIds = Array.isArray(dash) ? (dash as string[]) : [];
+
+  return out;
+}
+
+/** Importa solo un mundo + entidades (añade al estado o sustituye si same id — responsabilidad del caller). */
+export function parseWorldImport(raw: unknown): WorldScopedExport | null {
+  if (!isRecord(raw)) return null;
+  const v = raw.v;
+  if (v !== STORY_EXPORT_VERSION && v !== STORY_EXPORT_VERSION_LEGACY) return null;
+  if (!isRecord(raw.world) || typeof raw.world.id !== 'string') return null;
+  const rest = [
     'characters',
     'scenes',
     'places',
@@ -110,28 +177,11 @@ export function parseLibraryImport(raw: unknown): Partial<StoryTableLibraryExpor
     'organizations',
     'ideas',
     'timelines',
-    'houses',
-    'worldFacts',
-    'worldData',
-    'placeCollections',
   ] as const;
-  const out: Partial<StoryTableLibraryExport> = { v: STORY_EXPORT_VERSION, exportedAt: String(raw.exportedAt ?? '') };
-  for (const k of keys) {
-    if (!Array.isArray(raw[k])) return null;
-    (out as Record<string, unknown>)[k] = raw[k];
-  }
-  return out;
-}
-
-/** Importa solo un mundo + entidades (añade al estado o sustituye si same id — responsabilidad del caller). */
-export function parseWorldImport(raw: unknown): WorldScopedExport | null {
-  if (!isRecord(raw) || raw.v !== STORY_EXPORT_VERSION) return null;
-  if (!isRecord(raw.world) || typeof raw.world.id !== 'string') return null;
-  const rest = ['characters', 'scenes', 'places', 'maps', 'plots', 'components', 'organizations', 'ideas', 'timelines'] as const;
   for (const k of rest) {
     if (!Array.isArray(raw[k])) return null;
   }
-  return raw as unknown as WorldScopedExport;
+  return { ...raw, v: STORY_EXPORT_VERSION } as unknown as WorldScopedExport;
 }
 
 function freshId(): string {

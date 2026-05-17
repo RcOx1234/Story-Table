@@ -70,7 +70,13 @@ export function TopBar() {
         organizations: data.organizations as AppState['organizations'],
         ideas: data.ideas as AppState['ideas'],
         timelines: data.timelines as AppState['timelines'],
-        dashboardWorldIds: [],
+        houses: (data.houses as AppState['houses']) ?? [],
+        worldFacts: (data.worldFacts as AppState['worldFacts']) ?? [],
+        worldData: (data.worldData as AppState['worldData']) ?? [],
+        placeCollections: (data.placeCollections as AppState['placeCollections']) ?? [],
+        mapCollections: (data.mapCollections as AppState['mapCollections']) ?? [],
+        characterOrderByWorld: data.characterOrderByWorld ?? {},
+        dashboardWorldIds: data.dashboardWorldIds ?? [],
       });
       toast.success('Biblioteca importada');
       const uid = useStore.getState().user?.id;

@@ -44,7 +44,10 @@ export async function deleteDocumentPermanent(pathSegments: string[], id: string
   await deleteDoc(ref);
 }
 
-/** Carga el documento agregado de la biblioteca (`biblioteca` o legado `library`). */
+/**
+ * @deprecated Usar loadLibraryFromFirestore (subcolecciones).
+ * Carga el documento agregado de la biblioteca (`biblioteca` o legado `library`).
+ */
 export async function loadUserStoryBundle(
   uid: string,
   docId = 'biblioteca'
@@ -56,6 +59,7 @@ export async function loadUserStoryBundle(
   return snap.data() as Record<string, unknown>;
 }
 
+/** @deprecated Usar saveLibraryToFirestore (subcolecciones). */
 export async function saveUserStoryBundle(
   uid: string,
   docId: string,
