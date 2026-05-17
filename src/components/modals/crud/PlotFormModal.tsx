@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { BaseModal } from './BaseModal';
 import { useAppStore } from '@/store';
 import type { Plot, PlotType } from '@/types';
+import { EntityMultiPicker } from '@/components/common/EntityMultiPicker';
+import { MultiImageInputField } from '@/components/common/MultiImageInputField';
 
 const PLOT_TYPES: { value: PlotType; label: string }[] = [
   { value: 'main', label: 'Principal' },
@@ -28,6 +30,7 @@ function empty(worldId: string): Omit<Plot, 'id' | 'createdAt' | 'updatedAt'> {
     relatedPlots: [],
     relatedScenes: [],
     twists: [],
+    images: [],
     status: 'borrador',
     isFavorite: false,
     isDeleted: false,
@@ -45,21 +48,15 @@ export function PlotFormModal({ open, onClose, worldId, initial, onSubmit }: Pro
 
   useEffect(() => {
     if (!open) return;
-    setForm(initial ? { ...empty(worldId), ...initial, worldId } : empty(worldId));
+    setForm(
+      initial ? { ...empty(worldId), ...initial, worldId, images: initial.images ?? [] } : empty(worldId)
+    );
     setTagsRaw((initial?.tags ?? []).join(', '));
     setTwistsRaw((initial?.twists ?? []).join('\n'));
     setErr('');
   }, [open, initial, worldId]);
 
   const patch = (p: Partial<Omit<Plot, 'id' | 'createdAt' | 'updatedAt'>>) => setForm((f) => ({ ...f, ...p }));
-
-  const toggle = (field: 'characters' | 'relatedScenes', id: string) => {
-    setForm((f) => {
-      const arr = f[field] ?? [];
-      const next = arr.includes(id) ? arr.filter((x) => x !== id) : [...arr, id];
-      return { ...f, [field]: next };
-    });
-  };
 
   const save = () => {
     if (!form.title.trim()) {
@@ -74,7 +71,7 @@ export function PlotFormModal({ open, onClose, worldId, initial, onSubmit }: Pro
       .split('\n')
       .map((t) => t.trim())
       .filter(Boolean);
-    onSubmit({ ...form, title: form.title.trim(), tags, twists });
+    onSubmit({ ...form, title: form.title.trim(), tags, twists, images: form.images ?? [] });
     onClose();
   };
 
@@ -119,28 +116,26 @@ export function PlotFormModal({ open, onClose, worldId, initial, onSubmit }: Pro
           <label className="mb-1 block text-xs uppercase text-[#5A6078]">Sinopsis</label>
           <textarea className="story-input h-24 w-full resize-none" value={form.synopsis} onChange={(e) => patch({ synopsis: e.target.value })} />
         </div>
-        <div>
-          <label className="mb-1 block text-xs uppercase text-[#5A6078]">Personajes</label>
-          <div className="flex max-h-24 flex-wrap gap-2 overflow-y-auto rounded-lg border border-[#2A3045] bg-[#111318] p-2">
-            {characters.map((c) => (
-              <label key={c.id} className="flex cursor-pointer items-center gap-1 text-xs text-[#E8E9EB]">
-                <input type="checkbox" checked={form.characters.includes(c.id)} onChange={() => toggle('characters', c.id)} />
-                {c.name}
-              </label>
-            ))}
-          </div>
-        </div>
-        <div>
-          <label className="mb-1 block text-xs uppercase text-[#5A6078]">Escenas relacionadas</label>
-          <div className="flex max-h-24 flex-wrap gap-2 overflow-y-auto rounded-lg border border-[#2A3045] bg-[#111318] p-2">
-            {scenes.map((s) => (
-              <label key={s.id} className="flex cursor-pointer items-center gap-1 text-xs text-[#E8E9EB]">
-                <input type="checkbox" checked={(form.relatedScenes ?? []).includes(s.id)} onChange={() => toggle('relatedScenes', s.id)} />
-                {s.title}
-              </label>
-            ))}
-          </div>
-        </div>
+        <EntityMultiPicker
+          label="Personajes"
+          items={characters.map((c) => ({
+            id: c.id,
+            label: c.name,
+            sublabel: c.alias || undefined,
+            imageUrl: c.images[0],
+          }))}
+          value={form.characters}
+          onChange={(ids) => patch({ characters: ids })}
+          placeholder="Elegir personajes…"
+        />
+        <EntityMultiPicker
+          label="Escenas relacionadas"
+          items={scenes.map((s) => ({ id: s.id, label: s.title, sublabel: s.description }))}
+          value={form.relatedScenes ?? []}
+          onChange={(ids) => patch({ relatedScenes: ids })}
+          placeholder="Elegir escenas…"
+        />
+        <MultiImageInputField label="Imágenes de la trama" value={form.images ?? []} onChange={(images) => patch({ images })} />
         <div>
           <label className="mb-1 block text-xs uppercase text-[#5A6078]">Giros / twists (una por línea)</label>
           <textarea className="story-input h-24 w-full resize-none" value={twistsRaw} onChange={(e) => setTwistsRaw(e.target.value)} />

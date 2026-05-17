@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { BaseModal } from './BaseModal';
 import { ImageInputField } from '@/components/common/ImageInputField';
 import { useAppStore, useStore } from '@/store';
-import type { Character, CharacterRole } from '@/types';
+import type { Character, CharacterRole, Relationship } from '@/types';
 
 const ROLES: { value: CharacterRole; label: string }[] = [
   { value: 'protagonist', label: 'Protagonista' },
@@ -56,12 +56,17 @@ function emptyCharacter(worldId: string): Omit<Character, 'id' | 'createdAt' | '
 
 export function CharacterFormModal({ open, onClose, worldId, initial, onSubmit }: Props) {
   const timelines = useAppStore((s) => s.getTimelinesByWorld(worldId));
+  const houses = useAppStore((s) => s.getHousesByWorld(worldId));
+  const worldCharacters = useAppStore((s) => s.getCharactersByWorld(worldId));
   const [form, setForm] = useState<Omit<Character, 'id' | 'createdAt' | 'updatedAt'>>(() => emptyCharacter(worldId));
   const [mainImage, setMainImage] = useState('');
   const [quotesRaw, setQuotesRaw] = useState('');
   const [tagsRaw, setTagsRaw] = useState('');
   const [ageTimelineDraft, setAgeTimelineDraft] = useState<Record<string, string>>({});
   const [err, setErr] = useState('');
+  const [relCharId, setRelCharId] = useState('');
+  const [relType, setRelType] = useState('');
+  const [relDesc, setRelDesc] = useState('');
 
   useEffect(() => {
     if (!open) return;
@@ -174,7 +179,21 @@ export function CharacterFormModal({ open, onClose, worldId, initial, onSubmit }
         </div>
         <div>
           <label className="mb-1 block text-xs uppercase text-[#5A6078]">Casa / afiliación</label>
-          <input className="story-input w-full" value={form.house} onChange={(e) => patch({ house: e.target.value })} />
+          <select
+            className="story-input w-full text-sm"
+            value={form.houseId ?? ''}
+            onChange={(e) => {
+              const h = houses.find((x) => x.id === e.target.value);
+              patch({ houseId: e.target.value || undefined, house: h?.name ?? '' });
+            }}
+          >
+            <option value="">— Sin casa —</option>
+            {houses.map((h) => (
+              <option key={h.id} value={h.id}>
+                {h.name}
+              </option>
+            ))}
+          </select>
         </div>
         <div>
           <label className="mb-1 block text-xs uppercase text-[#5A6078]">Edad general</label>
@@ -225,6 +244,75 @@ export function CharacterFormModal({ open, onClose, worldId, initial, onSubmit }
             />
           </div>
         ))}
+
+        <div className="md:col-span-2 space-y-3 rounded-xl border border-[#2A3045] bg-[#111318] p-4">
+          <h4 className="text-xs font-mono uppercase tracking-wider text-[#5A6078]">Relaciones</h4>
+          {form.relationships.length > 0 && (
+            <ul className="space-y-2">
+              {form.relationships.map((rel, idx) => (
+                <li key={`${rel.characterId}-${idx}`} className="flex items-start justify-between gap-2 rounded-lg bg-[#1E2230] p-2 text-xs">
+                  <span className="text-[#E8E9EB]">
+                    <strong>{rel.characterName}</strong> · {rel.type}
+                    {rel.description ? <span className="block text-[#8B91A7]">{rel.description}</span> : null}
+                  </span>
+                  <button
+                    type="button"
+                    className="shrink-0 text-[#D61E2B] hover:underline"
+                    onClick={() =>
+                      patch({ relationships: form.relationships.filter((_, i) => i !== idx) })
+                    }
+                  >
+                    Quitar
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="grid gap-2 sm:grid-cols-3">
+            <select className="story-input text-sm" value={relCharId} onChange={(e) => setRelCharId(e.target.value)}>
+              <option value="">Personaje…</option>
+              {worldCharacters
+                .filter((ch) => ch.id !== initial?.id)
+                .map((ch) => (
+                  <option key={ch.id} value={ch.id}>
+                    {ch.name}
+                  </option>
+                ))}
+            </select>
+            <input
+              className="story-input text-sm"
+              placeholder="Tipo (ej. hermano)"
+              value={relType}
+              onChange={(e) => setRelType(e.target.value)}
+            />
+            <input
+              className="story-input text-sm sm:col-span-1"
+              placeholder="Descripción"
+              value={relDesc}
+              onChange={(e) => setRelDesc(e.target.value)}
+            />
+          </div>
+          <button
+            type="button"
+            className="story-btn-secondary text-xs"
+            onClick={() => {
+              const ch = worldCharacters.find((x) => x.id === relCharId);
+              if (!ch || !relType.trim()) return;
+              const next: Relationship = {
+                characterId: ch.id,
+                characterName: ch.name,
+                type: relType.trim(),
+                description: relDesc.trim(),
+              };
+              patch({ relationships: [...form.relationships, next] });
+              setRelCharId('');
+              setRelType('');
+              setRelDesc('');
+            }}
+          >
+            Añadir relación
+          </button>
+        </div>
         <div className="md:col-span-2">
           <label className="mb-1 block text-xs uppercase text-[#5A6078]">Frases memorables (una por línea)</label>
           <textarea className="story-input h-24 w-full resize-none" value={quotesRaw} onChange={(e) => setQuotesRaw(e.target.value)} />

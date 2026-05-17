@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAppStore } from '@/store';
 import { motion } from 'framer-motion';
-import { Plus, Lightbulb, Heart } from 'lucide-react';
+import { Plus, Lightbulb, Heart, Pencil, UserCircle } from 'lucide-react';
 import { IdeaFormModal } from '@/components/modals/crud/IdeaFormModal';
 import { BaseModal } from '@/components/modals/crud/BaseModal';
 import { ConfirmDeleteModal } from '@/components/modals/crud/ConfirmDeleteModal';
@@ -28,11 +28,14 @@ export function WorldIdeasSection({ worldId }: Props) {
   const ideas = useAppStore((s) => s.ideas.filter((i) => i.worldId === worldId && !i.isDeleted));
   const addIdea = useAppStore((s) => s.addIdea);
   const deleteIdea = useAppStore((s) => s.deleteIdea);
+  const updateIdea = useAppStore((s) => s.updateIdea);
   const toggleFav = useAppStore((s) => s.toggleFavoriteIdea);
+  const getCharactersByWorld = useAppStore((s) => s.getCharactersByWorld);
   const [filter, setFilter] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [detail, setDetail] = useState<Idea | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [editFromDetail, setEditFromDetail] = useState<Idea | null>(null);
 
   const filtered = ideas.filter((i) => !filter || i.type === filter);
 
@@ -125,38 +128,103 @@ export function WorldIdeasSection({ worldId }: Props) {
           ))}
         </div>
       )}
-      <IdeaFormModal open={formOpen} onClose={() => setFormOpen(false)} worldId={worldId} onSubmit={onSubmit} />
+      <IdeaFormModal
+        open={formOpen}
+        onClose={() => {
+          setFormOpen(false);
+          setEditFromDetail(null);
+        }}
+        worldId={worldId}
+        initial={editFromDetail}
+        onSubmit={(data) => {
+          if (editFromDetail) {
+            updateIdea(editFromDetail.id, data);
+            toast.success('Idea actualizada');
+            setEditFromDetail(null);
+          } else {
+            onSubmit(data);
+          }
+        }}
+      />
 
       <BaseModal
         open={!!detail}
         onClose={() => setDetail(null)}
-        title="Idea"
+        title="Detalle de la idea"
+        description={detail ? new Date(detail.createdAt).toLocaleString() : undefined}
         maxWidthClass="max-w-lg"
         footer={
-          <button type="button" className="story-btn-secondary text-sm" onClick={() => setDetail(null)}>
-            Cerrar
-          </button>
+          <>
+            <button type="button" className="story-btn-secondary text-sm" onClick={() => setDetail(null)}>
+              Cerrar
+            </button>
+            <button
+              type="button"
+              className="story-btn-primary text-sm"
+              onClick={() => {
+                if (!detail) return;
+                setEditFromDetail(detail);
+                setDetail(null);
+                setFormOpen(true);
+              }}
+            >
+              <Pencil size={14} /> Editar
+            </button>
+          </>
         }
       >
         {detail && (
           <div className="space-y-4">
             {detail.imageUrl && (
-              <img src={detail.imageUrl} alt="" className="max-h-56 w-full rounded-xl border border-[#2A3045] object-cover" />
+              <img
+                src={detail.imageUrl}
+                alt=""
+                className="max-h-64 w-full rounded-xl border border-[#2A3045] object-contain"
+              />
             )}
-            <p className="whitespace-pre-wrap text-sm leading-relaxed text-[#E8E9EB]">{detail.description}</p>
             {detail.audioUrl && <AudioPlayer src={detail.audioUrl} />}
-            <div className="flex items-center gap-2">
+            <p className="whitespace-pre-wrap text-sm leading-relaxed text-[#E8E9EB]">{detail.description}</p>
+            <div className="flex flex-wrap gap-2">
               <span
-                className="rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider"
+                className="rounded-full px-2 py-0.5 text-[10px] font-medium uppercase"
                 style={{
-                  backgroundColor: `${typeLabels[detail.type]?.color}15`,
+                  backgroundColor: `${typeLabels[detail.type]?.color}20`,
                   color: typeLabels[detail.type]?.color,
                 }}
               >
                 {typeLabels[detail.type]?.label}
               </span>
-              <span className="text-xs text-[#5A6078]">{new Date(detail.createdAt).toLocaleString()}</span>
+              {detail.tags?.map((t) => (
+                <span key={t} className="rounded-full bg-[#1E2230] px-2 py-0.5 text-[10px] text-[#8B91A7]">
+                  {t}
+                </span>
+              ))}
             </div>
+            {getCharactersByWorld(worldId).length > 0 && (
+              <div>
+                <label className="mb-1 flex items-center gap-2 text-xs text-[#5A6078]">
+                  <UserCircle size={12} className="text-[#3B82F6]" /> Personaje vinculado
+                </label>
+                <select
+                  className="story-input w-full text-sm"
+                  value={detail.linkedCharacterId ?? ''}
+                  onChange={(e) => {
+                    updateIdea(detail.id, { linkedCharacterId: e.target.value || null });
+                    setDetail({ ...detail, linkedCharacterId: e.target.value || null });
+                    toast.success('Personaje vinculado');
+                  }}
+                >
+                  <option value="">Sin personaje</option>
+                  {getCharactersByWorld(worldId)
+                    .filter((c) => !c.isDeleted)
+                    .map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                </select>
+              </div>
+            )}
           </div>
         )}
       </BaseModal>

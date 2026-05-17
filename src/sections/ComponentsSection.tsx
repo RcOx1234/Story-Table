@@ -29,12 +29,17 @@ export function ComponentsSection({ worldId }: Props) {
   const deleteComponent = useAppStore((s) => s.deleteComponent);
   const toggleFav = useAppStore((s) => s.toggleFavoriteComponent);
   const [search, setSearch] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Component | null>(null);
   const [detail, setDetail] = useState<Component | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  const filtered = components.filter((c) => !search || c.name.toLowerCase().includes(search.toLowerCase()));
+  const filtered = components.filter(
+    (c) =>
+      (!typeFilter || c.type === typeFilter) &&
+      (!search || c.name.toLowerCase().includes(search.toLowerCase()))
+  );
 
   const onSubmit = (data: Omit<Component, 'id' | 'createdAt' | 'updatedAt'>) => {
     if (editing) {
@@ -59,7 +64,26 @@ export function ComponentsSection({ worldId }: Props) {
 
   return (
     <div>
-      <div className="mb-6">
+      <div className="mb-6 flex flex-col gap-3">
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setTypeFilter('')}
+            className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${!typeFilter ? 'bg-[#D61E2B] text-white' : 'bg-[#1E2230] text-[#8B91A7]'}`}
+          >
+            Todas
+          </button>
+          {Object.entries(typeLabels).map(([key, label]) => (
+            <button
+              type="button"
+              key={key}
+              onClick={() => setTypeFilter(key)}
+              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${typeFilter === key ? 'bg-[#D61E2B] text-white' : 'bg-[#1E2230] text-[#8B91A7]'}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         <div className="relative">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5A6078]" />
           <input

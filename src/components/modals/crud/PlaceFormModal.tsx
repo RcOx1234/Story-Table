@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { BaseModal } from './BaseModal';
 import { ImageInputField } from '@/components/common/ImageInputField';
 import type { Place } from '@/types';
+import { useAppStore } from '@/store';
 
 const TYPES: { value: Place['type']; label: string }[] = [
   { value: 'city', label: 'Ciudad' },
@@ -41,6 +42,9 @@ function empty(worldId: string): Omit<Place, 'id' | 'createdAt' | 'updatedAt'> {
 }
 
 export function PlaceFormModal({ open, onClose, worldId, initial, onSubmit }: Props) {
+  const places = useAppStore((s) => s.getPlacesByWorld(worldId));
+  const collections = useAppStore((s) => s.getPlaceCollectionsByWorld(worldId));
+  const parentOptions = places.filter((pl) => pl.id !== initial?.id);
   const [form, setForm] = useState<Omit<Place, 'id' | 'createdAt' | 'updatedAt'>>(() => empty(worldId));
   const [tagsRaw, setTagsRaw] = useState('');
   const [err, setErr] = useState('');
@@ -112,6 +116,38 @@ export function PlaceFormModal({ open, onClose, worldId, initial, onSubmit }: Pr
             />
           </div>
         ))}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-xs uppercase text-[#5A6078]">Lugar padre</label>
+            <select
+              className="story-input w-full text-sm"
+              value={form.parentPlaceId ?? ''}
+              onChange={(e) => patch({ parentPlaceId: e.target.value || undefined })}
+            >
+              <option value="">— Ninguno —</option>
+              {parentOptions.map((pl) => (
+                <option key={pl.id} value={pl.id}>
+                  {pl.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs uppercase text-[#5A6078]">Colección</label>
+            <select
+              className="story-input w-full text-sm"
+              value={form.collectionId ?? ''}
+              onChange={(e) => patch({ collectionId: e.target.value || undefined })}
+            >
+              <option value="">— Sin colección —</option>
+              {collections.map((col) => (
+                <option key={col.id} value={col.id}>
+                  {col.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
         <ImageInputField label="Imagen / mapa" value={form.mapUrl} onChange={(v) => patch({ mapUrl: v })} />
         <div>
           <label className="mb-1 block text-xs uppercase text-[#5A6078]">Tags (coma)</label>

@@ -1,5 +1,5 @@
 import { useAppStore, useStore, type AppState } from '@/store';
-import { Search, Plus, Bell, Command, User, Settings, LogOut, Lightbulb, FileText, Sparkles, Download, Upload, CloudUpload } from 'lucide-react';
+import { Search, Plus, Bell, Command, User, Settings, LogOut, Lightbulb, FileText, Sparkles, Download, Upload, CloudUpload, CloudCog } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useRef, useState, type ChangeEvent } from 'react';
 import {
@@ -25,6 +25,8 @@ export function TopBar() {
   const ideasFree = useAppStore((s) => s.ideas.filter((i) => !i.isDeleted && !i.worldId).length);
   const scenesRecent = useAppStore((s) => s.scenes.filter((sc) => !sc.isDeleted).slice(-3));
   const [savingCloud, setSavingCloud] = useState(false);
+  const autoSaveEnabled = useAppStore((s) => s.firebaseAutoSaveEnabled);
+  const setAutoSaveEnabled = useAppStore((s) => s.setFirebaseAutoSaveEnabled);
 
   const handleLogout = async () => {
     try {
@@ -133,16 +135,32 @@ export function TopBar() {
         </button>
 
         {isFirebaseConfigured() && (
-          <button
-            type="button"
-            aria-label="Guardar en Firebase"
-            title="Guardar en Firebase"
-            disabled={savingCloud}
-            onClick={() => void exportToFirebase()}
-            className="rounded-xl p-2.5 text-white/90 transition-all hover:bg-[#1E2230] hover:text-white disabled:opacity-50"
-          >
-            <CloudUpload size={20} className={savingCloud ? 'animate-pulse' : ''} />
-          </button>
+          <>
+            <button
+              type="button"
+              aria-label={autoSaveEnabled ? 'Desactivar auto-guardado' : 'Activar auto-guardado'}
+              title={autoSaveEnabled ? 'Auto-guardado activo' : 'Auto-guardado desactivado'}
+              onClick={() => {
+                setAutoSaveEnabled(!autoSaveEnabled);
+                toast.success(autoSaveEnabled ? 'Auto-guardado desactivado' : 'Auto-guardado activado');
+              }}
+              className={`rounded-xl p-2.5 transition-all hover:bg-[#1E2230] ${
+                autoSaveEnabled ? 'text-white' : 'text-white/50'
+              }`}
+            >
+              <CloudCog size={20} />
+            </button>
+            <button
+              type="button"
+              aria-label="Guardar en Firebase"
+              title="Guardar en Firebase"
+              disabled={savingCloud}
+              onClick={() => void exportToFirebase()}
+              className="rounded-xl p-2.5 text-white/90 transition-all hover:bg-[#1E2230] hover:text-white disabled:opacity-50"
+            >
+              <CloudUpload size={20} className={savingCloud ? 'animate-pulse' : ''} />
+            </button>
+          </>
         )}
 
         <DropdownMenu>

@@ -4,7 +4,23 @@ import { useShallow } from 'zustand/react/shallow';
 import type { TrashEntityType } from '@/lib/trashStorage';
 import type { WorldScopedExport } from '@/lib/storyImportExport';
 import type {
-  World, Character, Scene, Place, MapData, Plot, Component, Organization, Idea, Timeline, User, SectionType
+  World,
+  Character,
+  Scene,
+  Place,
+  PlaceCollection,
+  MapData,
+  MapCollection,
+  Plot,
+  Component,
+  Organization,
+  House,
+  WorldFact,
+  WorldDatum,
+  Idea,
+  Timeline,
+  User,
+  SectionType,
 } from '@/types';
 
 export interface AppState {
@@ -104,6 +120,49 @@ export interface AppState {
   updateTimeline: (id: string, data: Partial<Timeline>) => void;
   deleteTimeline: (id: string) => void;
   getTimelinesByWorld: (worldId: string) => Timeline[];
+
+  // Houses
+  houses: House[];
+  addHouse: (house: Omit<House, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  updateHouse: (id: string, data: Partial<House>) => void;
+  deleteHouse: (id: string) => void;
+  getHousesByWorld: (worldId: string) => House[];
+
+  // World facts (hechos)
+  worldFacts: WorldFact[];
+  addWorldFact: (fact: Omit<WorldFact, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  updateWorldFact: (id: string, data: Partial<WorldFact>) => void;
+  deleteWorldFact: (id: string) => void;
+  getWorldFactsByWorld: (worldId: string) => WorldFact[];
+
+  // World data (datos)
+  worldData: WorldDatum[];
+  addWorldDatum: (datum: Omit<WorldDatum, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  updateWorldDatum: (id: string, data: Partial<WorldDatum>) => void;
+  deleteWorldDatum: (id: string) => void;
+  getWorldDataByWorld: (worldId: string) => WorldDatum[];
+
+  // Place collections
+  placeCollections: PlaceCollection[];
+  addPlaceCollection: (c: Omit<PlaceCollection, 'id' | 'createdAt' | 'updatedAt'>) => string;
+  updatePlaceCollection: (id: string, data: Partial<PlaceCollection>) => void;
+  deletePlaceCollection: (id: string) => void;
+  getPlaceCollectionsByWorld: (worldId: string) => PlaceCollection[];
+
+  // Map collections
+  mapCollections: MapCollection[];
+  addMapCollection: (c: Omit<MapCollection, 'id' | 'createdAt' | 'updatedAt'>) => string;
+  updateMapCollection: (id: string, data: Partial<MapCollection>) => void;
+  deleteMapCollection: (id: string) => void;
+  getMapCollectionsByWorld: (worldId: string) => MapCollection[];
+
+  /** Orden manual de personajes por mundo. */
+  characterOrderByWorld: Record<string, string[]>;
+  setCharacterOrder: (worldId: string, ids: string[]) => void;
+
+  /** Auto-guardado en Firebase (persistido). */
+  firebaseAutoSaveEnabled: boolean;
+  setFirebaseAutoSaveEnabled: (enabled: boolean) => void;
 
   // UI State
   sidebarOpen: boolean;
@@ -266,7 +325,13 @@ export const useStore = create<AppState>()(
         set((state) => ({
           characters: state.characters.map((c) => (c.id === id ? { ...c, isFavorite: !c.isFavorite } : c)),
         })),
-      getCharactersByWorld: (worldId) => get().characters.filter((c) => c.worldId === worldId && !c.isDeleted),
+      getCharactersByWorld: (worldId) => {
+        const list = get().characters.filter((c) => c.worldId === worldId && !c.isDeleted);
+        const order = get().characterOrderByWorld[worldId];
+        if (!order?.length) return list;
+        const rank = new Map(order.map((id, i) => [id, i]));
+        return [...list].sort((a, b) => (rank.get(a.id) ?? 999) - (rank.get(b.id) ?? 999));
+      },
       getCharacterById: (id) => get().characters.find((c) => c.id === id),
 
       // Scenes
@@ -484,6 +549,96 @@ export const useStore = create<AppState>()(
         set((state) => ({ timelines: state.timelines.filter((t) => t.id !== id) })),
       getTimelinesByWorld: (worldId) => get().timelines.filter((t) => t.worldId === worldId),
 
+      houses: [],
+      addHouse: (house) => {
+        const h: House = { ...house, id: crypto.randomUUID(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+        set((state) => ({ houses: [...state.houses, h] }));
+      },
+      updateHouse: (id, data) =>
+        set((state) => ({
+          houses: state.houses.map((h) => (h.id === id ? { ...h, ...data, updatedAt: new Date().toISOString() } : h)),
+        })),
+      deleteHouse: (id) =>
+        set((state) => ({
+          houses: state.houses.map((h) => (h.id === id ? { ...h, isDeleted: true, deletedAt: new Date().toISOString() } : h)),
+        })),
+      getHousesByWorld: (worldId) =>
+        get()
+          .houses.filter((h) => h.worldId === worldId && !h.isDeleted)
+          .sort((a, b) => b.influenceLevel - a.influenceLevel),
+
+      worldFacts: [],
+      addWorldFact: (fact) => {
+        const f: WorldFact = { ...fact, id: crypto.randomUUID(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+        set((state) => ({ worldFacts: [...state.worldFacts, f] }));
+      },
+      updateWorldFact: (id, data) =>
+        set((state) => ({
+          worldFacts: state.worldFacts.map((f) => (f.id === id ? { ...f, ...data, updatedAt: new Date().toISOString() } : f)),
+        })),
+      deleteWorldFact: (id) =>
+        set((state) => ({
+          worldFacts: state.worldFacts.map((f) => (f.id === id ? { ...f, isDeleted: true, deletedAt: new Date().toISOString() } : f)),
+        })),
+      getWorldFactsByWorld: (worldId) => get().worldFacts.filter((f) => f.worldId === worldId && !f.isDeleted),
+
+      worldData: [],
+      addWorldDatum: (datum) => {
+        const d: WorldDatum = { ...datum, id: crypto.randomUUID(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+        set((state) => ({ worldData: [...state.worldData, d] }));
+      },
+      updateWorldDatum: (id, data) =>
+        set((state) => ({
+          worldData: state.worldData.map((d) => (d.id === id ? { ...d, ...data, updatedAt: new Date().toISOString() } : d)),
+        })),
+      deleteWorldDatum: (id) =>
+        set((state) => ({
+          worldData: state.worldData.map((d) => (d.id === id ? { ...d, isDeleted: true, deletedAt: new Date().toISOString() } : d)),
+        })),
+      getWorldDataByWorld: (worldId) => get().worldData.filter((d) => d.worldId === worldId && !d.isDeleted),
+
+      placeCollections: [],
+      addPlaceCollection: (c) => {
+        const col: PlaceCollection = { ...c, id: crypto.randomUUID(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+        set((state) => ({ placeCollections: [...state.placeCollections, col] }));
+        return col.id;
+      },
+      updatePlaceCollection: (id, data) =>
+        set((state) => ({
+          placeCollections: state.placeCollections.map((c) =>
+            c.id === id ? { ...c, ...data, updatedAt: new Date().toISOString() } : c
+          ),
+        })),
+      deletePlaceCollection: (id) =>
+        set((state) => ({
+          placeCollections: state.placeCollections.map((c) =>
+            c.id === id ? { ...c, isDeleted: true, deletedAt: new Date().toISOString() } : c
+          ),
+        })),
+      getPlaceCollectionsByWorld: (worldId) => get().placeCollections.filter((c) => c.worldId === worldId && !c.isDeleted),
+
+      mapCollections: [],
+      addMapCollection: (c) => {
+        const col: MapCollection = { ...c, id: crypto.randomUUID(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+        set((state) => ({ mapCollections: [...state.mapCollections, col] }));
+        return col.id;
+      },
+      updateMapCollection: (id, data) =>
+        set((state) => ({
+          mapCollections: state.mapCollections.map((c) =>
+            c.id === id ? { ...c, ...data, updatedAt: new Date().toISOString() } : c
+          ),
+        })),
+      deleteMapCollection: (id) => set((state) => ({ mapCollections: state.mapCollections.filter((c) => c.id !== id) })),
+      getMapCollectionsByWorld: (worldId) => get().mapCollections.filter((c) => c.worldId === worldId),
+
+      characterOrderByWorld: {},
+      setCharacterOrder: (worldId, ids) =>
+        set((state) => ({ characterOrderByWorld: { ...state.characterOrderByWorld, [worldId]: ids } })),
+
+      firebaseAutoSaveEnabled: true,
+      setFirebaseAutoSaveEnabled: (enabled) => set({ firebaseAutoSaveEnabled: enabled }),
+
       // UI State
       sidebarOpen: true,
       toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
@@ -617,6 +772,13 @@ export const useStore = create<AppState>()(
         organizations: state.organizations,
         ideas: state.ideas,
         timelines: state.timelines,
+        houses: state.houses,
+        worldFacts: state.worldFacts,
+        worldData: state.worldData,
+        placeCollections: state.placeCollections,
+        mapCollections: state.mapCollections,
+        characterOrderByWorld: state.characterOrderByWorld,
+        firebaseAutoSaveEnabled: state.firebaseAutoSaveEnabled,
         sidebarOpen: state.sidebarOpen,
         dashboardWorldIds: state.dashboardWorldIds,
       }),

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigateWithReturn } from '@/hooks/useNavigationReturn';
 import { useAppStore } from '@/store';
 import { motion } from 'framer-motion';
-import { Plus, Search, Heart, MoreVertical, Trash2 } from 'lucide-react';
+import { Plus, Search, Heart, MoreVertical, Trash2, GripVertical } from 'lucide-react';
 import type { Character } from '@/types';
 import { CharacterFormModal } from '@/components/modals/crud/CharacterFormModal';
 import { ConfirmDeleteModal } from '@/components/modals/crud/ConfirmDeleteModal';
@@ -46,11 +46,13 @@ export function CharactersSection({ worldId }: Props) {
   const updateCharacter = useAppStore((s) => s.updateCharacter);
   const deleteCharacter = useAppStore((s) => s.deleteCharacter);
   const toggleFavorite = useAppStore((s) => s.toggleFavoriteCharacter);
+  const setCharacterOrder = useAppStore((s) => s.setCharacterOrder);
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Character | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [dragId, setDragId] = useState<string | null>(null);
 
   const filtered = characters.filter((c) => {
     const matchSearch =
@@ -60,6 +62,19 @@ export function CharactersSection({ worldId }: Props) {
     const matchRole = !roleFilter || c.role === roleFilter;
     return matchSearch && matchRole;
   });
+
+  const reorder = (fromId: string, toId: string) => {
+    if (fromId === toId) return;
+    const ids = filtered.map((c) => c.id);
+    const from = ids.indexOf(fromId);
+    const to = ids.indexOf(toId);
+    if (from < 0 || to < 0) return;
+    const next = [...ids];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved!);
+    const rest = characters.map((c) => c.id).filter((id) => !next.includes(id));
+    setCharacterOrder(worldId, [...next, ...rest]);
+  };
 
   const onSubmit = (data: Omit<Character, 'id' | 'createdAt' | 'updatedAt'>) => {
     if (editing) {
@@ -126,12 +141,26 @@ export function CharactersSection({ worldId }: Props) {
           {filtered.map((char, i) => (
             <motion.div
               key={char.id}
+              draggable
+              onDragStart={() => setDragId(char.id)}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={() => {
+                if (dragId) reorder(dragId, char.id);
+                setDragId(null);
+              }}
+              onDragEnd={() => setDragId(null)}
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.05 }}
               onClick={() => navigateWithReturn(`/world/${worldId}/character/${char.id}`)}
-              className="story-card group relative cursor-pointer p-5"
+              className={`story-card group relative cursor-pointer p-5 pl-8 ${dragId === char.id ? 'opacity-60 ring-2 ring-[#D61E2B]/40' : ''}`}
             >
+              <div
+                className="absolute left-2 top-3 cursor-grab p-1 text-[#3A4460] active:cursor-grabbing"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <GripVertical size={14} />
+              </div>
               <div className="absolute right-10 top-3 flex gap-1">
                 <button
                   type="button"
@@ -159,6 +188,7 @@ export function CharactersSection({ worldId }: Props) {
                     <DropdownMenuItem
                       className="cursor-pointer focus:bg-[#1E2230]"
                       onClick={(e) => {
+                        e.stopPropagation();
                         e.preventDefault();
                         setEditing(char);
                         setFormOpen(true);

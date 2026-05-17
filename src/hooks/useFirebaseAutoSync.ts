@@ -6,9 +6,10 @@ import { pushStoryBundle } from '@/services/storyBundleSync';
 /** Sincronización automática en segundo plano (sin UI). */
 export function useFirebaseAutoSync() {
   const uid = useStore((s) => s.user?.id ?? null);
+  const autoSave = useStore((s) => s.firebaseAutoSaveEnabled);
 
   useEffect(() => {
-    if (!isFirebaseConfigured() || !uid) return;
+    if (!isFirebaseConfigured() || !uid || !autoSave) return;
     let timer: ReturnType<typeof setTimeout>;
     const unsub = useStore.subscribe(() => {
       clearTimeout(timer);
@@ -20,5 +21,5 @@ export function useFirebaseAutoSync() {
       clearTimeout(timer);
       unsub();
     };
-  }, [uid]);
+  }, [uid, autoSave]);
 }

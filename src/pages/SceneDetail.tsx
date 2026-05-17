@@ -151,6 +151,18 @@ export function SceneDetail() {
               <p className="text-sm italic text-[#8B91A7]">{scene.description}</p>
             </div>
           )}
+          {scene.images.length > 0 && (
+            <motion.div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {scene.images.map((url, i) => (
+                <img
+                  key={i}
+                  src={url}
+                  alt=""
+                  className="aspect-video w-full rounded-lg border border-[#2A3045] object-cover"
+                />
+              ))}
+            </motion.div>
+          )}
           <div className="prose prose-invert max-w-none">
             {scene.content ? (
               <div className="whitespace-pre-wrap text-sm leading-relaxed text-[#E8E9EB]">{scene.content}</div>

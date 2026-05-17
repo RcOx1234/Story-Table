@@ -15,7 +15,10 @@ import {
   Box,
   Building2,
   Lightbulb,
-  Clock,
+  Crown,
+  Database,
+  ScrollText,
+  Landmark,
 } from 'lucide-react';
 import { CharactersSection } from '@/sections/CharactersSection';
 import { ScenesSection } from '@/sections/ScenesSection';
@@ -26,6 +29,9 @@ import { OrganizationsSection } from '@/sections/OrganizationsSection';
 import { ComponentsSection } from '@/sections/ComponentsSection';
 import { WorldIdeasSection } from '@/sections/WorldIdeasSection';
 import { WorldMapsSection } from '@/sections/WorldMapsSection';
+import { HousesSection } from '@/sections/HousesSection';
+import { FactsSection } from '@/sections/FactsSection';
+import { DatosSection } from '@/sections/DatosSection';
 import type { SectionType } from '@/types';
 import { isWorldUnlocked } from '@/lib/worldUnlock';
 import { WorldPasswordModal } from '@/components/modals/crud/WorldPasswordModal';
@@ -38,8 +44,11 @@ const tabs: { id: SectionType; label: string; icon: typeof Users }[] = [
   { id: 'maps', label: 'Mapas', icon: Globe },
   { id: 'components', label: 'Componentes', icon: Box },
   { id: 'organizations', label: 'Organizaciones', icon: Building2 },
+  { id: 'houses', label: 'Casas', icon: Crown },
+  { id: 'datos', label: 'Datos', icon: Database },
+  { id: 'hechos', label: 'Hechos', icon: ScrollText },
   { id: 'ideas', label: 'Ideas', icon: Lightbulb },
-  { id: 'timelines', label: 'Timeline', icon: Clock },
+  { id: 'timelines', label: 'Timeline', icon: Landmark },
 ];
 
 export function WorldView() {
@@ -194,6 +203,9 @@ export function WorldView() {
           {activeTab === 'components' && <ComponentsSection worldId={world.id} />}
           {activeTab === 'ideas' && <WorldIdeasSection worldId={world.id} />}
           {activeTab === 'maps' && <WorldMapsSection worldId={world.id} />}
+          {activeTab === 'houses' && <HousesSection worldId={world.id} />}
+          {activeTab === 'datos' && <DatosSection worldId={world.id} />}
+          {activeTab === 'hechos' && <FactsSection worldId={world.id} />}
         </motion.div>
       </AnimatePresence>
     </motion.div>

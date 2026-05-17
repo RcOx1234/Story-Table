@@ -39,6 +39,8 @@ export interface Character {
   alias: string;
   role: CharacterRole;
   house: string;
+  /** Casa vinculada del catálogo de casas del mundo. */
+  houseId?: string;
   age: number;
   ageByTimeline: Record<string, number>;
   appearance: string;
@@ -128,12 +130,40 @@ export interface Place {
   customs: string;
   symbols: string;
   population?: string;
+  /** Lugar padre (p. ej. reino que contiene esta ciudad). */
+  parentPlaceId?: string;
+  /** Colección / carpeta de lugares (p. ej. “Maravillas de Mike”). */
+  collectionId?: string;
   isFavorite: boolean;
   isDeleted: boolean;
   deletedAt?: string;
   createdAt: string;
   updatedAt: string;
   tags: string[];
+}
+
+export interface PlaceCollection {
+  id: string;
+  worldId: string;
+  name: string;
+  description: string;
+  imageUrl: string;
+  placeIds: string[];
+  isDeleted: boolean;
+  deletedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MapCollection {
+  id: string;
+  worldId: string;
+  name: string;
+  description: string;
+  imageUrl: string;
+  mapIds: string[];
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface MapData {
@@ -179,6 +209,7 @@ export interface Plot {
   relatedPlots: string[];
   relatedScenes?: string[];
   twists: string[];
+  images: string[];
   status?: string;
   isFavorite: boolean;
   isDeleted: boolean;
@@ -222,7 +253,104 @@ export interface Organization {
   symbols: string;
   hierarchy: string;
   history?: string;
+  imageUrl?: string;
   type: 'guild' | 'house' | 'brotherhood' | 'company' | 'clan' | 'order' | 'other';
+  isFavorite: boolean;
+  isDeleted: boolean;
+  deletedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  tags: string[];
+}
+
+export type NobleRank =
+  | 'emperor'
+  | 'king'
+  | 'duke'
+  | 'marquis'
+  | 'count'
+  | 'baron'
+  | 'knight'
+  | 'commoner'
+  | 'other';
+
+/** Casa o familia noble del mundo. */
+export interface House {
+  id: string;
+  worldId: string;
+  name: string;
+  motto: string;
+  description: string;
+  imageUrl: string;
+  coatOfArms?: string;
+  nobleRank: NobleRank;
+  /** 1 = menor influencia, 10 = máxima. */
+  influenceLevel: number;
+  parentHouseId?: string;
+  lineage: string;
+  symbols: string;
+  territory?: string;
+  isFavorite: boolean;
+  isDeleted: boolean;
+  deletedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  tags: string[];
+}
+
+export type WorldFactType =
+  | 'battle'
+  | 'treaty'
+  | 'birth'
+  | 'death'
+  | 'discovery'
+  | 'coronation'
+  | 'betrayal'
+  | 'catastrophe'
+  | 'other';
+
+/** Suceso histórico del mundo (no es escena narrativa). */
+export interface WorldFact {
+  id: string;
+  worldId: string;
+  title: string;
+  description: string;
+  consequence: string;
+  factType: WorldFactType;
+  timelineId?: string;
+  relatedCharacterIds: string[];
+  relatedPlaceIds: string[];
+  images: string[];
+  dateLabel?: string;
+  isFavorite: boolean;
+  isDeleted: boolean;
+  deletedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  tags: string[];
+}
+
+export type WorldDatumType =
+  | 'geography'
+  | 'culture'
+  | 'religion'
+  | 'magic'
+  | 'politics'
+  | 'economy'
+  | 'biology'
+  | 'technology'
+  | 'other';
+
+/** Dato canónico del mundo (hecho establecido del lore). */
+export interface WorldDatum {
+  id: string;
+  worldId: string;
+  title: string;
+  content: string;
+  datumType: WorldDatumType;
+  images: string[];
+  relatedCharacterIds: string[];
+  relatedPlaceIds: string[];
   isFavorite: boolean;
   isDeleted: boolean;
   deletedAt?: string;
@@ -273,6 +401,9 @@ export type SectionType =
   | 'maps'
   | 'components'
   | 'organizations'
+  | 'houses'
+  | 'datos'
+  | 'hechos'
   | 'ideas'
   | 'timelines';
 

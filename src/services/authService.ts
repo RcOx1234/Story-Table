@@ -1,6 +1,8 @@
 import {
   createUserWithEmailAndPassword,
+  EmailAuthProvider,
   onAuthStateChanged,
+  reauthenticateWithCredential,
   signInWithEmailAndPassword,
   signOut,
   updateProfile,
@@ -63,4 +65,16 @@ export async function registerWithEmail(
 export async function logout(): Promise<void> {
   if (!auth) return;
   await signOut(auth);
+}
+
+/** Verifica la contraseña de la cuenta actual (p. ej. antes de cambiar contraseña de un mundo). */
+export async function verifyAccountPassword(password: string): Promise<boolean> {
+  if (!auth?.currentUser?.email) return false;
+  try {
+    const cred = EmailAuthProvider.credential(auth.currentUser.email, password);
+    await reauthenticateWithCredential(auth.currentUser, cred);
+    return true;
+  } catch {
+    return false;
+  }
 }

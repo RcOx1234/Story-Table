@@ -1,6 +1,10 @@
 import type {
   World,
   Character,
+  House,
+  WorldFact,
+  WorldDatum,
+  PlaceCollection,
   Scene,
   Place,
   MapData,
@@ -27,6 +31,10 @@ export type StoryTableLibraryExport = {
   organizations: Organization[];
   ideas: Idea[];
   timelines: Timeline[];
+  houses: House[];
+  worldFacts: WorldFact[];
+  worldData: WorldDatum[];
+  placeCollections: PlaceCollection[];
 };
 
 export type WorldScopedExport = {
@@ -58,6 +66,10 @@ export function buildLibraryExport(state: AppState): StoryTableLibraryExport {
     organizations: state.organizations,
     ideas: state.ideas,
     timelines: state.timelines,
+    houses: state.houses,
+    worldFacts: state.worldFacts,
+    worldData: state.worldData,
+    placeCollections: state.placeCollections,
   };
 }
 
@@ -98,6 +110,10 @@ export function parseLibraryImport(raw: unknown): Partial<StoryTableLibraryExpor
     'organizations',
     'ideas',
     'timelines',
+    'houses',
+    'worldFacts',
+    'worldData',
+    'placeCollections',
   ] as const;
   const out: Partial<StoryTableLibraryExport> = { v: STORY_EXPORT_VERSION, exportedAt: String(raw.exportedAt ?? '') };
   for (const k of keys) {

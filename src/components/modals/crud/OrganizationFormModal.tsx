@@ -1,5 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { BaseModal } from './BaseModal';
+import { ImageInputField } from '@/components/common/ImageInputField';
+import { EntityMultiPicker } from '@/components/common/EntityMultiPicker';
 import { useAppStore } from '@/store';
 import type { Organization } from '@/types';
 
@@ -31,6 +33,7 @@ function empty(worldId: string): Omit<Organization, 'id' | 'createdAt' | 'update
     hierarchy: '',
     history: '',
     type: 'other',
+    imageUrl: '',
     isFavorite: false,
     isDeleted: false,
     tags: [],
@@ -52,12 +55,16 @@ export function OrganizationFormModal({ open, onClose, worldId, initial, onSubmi
 
   const patch = (p: Partial<Omit<Organization, 'id' | 'createdAt' | 'updatedAt'>>) => setForm((f) => ({ ...f, ...p }));
 
-  const toggleMember = (id: string) => {
-    setForm((f) => ({
-      ...f,
-      members: f.members.includes(id) ? f.members.filter((m) => m !== id) : [...f.members, id],
-    }));
-  };
+  const memberItems = useMemo(
+    () =>
+      characters.map((c) => ({
+        id: c.id,
+        label: c.name,
+        sublabel: c.alias || undefined,
+        imageUrl: c.images[0],
+      })),
+    [characters]
+  );
 
   const save = () => {
     if (!form.name.trim()) {
@@ -117,17 +124,14 @@ export function OrganizationFormModal({ open, onClose, worldId, initial, onSubmi
             />
           </div>
         ))}
-        <div>
-          <label className="mb-1 block text-xs uppercase text-[#5A6078]">Miembros</label>
-          <div className="flex max-h-28 flex-wrap gap-2 overflow-y-auto rounded-lg border border-[#2A3045] bg-[#111318] p-2">
-            {characters.map((c) => (
-              <label key={c.id} className="flex cursor-pointer items-center gap-1 text-xs text-[#E8E9EB]">
-                <input type="checkbox" checked={form.members.includes(c.id)} onChange={() => toggleMember(c.id)} />
-                {c.name}
-              </label>
-            ))}
-          </div>
-        </div>
+        <ImageInputField label="Imagen" value={form.imageUrl ?? ''} onChange={(v) => patch({ imageUrl: v })} />
+        <EntityMultiPicker
+          label="Miembros"
+          items={memberItems}
+          value={form.members}
+          onChange={(ids) => patch({ members: ids })}
+          placeholder="Elegir miembros…"
+        />
         <div>
           <label className="mb-1 block text-xs uppercase text-[#5A6078]">Tags (coma)</label>
           <input className="story-input w-full" value={tagsRaw} onChange={(e) => setTagsRaw(e.target.value)} />

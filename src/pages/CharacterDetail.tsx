@@ -6,6 +6,7 @@ import { motion } from 'framer-motion';
 import { ArrowLeft, Heart, Edit2, Users, Sparkles, Trash2 } from 'lucide-react';
 import { EntityReference } from '@/components/common/EntityReference';
 import { ConfirmDeleteModal } from '@/components/modals/crud/ConfirmDeleteModal';
+import { toast } from 'sonner';
 import { CharacterFormModal } from '@/components/modals/crud/CharacterFormModal';
 
 const roleLabels: Record<string, string> = {
@@ -63,11 +64,17 @@ export function CharacterDetail() {
   const updateCharacter = useAppStore((s) => s.updateCharacter);
   const toggleFavorite = useAppStore((s) => s.toggleFavoriteCharacter);
   const deleteCharacter = useAppStore((s) => s.deleteCharacter);
+  const worldCharacters = useAppStore((s) =>
+    worldId ? s.getCharactersByWorld(worldId).filter((ch) => !ch.isDeleted) : []
+  );
 
   const [activeTab, setActiveTab] = useState<TabType>('info');
   const [infoSub, setInfoSub] = useState<InfoSub>('physical');
   const [formOpen, setFormOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [addRelCharId, setAddRelCharId] = useState('');
+  const [addRelType, setAddRelType] = useState('');
+  const [addRelDesc, setAddRelDesc] = useState('');
 
   if (!character || !worldId) {
     return (
@@ -260,6 +267,62 @@ export function CharacterDetail() {
 
           {activeTab === 'relationships' && (
             <div className="space-y-6">
+              <div className="story-card space-y-3 p-4">
+                <h4 className="text-xs font-mono uppercase tracking-wider text-[#5A6078]">Añadir familiar o vínculo</h4>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  <select
+                    className="story-input text-sm"
+                    value={addRelCharId}
+                    onChange={(e) => setAddRelCharId(e.target.value)}
+                  >
+                    <option value="">Personaje…</option>
+                    {worldCharacters
+                      .filter((ch) => ch.id !== character.id)
+                      .map((ch) => (
+                        <option key={ch.id} value={ch.id}>
+                          {ch.name}
+                        </option>
+                      ))}
+                  </select>
+                  <input
+                    className="story-input text-sm"
+                    placeholder="Tipo (ej. hermano, madre)"
+                    value={addRelType}
+                    onChange={(e) => setAddRelType(e.target.value)}
+                  />
+                  <input
+                    className="story-input text-sm"
+                    placeholder="Descripción"
+                    value={addRelDesc}
+                    onChange={(e) => setAddRelDesc(e.target.value)}
+                  />
+                </div>
+                <button
+                  type="button"
+                  className="story-btn-primary text-sm"
+                  onClick={() => {
+                    const ch = worldCharacters.find((x) => x.id === addRelCharId);
+                    if (!ch || !addRelType.trim()) return;
+                    updateCharacter(character.id, {
+                      relationships: [
+                        ...character.relationships,
+                        {
+                          characterId: ch.id,
+                          characterName: ch.name,
+                          type: addRelType.trim(),
+                          description: addRelDesc.trim(),
+                        },
+                      ],
+                    });
+                    setAddRelCharId('');
+                    setAddRelType('');
+                    setAddRelDesc('');
+                    toast.success('Relación añadida');
+                  }}
+                >
+                  Guardar relación
+                </button>
+              </div>
               {(['family', 'friends', 'rivals', 'other'] as const).map((bucket) => (
                 <div key={bucket}>
                   <h4 className="mb-2 text-xs font-mono uppercase tracking-wider text-[#D61E2B]">{relSectionLabels[bucket]}</h4>

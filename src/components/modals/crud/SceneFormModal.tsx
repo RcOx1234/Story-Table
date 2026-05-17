@@ -1,5 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { BaseModal } from './BaseModal';
+import { EntityMultiPicker } from '@/components/common/EntityMultiPicker';
+import { MultiImageInputField } from '@/components/common/MultiImageInputField';
 import { useAppStore } from '@/store';
 import type { Scene, SceneImportance, Dialogue } from '@/types';
 
@@ -83,12 +85,16 @@ export function SceneFormModal({ open, onClose, worldId, initial, onSubmit }: Pr
 
   const patch = (p: Partial<Omit<Scene, 'id' | 'createdAt' | 'updatedAt'>>) => setForm((f) => ({ ...f, ...p }));
 
-  const toggleChar = (id: string) => {
-    setForm((f) => ({
-      ...f,
-      characters: f.characters.includes(id) ? f.characters.filter((c) => c !== id) : [...f.characters, id],
-    }));
-  };
+  const characterItems = useMemo(
+    () =>
+      characters.map((c) => ({
+        id: c.id,
+        label: c.name,
+        sublabel: c.alias || undefined,
+        imageUrl: c.images[0],
+      })),
+    [characters]
+  );
 
   const onPlace = (placeId: string) => {
     const pl = places.find((p) => p.id === placeId);
@@ -163,18 +169,14 @@ export function SceneFormModal({ open, onClose, worldId, initial, onSubmit }: Pr
           <label className="mb-1 block text-xs uppercase text-[#5A6078]">Contenido</label>
           <textarea className="story-input h-36 w-full resize-none" value={form.content} onChange={(e) => patch({ content: e.target.value })} />
         </div>
-        <div>
-          <label className="mb-1 block text-xs uppercase text-[#5A6078]">Personajes</label>
-          <div className="flex max-h-28 flex-wrap gap-2 overflow-y-auto rounded-lg border border-[#2A3045] bg-[#111318] p-2">
-            {characters.length === 0 && <span className="text-xs text-[#5A6078]">Aún no hay personajes</span>}
-            {characters.map((c) => (
-              <label key={c.id} className="flex cursor-pointer items-center gap-1.5 text-xs text-[#E8E9EB]">
-                <input type="checkbox" checked={form.characters.includes(c.id)} onChange={() => toggleChar(c.id)} />
-                {c.name}
-              </label>
-            ))}
-          </div>
-        </div>
+        <EntityMultiPicker
+          label="Personajes"
+          items={characterItems}
+          value={form.characters}
+          onChange={(ids) => patch({ characters: ids })}
+          placeholder="Elegir personajes…"
+          emptyMessage="Aún no hay personajes"
+        />
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div>
             <label className="mb-1 block text-xs uppercase text-[#5A6078]">Lugar</label>
@@ -250,6 +252,7 @@ export function SceneFormModal({ open, onClose, worldId, initial, onSubmit }: Pr
             <option value="noncanon">No canon</option>
           </select>
         </div>
+        <MultiImageInputField label="Imágenes" value={form.images ?? []} onChange={(urls) => patch({ images: urls })} />
         <div>
           <label className="mb-1 block text-xs uppercase text-[#5A6078]">Tags (coma)</label>
           <input className="story-input w-full" value={tagsRaw} onChange={(e) => setTagsRaw(e.target.value)} />

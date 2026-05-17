@@ -11,6 +11,7 @@ export type WorldFormValues = {
   worldType: WorldType;
   protected: boolean;
   password: string;
+  accountPassword?: string;
 };
 
 const WORLD_TYPES: { value: WorldType; label: string }[] = [
@@ -35,6 +36,7 @@ export function WorldFormModal({ open, onClose, initialData, onSubmit }: Props) 
   const [worldType, setWorldType] = useState<WorldType>('single');
   const [prot, setProt] = useState(false);
   const [password, setPassword] = useState('');
+  const [accountPassword, setAccountPassword] = useState('');
   const [nameError, setNameError] = useState('');
 
   useEffect(() => {
@@ -46,6 +48,7 @@ export function WorldFormModal({ open, onClose, initialData, onSubmit }: Props) 
     setWorldType(initialData?.worldType ?? 'single');
     setProt(initialData?.protected ?? false);
     setPassword('');
+    setAccountPassword('');
     setNameError('');
   }, [open, initialData?.id, initialData?.updatedAt]);
 
@@ -57,6 +60,10 @@ export function WorldFormModal({ open, onClose, initialData, onSubmit }: Props) 
     const hasExistingSecret = Boolean(initialData?.passwordHash || initialData?.password);
     if (prot && !password.trim() && !hasExistingSecret) {
       setNameError('Indica una contraseña o desactiva la protección');
+      return;
+    }
+    if (initialData?.id && initialData.protected && password.trim() && !accountPassword.trim()) {
+      setNameError('Confirma con la contraseña de tu cuenta para cambiar la del mundo');
       return;
     }
     setNameError('');
@@ -72,6 +79,7 @@ export function WorldFormModal({ open, onClose, initialData, onSubmit }: Props) 
       worldType,
       protected: prot,
       password: password.trim(),
+      accountPassword: accountPassword.trim() || undefined,
     });
     onClose();
   };
@@ -142,13 +150,24 @@ export function WorldFormModal({ open, onClose, initialData, onSubmit }: Props) 
               Proteger con contraseña
             </label>
             {prot && (
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="story-input mt-2 w-full"
-                placeholder={initialData?.passwordHash ? 'Nueva contraseña (dejar vacío para no cambiar)' : 'Contraseña'}
-              />
+              <>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="story-input mt-2 w-full"
+                  placeholder={initialData?.passwordHash ? 'Nueva contraseña (dejar vacío para no cambiar)' : 'Contraseña'}
+                />
+                {initialData?.id && initialData.protected && password.trim() ? (
+                  <input
+                    type="password"
+                    value={accountPassword}
+                    onChange={(e) => setAccountPassword(e.target.value)}
+                    className="story-input mt-2 w-full"
+                    placeholder="Contraseña de tu cuenta (obligatoria para cambiar)"
+                  />
+                ) : null}
+              </>
             )}
           </div>
         </div>

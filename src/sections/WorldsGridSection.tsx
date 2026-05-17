@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { sha256Hex } from '@/lib/password';
+import { verifyAccountPassword } from '@/services/authService';
 import type { World } from '@/types';
 import { orderedActiveWorlds } from '@/lib/worldOrder';
 import { buildWorldExport, parseWorldImport, remapWorldImport } from '@/lib/storyImportExport';
@@ -88,6 +89,13 @@ export function WorldsGridSection({ variant }: Props) {
     let password = existing?.password;
     if (values.protected) {
       if (values.password) {
+        if (existing?.protected && (existing.passwordHash || existing.password)) {
+          const accountOk = await verifyAccountPassword(values.accountPassword ?? '');
+          if (!accountOk) {
+            toast.error('Contraseña de cuenta incorrecta');
+            return null;
+          }
+        }
         passwordHash = await sha256Hex(values.password);
         password = undefined;
       } else if (!existing?.passwordHash && !existing?.password) {

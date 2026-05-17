@@ -19,6 +19,12 @@ type StorySlice = Pick<
   | 'organizations'
   | 'ideas'
   | 'timelines'
+  | 'houses'
+  | 'worldFacts'
+  | 'worldData'
+  | 'placeCollections'
+  | 'mapCollections'
+  | 'characterOrderByWorld'
 >;
 
 export function getStorySlice(): StorySlice {
@@ -34,6 +40,12 @@ export function getStorySlice(): StorySlice {
     organizations: s.organizations,
     ideas: s.ideas,
     timelines: s.timelines,
+    houses: s.houses,
+    worldFacts: s.worldFacts,
+    worldData: s.worldData,
+    placeCollections: s.placeCollections,
+    mapCollections: s.mapCollections,
+    characterOrderByWorld: s.characterOrderByWorld,
   };
 }
 
@@ -60,6 +72,12 @@ export async function pullStoryBundle(uid: string): Promise<boolean> {
     organizations: data.organizations as AppState['organizations'],
     ideas: data.ideas as AppState['ideas'],
     timelines: data.timelines as AppState['timelines'],
+    houses: (data.houses as AppState['houses']) ?? [],
+    worldFacts: (data.worldFacts as AppState['worldFacts']) ?? [],
+    worldData: (data.worldData as AppState['worldData']) ?? [],
+    placeCollections: (data.placeCollections as AppState['placeCollections']) ?? [],
+    mapCollections: (data.mapCollections as AppState['mapCollections']) ?? [],
+    characterOrderByWorld: (data.characterOrderByWorld as AppState['characterOrderByWorld']) ?? {},
   });
   return true;
 }
