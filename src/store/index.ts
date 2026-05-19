@@ -22,7 +22,16 @@ import type {
   Timeline,
   User,
   SectionType,
+  WorldTag,
 } from '@/types';
+import {
+  addChildRelationship,
+  syncAllRelationshipsFromCharacter,
+  syncRelationshipChange,
+  type AddChildOptions,
+} from '@/lib/relationshipSync';
+import { resolveTagNames } from '@/lib/worldTags';
+import { worldInitialSectionConfig } from '@/lib/worldSections';
 
 export interface AppState {
   // Auth
@@ -45,12 +54,31 @@ export interface AppState {
   // Characters
   characters: Character[];
   addCharacter: (character: Omit<Character, 'id' | 'createdAt' | 'updatedAt'>) => void;
-  updateCharacter: (id: string, data: Partial<Character>) => void;
+  updateCharacter: (id: string, data: Partial<Character>, options?: { syncRelationships?: boolean }) => void;
   deleteCharacter: (id: string) => void;
+  syncCharacterRelationship: (
+    sourceId: string,
+    patch: {
+      characterId: string;
+      characterName: string;
+      type: string;
+      description?: string;
+      action: 'add' | 'remove' | 'update';
+      previousType?: string;
+      inverseType?: string;
+    }
+  ) => void;
+  syncChildRelationship: (parentId: string, childId: string, options: AddChildOptions) => void;
   restoreCharacter: (id: string) => void;
   toggleFavoriteCharacter: (id: string) => void;
   getCharactersByWorld: (worldId: string) => Character[];
   getCharacterById: (id: string) => Character | undefined;
+
+  // World tags
+  worldTags: WorldTag[];
+  addWorldTag: (tag: Omit<WorldTag, 'id' | 'createdAt' | 'updatedAt'>) => string;
+  updateWorldTag: (id: string, data: Partial<WorldTag>) => void;
+  getWorldTagsByWorld: (worldId: string) => WorldTag[];
 
   // Scenes
   scenes: Scene[];
@@ -164,6 +192,9 @@ export interface AppState {
   /** Auto-guardado en Firebase (persistido). */
   firebaseAutoSaveEnabled: boolean;
   setFirebaseAutoSaveEnabled: (enabled: boolean) => void;
+  /** Indicador visual: subida a Firebase en curso. */
+  firebaseAutoSaveSyncing: boolean;
+  setFirebaseAutoSaveSyncing: (syncing: boolean) => void;
 
   /** Sincronización inicial de biblioteca desde Firebase. */
   storyDataLoading: boolean;
@@ -229,8 +260,13 @@ export const useStore = create<AppState>()(
       // Worlds
       worlds: [],
       addWorld: (world) => {
+        const sectionDefaults =
+          world.enabledSections?.length || world.sectionOrder?.length
+            ? {}
+            : worldInitialSectionConfig();
         const newWorld: World = {
           ...world,
+          ...sectionDefaults,
           id: crypto.randomUUID(),
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
@@ -317,10 +353,63 @@ export const useStore = create<AppState>()(
         };
         set((state) => ({ characters: [...state.characters, newCharacter] }));
       },
-      updateCharacter: (id, data) =>
-        set((state) => ({
-          characters: state.characters.map((c) => (c.id === id ? { ...c, ...data, updatedAt: new Date().toISOString() } : c)),
-        })),
+      updateCharacter: (id, data, options) => {
+        const syncRelationships = options?.syncRelationships ?? Boolean(data.relationships);
+        set((state) => {
+          const chars = state.characters;
+          const current = chars.find((c) => c.id === id);
+          if (!current) return state;
+
+          let nextChars = chars;
+          if (syncRelationships && data.relationships) {
+            const merged: Character = {
+              ...current,
+              ...data,
+              relationships: data.relationships,
+            } as Character;
+            const batch = syncAllRelationshipsFromCharacter(chars, merged);
+            nextChars = chars.map((c) => {
+              const patch = batch.get(c.id);
+              return patch ? ({ ...c, ...patch } as Character) : c;
+            });
+          } else {
+            nextChars = chars.map((c) =>
+              c.id === id ? { ...c, ...data, updatedAt: new Date().toISOString() } : c
+            );
+          }
+
+          const worldTags = state.worldTags;
+          nextChars = nextChars.map((c) => {
+            if (c.tagIds?.length) {
+              return { ...c, tags: resolveTagNames(c.tagIds, worldTags) };
+            }
+            return c;
+          });
+
+          return { characters: nextChars };
+        });
+      },
+      syncCharacterRelationship: (sourceId, patch) =>
+        set((state) => {
+          const batch = syncRelationshipChange(state.characters, sourceId, {
+            ...patch,
+            action: patch.action,
+          });
+          const characters = state.characters.map((c) => {
+            const p = batch.get(c.id);
+            return p ? ({ ...c, ...p } as Character) : c;
+          });
+          return { characters };
+        }),
+      syncChildRelationship: (parentId, childId, options) =>
+        set((state) => {
+          const batch = addChildRelationship(state.characters, parentId, childId, options);
+          const characters = state.characters.map((c) => {
+            const p = batch.get(c.id);
+            return p ? ({ ...c, ...p } as Character) : c;
+          });
+          return { characters };
+        }),
       deleteCharacter: (id) =>
         set((state) => ({
           characters: state.characters.map((c) => (c.id === id ? { ...c, isDeleted: true, deletedAt: new Date().toISOString() } : c)),
@@ -341,6 +430,25 @@ export const useStore = create<AppState>()(
         return [...list].sort((a, b) => (rank.get(a.id) ?? 999) - (rank.get(b.id) ?? 999));
       },
       getCharacterById: (id) => get().characters.find((c) => c.id === id),
+
+      worldTags: [],
+      addWorldTag: (tag) => {
+        const newTag: WorldTag = {
+          ...tag,
+          id: crypto.randomUUID(),
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        set((state) => ({ worldTags: [...state.worldTags, newTag] }));
+        return newTag.id;
+      },
+      updateWorldTag: (id, data) =>
+        set((state) => ({
+          worldTags: state.worldTags.map((t) =>
+            t.id === id ? { ...t, ...data, updatedAt: new Date().toISOString() } : t
+          ),
+        })),
+      getWorldTagsByWorld: (worldId) => get().worldTags.filter((t) => t.worldId === worldId),
 
       // Scenes
       scenes: [],
@@ -653,6 +761,8 @@ export const useStore = create<AppState>()(
 
       firebaseAutoSaveEnabled: true,
       setFirebaseAutoSaveEnabled: (enabled) => set({ firebaseAutoSaveEnabled: enabled }),
+      firebaseAutoSaveSyncing: false,
+      setFirebaseAutoSaveSyncing: (syncing) => set({ firebaseAutoSaveSyncing: syncing }),
 
       storyDataLoading: false,
       setStoryDataLoading: (loading) => set({ storyDataLoading: loading }),
@@ -795,6 +905,7 @@ export const useStore = create<AppState>()(
         worldData: state.worldData,
         placeCollections: state.placeCollections,
         mapCollections: state.mapCollections,
+        worldTags: state.worldTags,
         characterOrderByWorld: state.characterOrderByWorld,
         firebaseAutoSaveEnabled: state.firebaseAutoSaveEnabled,
         sidebarOpen: state.sidebarOpen,

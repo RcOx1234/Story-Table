@@ -1,14 +1,13 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useNavigationReturn } from '@/hooks/useNavigationReturn';
 import { useAppStore, useStore } from '@/store';
-import { motion } from 'framer-motion';
-import { ArrowLeft, Heart, Edit2, Trash2, Castle, Users, ScrollText } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { ArrowLeft, Heart, Edit2, Trash2, Castle, ScrollText, UserPlus } from 'lucide-react';
 import type { NobleRank } from '@/types';
-import { FamilyTree } from '@/components/houses/FamilyTree';
-import { EntityReference } from '@/components/common/EntityReference';
+import { GenealogySection } from '@/components/houses/GenealogySection';
+import { HouseMembersModal } from '@/components/houses/HouseMembersModal';
 import { houseMemberRoleLabel } from '@/lib/houseMemberRoles';
-import { migrateHouseGenealogy } from '@/lib/houseGenealogyMigrate';
 import { HouseFormModal } from '@/components/modals/crud/HouseFormModal';
 import { ConfirmDeleteModal } from '@/components/modals/crud/ConfirmDeleteModal';
 import { toast } from 'sonner';
@@ -25,16 +24,21 @@ const nobleRankLabels: Record<NobleRank, string> = {
   other: 'Otro',
 };
 
+const tabMotion = {
+  initial: { opacity: 0, y: 8 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: -8 },
+  transition: { duration: 0.2 },
+};
+
 type TabId = 'info' | 'family';
 
 function InfoBlock({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="story-card p-4">
+    <motion.div className="story-card p-4" {...tabMotion}>
       <h3 className="mb-2 text-xs font-mono uppercase tracking-wider text-[#5A6078]">{title}</h3>
-      <motion.div className="text-sm leading-relaxed text-[#8B91A7]" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-        {children}
-      </motion.div>
-    </div>
+      <div className="text-sm leading-relaxed text-[#8B91A7]">{children}</div>
+    </motion.div>
   );
 }
 
@@ -44,22 +48,21 @@ export function HouseDetail() {
   const house = useAppStore((s) => s.houses.find((h) => h.id === houseId && !h.isDeleted));
   const houses = useAppStore((s) => (worldId ? s.getHousesByWorld(worldId) : []));
   const characters = useAppStore((s) => (worldId ? s.getCharactersByWorld(worldId) : []));
-  const timelines = useAppStore((s) => s.timelines.filter((t) => t.worldId === worldId));
-  const houseGenealogy = useMemo(() => (house ? migrateHouseGenealogy(house) : null), [house]);
   const updateHouse = useAppStore((s) => s.updateHouse);
   const deleteHouse = useAppStore((s) => s.deleteHouse);
 
   const [tab, setTab] = useState<TabId>('info');
   const [formOpen, setFormOpen] = useState(false);
+  const [membersOpen, setMembersOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   if (!house || !worldId) {
     return (
       <motion.div className="flex h-[60vh] items-center justify-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-        <div className="text-center">
+        <motion.div className="text-center">
           <Castle size={48} className="mx-auto mb-4 text-[#2A3045]" />
           <p className="text-[#5A6078]">Casa no encontrada</p>
-        </div>
+        </motion.div>
       </motion.div>
     );
   }
@@ -71,8 +74,30 @@ export function HouseDetail() {
     { id: 'family', label: 'Familia' },
   ];
 
+  const saveMembers = (nextMembers: typeof members) => {
+    const previousIds = members.map((m) => m.characterId);
+    const nextIds = nextMembers.map((m) => m.characterId);
+    const removedIds = previousIds.filter((id) => !nextIds.includes(id));
+    updateHouse(house.id, { members: nextMembers });
+    for (const m of nextMembers) {
+      useStore.getState().updateCharacter(m.characterId, { houseId: house.id, house: house.name });
+    }
+    const allChars = useStore.getState().characters;
+    for (const id of removedIds) {
+      const ch = allChars.find((c) => c.id === id);
+      if (ch?.houseId === house.id) {
+        useStore.getState().updateCharacter(id, { houseId: undefined, house: '' });
+      }
+    }
+  };
+
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mx-auto max-w-4xl">
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2 }}
+      className="mx-auto max-w-4xl"
+    >
       <div className="mb-6 flex items-start justify-between gap-4">
         <div className="flex items-center gap-4">
           <button type="button" onClick={goBack} className="rounded-lg p-2 transition-all hover:bg-[#1E2230]">
@@ -127,10 +152,10 @@ export function HouseDetail() {
                 </div>
               )}
             </div>
-            <div className="p-4 text-center">
+            <motion.div className="p-4 text-center">
               {house.territory && <p className="text-xs text-[#5A6078]">{house.territory}</p>}
               <p className="mt-1 text-sm text-[#8B91A7]">{members.length} miembros</p>
-            </div>
+            </motion.div>
           </div>
           {house.tags?.length > 0 && (
             <div className="flex flex-wrap justify-center gap-1">
@@ -143,7 +168,7 @@ export function HouseDetail() {
           )}
         </div>
 
-        <motion.div className="lg:col-span-2" layout>
+        <div className="lg:col-span-2">
           <div className="mb-4 flex gap-1 border-b border-[#1E2230]">
             {tabs.map((t) => (
               <button
@@ -157,62 +182,86 @@ export function HouseDetail() {
             ))}
           </div>
 
-          {tab === 'info' && (
-            <motion.div className="space-y-3" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}>
-              <InfoBlock title="Descripción">{house.description || 'Sin descripción.'}</InfoBlock>
-              <InfoBlock title="Linaje">{house.lineage || 'Sin datos.'}</InfoBlock>
-              <InfoBlock title="Símbolos e insignias">{house.symbols || 'Sin datos.'}</InfoBlock>
-            </motion.div>
-          )}
+          <AnimatePresence mode="wait">
+            {tab === 'info' && (
+              <motion.div key="info" className="space-y-3" {...tabMotion}>
+                <InfoBlock title="Descripción">{house.description || 'Sin descripción.'}</InfoBlock>
+                <InfoBlock title="Linaje">{house.lineage || 'Sin datos.'}</InfoBlock>
+                <InfoBlock title="Símbolos e insignias">{house.symbols || 'Sin datos.'}</InfoBlock>
+              </motion.div>
+            )}
 
-          {tab === 'family' && (
-            <motion.div className="space-y-6" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}>
-              {members.length === 0 ? (
-                <div className="story-card py-10 text-center text-sm text-[#5A6078]">
-                  <Users size={32} className="mx-auto mb-3 text-[#2A3045]" />
-                  <p>No hay miembros registrados.</p>
-                  <p className="mt-1 text-xs">Añádelos desde Editar casa.</p>
-                </div>
-              ) : (
-                <>
-                  <div className="story-card p-4">
-                    <h3 className="mb-3 flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-[#5A6078]">
-                      <ScrollText size={12} /> Miembros
+            {tab === 'family' && (
+              <motion.div key="family" className="space-y-6" {...tabMotion}>
+                <div className="story-card p-4">
+                  <motion.div className="mb-3 flex items-center justify-between gap-2">
+                    <h3 className="flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-[#5A6078]">
+                      <ScrollText size={12} /> Miembros ({members.length})
                     </h3>
-                    <div className="space-y-2">
+                    <button
+                      type="button"
+                      onClick={() => setMembersOpen(true)}
+                      className="story-btn-secondary flex items-center gap-1.5 px-3 py-1.5 text-xs"
+                    >
+                      <UserPlus size={14} /> Añadir
+                    </button>
+                  </motion.div>
+                  {members.length === 0 ? (
+                    <p className="py-6 text-center text-sm text-[#5A6078]">
+                      Aún no hay miembros. Usa «Añadir» para incorporarlos.
+                    </p>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                       {members.map((m) => {
                         const ch = characters.find((c) => c.id === m.characterId);
                         if (!ch) return null;
                         return (
                           <div
                             key={m.characterId}
-                            className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-[#1E2230] px-3 py-2"
+                            className="flex items-center gap-3 rounded-xl border border-[#2A3045]/80 bg-[#0B0D10]/50 p-2.5"
                           >
-                            <EntityReference type="character" id={ch.id} worldId={worldId} label={ch.name} />
-                            <span className="rounded-full bg-[#D61E2B]/15 px-2 py-0.5 text-[10px] text-[#D61E2B]">
-                              {houseMemberRoleLabel(m.role)}
-                            </span>
+                            <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full bg-[#1E2230]">
+                              {ch.images[0] ? (
+                                <img src={ch.images[0]} alt="" className="h-full w-full object-cover" />
+                              ) : (
+                                <div className="flex h-full w-full items-center justify-center text-sm font-semibold text-[#8B91A7]">
+                                  {ch.name.charAt(0)}
+                                </div>
+                              )}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-medium text-[#E8E9EB]">{ch.name}</p>
+                              <p className="truncate text-[10px] text-[#D61E2B]">{houseMemberRoleLabel(m.role)}</p>
+                            </div>
                           </div>
                         );
                       })}
                     </div>
+                  )}
+                </div>
+
+                {members.length > 0 && (
+                  <div className="border-t border-[#1E2230] pt-6">
+                    <GenealogySection
+                      worldId={worldId!}
+                      houseId={house.id}
+                      houseName={house.name}
+                      members={members}
+                    />
                   </div>
-                  <p className="mb-3 text-xs text-[#5A6078]">
-                    Miembros oficiales: {members.length} · Personas en el árbol:{' '}
-                    {houseGenealogy?.familyPeople?.length ?? members.length}
-                  </p>
-                  <FamilyTree
-                    worldId={worldId!}
-                    house={houseGenealogy ?? house}
-                    characters={characters}
-                    timelines={timelines}
-                  />
-                </>
-              )}
-            </motion.div>
-          )}
-        </motion.div>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
+
+      <HouseMembersModal
+        open={membersOpen}
+        onClose={() => setMembersOpen(false)}
+        house={house}
+        onSave={saveMembers}
+      />
 
       <HouseFormModal
         open={formOpen}
@@ -220,20 +269,7 @@ export function HouseDetail() {
         worldId={worldId}
         initial={house}
         onSubmit={(data) => {
-          const previousIds = (house.members ?? []).map((m) => m.characterId);
-          const nextIds = (data.members ?? []).map((m) => m.characterId);
-          const removedIds = previousIds.filter((id) => !nextIds.includes(id));
           updateHouse(house.id, data);
-          for (const m of data.members ?? []) {
-            useStore.getState().updateCharacter(m.characterId, { houseId: house.id, house: data.name });
-          }
-          const allChars = useStore.getState().characters;
-          for (const id of removedIds) {
-            const ch = allChars.find((c) => c.id === id);
-            if (ch?.houseId === house.id) {
-              useStore.getState().updateCharacter(id, { houseId: undefined, house: '' });
-            }
-          }
           toast.success('Casa actualizada');
         }}
       />

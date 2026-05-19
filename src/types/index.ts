@@ -1,5 +1,15 @@
 export type WorldType = 'single' | 'saga' | 'trilogy' | 'shared';
 
+/** Tag reutilizable por mundo (catálogo global del mundo). */
+export interface WorldTag {
+  id: string;
+  worldId: string;
+  name: string;
+  color?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface World {
   id: string;
   name: string;
@@ -8,6 +18,11 @@ export interface World {
   createdAt: string;
   updatedAt: string;
   tags: string[];
+  tagIds?: string[];
+  /** Secciones visibles en la barra del mundo. Vacío = todas (mundos antiguos). */
+  enabledSections?: SectionType[];
+  /** Orden de pestañas en la barra del mundo. */
+  sectionOrder?: SectionType[];
   protected: boolean;
   /** @deprecated Usar passwordHash; se mantiene por compatibilidad con datos demo. */
   password?: string;
@@ -30,13 +45,22 @@ export type CharacterRole =
   | 'assassin'
   | 'prince'
   | 'princess'
+  | 'noble'
+  | 'commoner'
+  | 'guard'
+  | 'villain'
+  | 'creature'
   | 'other';
+
+export type CharacterGender = 'male' | 'female' | 'unspecified';
 
 export interface Character {
   id: string;
   worldId: string;
   name: string;
   alias: string;
+  /** Hombre, mujer o sin definir (legacy). Obligatorio al crear personajes nuevos. */
+  gender?: CharacterGender;
   role: CharacterRole;
   house: string;
   /** Casa vinculada del catálogo de casas del mundo. */
@@ -62,6 +86,7 @@ export interface Character {
   createdAt: string;
   updatedAt: string;
   tags: string[];
+  tagIds?: string[];
 }
 
 export interface Relationship {
@@ -142,6 +167,17 @@ export interface Place {
   tags: string[];
 }
 
+export type PlaceCollectionType =
+  | 'kingdom'
+  | 'country'
+  | 'city'
+  | 'region'
+  | 'faction'
+  | 'empire'
+  | 'continent'
+  | 'district'
+  | 'custom';
+
 export interface PlaceCollection {
   id: string;
   worldId: string;
@@ -149,6 +185,14 @@ export interface PlaceCollection {
   description: string;
   imageUrl: string;
   placeIds: string[];
+  collectionType?: PlaceCollectionType;
+  customCollectionType?: string;
+  color?: string;
+  relatedCharacterIds?: string[];
+  relatedHouseIds?: string[];
+  relatedOrganizationIds?: string[];
+  notes?: string;
+  tagIds?: string[];
   isDeleted: boolean;
   deletedAt?: string;
   createdAt: string;

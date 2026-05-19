@@ -1,14 +1,17 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useNavigateWithReturn } from '@/hooks/useNavigationReturn';
 import { useAppStore } from '@/store';
-import { motion } from 'framer-motion';
-import { Plus, Search, MapPin, Heart, FolderPlus, ArrowLeft, Pencil } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Plus, Search, MapPin, Heart, FolderPlus, ArrowLeft, ChevronRight } from 'lucide-react';
+import { StorySelect } from '@/components/common/StorySelect';
 import type { Place, PlaceCollection } from '@/types';
 import { PlaceFormModal } from '@/components/modals/crud/PlaceFormModal';
 import { PlaceCollectionFormModal } from '@/components/modals/crud/PlaceCollectionFormModal';
 import { ConfirmDeleteModal } from '@/components/modals/crud/ConfirmDeleteModal';
 import { EntityCardMenu } from '@/components/common/EntityCardMenu';
 import { CollectionCard } from '@/components/common/CollectionCard';
+import { PlaceCollectionDetailModal } from '@/components/modals/crud/PlaceCollectionDetailModal';
+import { collectionTypeLabel } from '@/lib/collectionTypes';
 import { toast } from 'sonner';
 
 const typeLabels: Record<string, string> = {
@@ -43,33 +46,33 @@ export function PlacesSection({ worldId }: Props) {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Place | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [collectionFilter, setCollectionFilter] = useState('');
   const [openCollectionId, setOpenCollectionId] = useState<string | null>(null);
+  const [detailCollection, setDetailCollection] = useState<PlaceCollection | null>(null);
   const [collectionFormOpen, setCollectionFormOpen] = useState(false);
   const [editingCollection, setEditingCollection] = useState<PlaceCollection | null>(null);
   const [deleteCollectionId, setDeleteCollectionId] = useState<string | null>(null);
-
-  const placeIdsInCollections = useMemo(() => {
-    const ids = new Set<string>();
-    for (const col of collections) {
-      for (const id of col.placeIds) ids.add(id);
-    }
-    for (const p of places) {
-      if (p.collectionId) ids.add(p.id);
-    }
-    return ids;
-  }, [collections, places]);
-
-  const isInAnyCollection = (p: Place) => placeIdsInCollections.has(p.id);
-
-  const openCollection = openCollectionId ? collections.find((c) => c.id === openCollectionId) : null;
 
   const placesInCollection = (col: PlaceCollection) =>
     places.filter((pl) => col.placeIds.includes(pl.id) || pl.collectionId === col.id);
 
   const matchesSearch = (p: Place) => !search || p.name.toLowerCase().includes(search.toLowerCase());
 
-  const rootPlaces = places.filter((p) => !isInAnyCollection(p) && matchesSearch(p));
-  const folderPlaces = openCollection ? placesInCollection(openCollection).filter(matchesSearch) : [];
+  const placeInCollection = (p: Place, col: PlaceCollection) =>
+    col.placeIds.includes(p.id) || p.collectionId === col.id;
+
+  const openCollection = openCollectionId ? collections.find((c) => c.id === openCollectionId) : null;
+
+  const matchesCollection = (p: Place) => {
+    if (openCollection) return placeInCollection(p, openCollection);
+    if (!collectionFilter) return true;
+    const col = collections.find((c) => c.id === collectionFilter);
+    if (!col) return true;
+    return placeInCollection(p, col);
+  };
+
+  const displayedPlaces = places.filter((p) => matchesSearch(p) && matchesCollection(p));
+  const collectionPlaces = openCollection ? places.filter((p) => placeInCollection(p, openCollection)) : [];
 
   const onSubmit = (data: Omit<Place, 'id' | 'createdAt' | 'updatedAt'>) => {
     if (editing) {
@@ -144,53 +147,154 @@ export function PlacesSection({ worldId }: Props) {
     </motion.div>
   );
 
-  return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }}>
-      {openCollection ? (
-        <div className="mb-8">
+  const modals = (
+    <>
+      <PlaceFormModal
+        open={formOpen}
+        onClose={() => {
+          setFormOpen(false);
+          setEditing(null);
+        }}
+        worldId={worldId}
+        initial={editing}
+        onSubmit={onSubmit}
+      />
+      <PlaceCollectionFormModal
+        open={collectionFormOpen}
+        onClose={() => {
+          setCollectionFormOpen(false);
+          setEditingCollection(null);
+        }}
+        worldId={worldId}
+        initial={editingCollection}
+        onSubmit={onCollectionSubmit}
+      />
+      <ConfirmDeleteModal
+        open={!!deleteId}
+        onClose={() => setDeleteId(null)}
+        message="Este lugar irá a la papelera."
+        onConfirm={() => {
+          if (deleteId) {
+            deletePlace(deleteId);
+            toast.success('Lugar enviado a la papelera');
+          }
+        }}
+      />
+      <PlaceCollectionDetailModal
+        open={!!detailCollection}
+        onClose={() => setDetailCollection(null)}
+        collection={detailCollection}
+        onEdit={() => {
+          if (detailCollection) {
+            setEditingCollection(detailCollection);
+            setCollectionFormOpen(true);
+            setDetailCollection(null);
+          }
+        }}
+        onDelete={() => {
+          if (detailCollection) setDeleteCollectionId(detailCollection.id);
+        }}
+      />
+      <ConfirmDeleteModal
+        open={!!deleteCollectionId}
+        onClose={() => setDeleteCollectionId(null)}
+        message="¿Eliminar esta colección? Los lugares no se borran."
+        onConfirm={() => {
+          if (deleteCollectionId) {
+            deletePlaceCollection(deleteCollectionId);
+            toast.success('Colección eliminada');
+            if (openCollectionId === deleteCollectionId) setOpenCollectionId(null);
+          }
+        }}
+      />
+    </>
+  );
+
+  if (openCollection) {
+    const folderPlaces = collectionPlaces.filter(matchesSearch);
+    return (
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={`collection-${openCollection.id}`}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -8 }}
+          transition={{ duration: 0.2 }}
+        >
+        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-[#2A3045] bg-[#111318] px-4 py-3">
           <button
             type="button"
             onClick={() => setOpenCollectionId(null)}
-            className="mb-4 flex items-center gap-2 text-sm text-[#8B91A7] transition-colors hover:text-[#E8E9EB]"
+            className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-[#8B91A7] hover:bg-[#1E2230] hover:text-[#E8E9EB]"
           >
-            <ArrowLeft size={16} /> Volver a lugares
+            <ArrowLeft size={14} /> Lugares
           </button>
-          <div className="story-card overflow-hidden p-0">
-            {openCollection.imageUrl ? (
-              <img src={openCollection.imageUrl} alt="" className="max-h-40 w-full object-cover" />
-            ) : (
-              <div className="flex h-28 items-center justify-center bg-[#111318]">
-                <FolderPlus size={32} className="text-[#3A4460]" />
-              </div>
-            )}
-            <div className="p-5">
-              <div className="mb-2 flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="mb-1 font-mono text-xs uppercase tracking-wider text-[#5A6078]">Colección</p>
-                  <h2 className="text-xl font-bold text-[#E8E9EB]">{openCollection.name}</h2>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditingCollection(openCollection);
-                    setCollectionFormOpen(true);
-                  }}
-                  className="story-btn-secondary flex items-center gap-1.5 text-xs"
-                >
-                  <Pencil size={14} /> Editar
-                </button>
-              </div>
-              {openCollection.description && (
-                <p className="text-sm leading-relaxed text-[#8B91A7]">{openCollection.description}</p>
-              )}
-              <p className="mt-3 text-xs text-[#5A6078]">
-                {placesInCollection(openCollection).length} lugar
-                {placesInCollection(openCollection).length !== 1 ? 'es' : ''}
-              </p>
-            </div>
-          </div>
+          <ChevronRight size={12} className="text-[#5A6078]" />
+          <span className="font-semibold text-[#E8E9EB]">{openCollection.name}</span>
+          <span className="text-xs text-[#5A6078]">
+            {collectionTypeLabel(openCollection.collectionType, openCollection.customCollectionType)} ·{' '}
+            {folderPlaces.length} lugares
+          </span>
+          <button
+            type="button"
+            className="story-btn-secondary ml-auto text-xs"
+            onClick={() => setDetailCollection(openCollection)}
+          >
+            Ver detalles
+          </button>
         </div>
-      ) : (
+
+        <div className="mb-6 flex flex-col gap-3 sm:flex-row">
+          <div className="relative flex-1">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5A6078]" />
+            <input
+              type="text"
+              placeholder="Buscar en esta colección..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="story-input w-full pl-10"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setEditing(null);
+              setFormOpen(true);
+            }}
+            className="story-btn-primary text-sm"
+          >
+            <Plus size={16} /> Agregar lugar
+          </button>
+        </div>
+
+        {folderPlaces.length === 0 ? (
+          <motion.div className="py-16 text-center">
+            <MapPin size={48} className="mx-auto mb-4 text-[#2A3045]" />
+            <p className="mb-4 text-[#5A6078]">Esta colección no tiene lugares</p>
+            <button type="button" onClick={() => setFormOpen(true)} className="story-btn-primary text-sm">
+              <Plus size={16} /> Añadir lugar
+            </button>
+          </motion.div>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {folderPlaces.map((place, i) => renderPlaceCard(place, i))}
+          </div>
+        )}
+        {modals}
+        </motion.div>
+      </AnimatePresence>
+    );
+  }
+
+  return (
+    <AnimatePresence mode="wait">
+      <motion.div
+        key="places-root"
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -8 }}
+        transition={{ duration: 0.2 }}
+      >
       <div className="mb-8">
         <motion.div
           className="mb-3 flex items-center justify-between"
@@ -222,9 +326,11 @@ export function PlacesSection({ worldId }: Props) {
                 key={col.id}
                 name={col.name}
                 imageUrl={col.imageUrl}
-                subtitle={`${placesInCollection(col).length} lugares`}
+                subtitle={`${collectionTypeLabel(col.collectionType, col.customCollectionType)} · ${placesInCollection(col).length} lugares`}
                 index={i}
+                isActive={openCollectionId === col.id}
                 onOpen={() => setOpenCollectionId(col.id)}
+                onViewDetails={() => setDetailCollection(col)}
                 onEdit={() => {
                   setEditingCollection(col);
                   setCollectionFormOpen(true);
@@ -235,7 +341,6 @@ export function PlacesSection({ worldId }: Props) {
           </div>
         )}
       </div>
-      )}
 
       <div className="mb-6 flex flex-col gap-3 sm:flex-row">
         <motion.div
@@ -247,12 +352,29 @@ export function PlacesSection({ worldId }: Props) {
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5A6078]" />
           <input
             type="text"
-            placeholder={openCollection ? 'Buscar en la colección...' : 'Buscar lugares...'}
+            placeholder="Buscar lugares..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="story-input w-full pl-10"
           />
         </motion.div>
+        {collections.length > 0 && (
+          <StorySelect
+            value={collectionFilter}
+            onChange={setCollectionFilter}
+            options={[
+              { value: '', label: 'Todos los lugares' },
+              ...collections.map((col) => ({
+                value: col.id,
+                label: col.name,
+                sublabel: collectionTypeLabel(col.collectionType, col.customCollectionType),
+              })),
+            ]}
+            placeholder="Filtrar por colección"
+            className="min-w-[180px] w-auto"
+            aria-label="Filtrar por colección"
+          />
+        )}
         <button
           type="button"
           onClick={() => {
@@ -265,11 +387,11 @@ export function PlacesSection({ worldId }: Props) {
         </button>
       </div>
 
-      {(openCollection ? folderPlaces : rootPlaces).length === 0 ? (
+      {displayedPlaces.length === 0 ? (
         <div className="py-16 text-center">
           <MapPin size={48} className="mx-auto mb-4 text-[#2A3045]" />
           <p className="mb-4 text-[#5A6078]">
-            {openCollection ? 'No hay lugares en esta colección' : 'No hay lugares sueltos'}
+            {openCollectionId || collectionFilter ? 'No hay lugares en esta vista' : 'No hay lugares'}
           </p>
           <button
             type="button"
@@ -284,55 +406,12 @@ export function PlacesSection({ worldId }: Props) {
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {(openCollection ? folderPlaces : rootPlaces).map((place, i) => renderPlaceCard(place, i))}
+          {displayedPlaces.map((place, i) => renderPlaceCard(place, i))}
         </div>
+
       )}
-
-      <PlaceFormModal
-        open={formOpen}
-        onClose={() => {
-          setFormOpen(false);
-          setEditing(null);
-        }}
-        worldId={worldId}
-        initial={editing}
-        onSubmit={onSubmit}
-      />
-
-      <PlaceCollectionFormModal
-        open={collectionFormOpen}
-        onClose={() => {
-          setCollectionFormOpen(false);
-          setEditingCollection(null);
-        }}
-        worldId={worldId}
-        initial={editingCollection}
-        onSubmit={onCollectionSubmit}
-      />
-
-      <ConfirmDeleteModal
-        open={!!deleteId}
-        onClose={() => setDeleteId(null)}
-        message="Este lugar irá a la papelera."
-        onConfirm={() => {
-          if (deleteId) {
-            deletePlace(deleteId);
-            toast.success('Lugar enviado a la papelera');
-          }
-        }}
-      />
-
-      <ConfirmDeleteModal
-        open={!!deleteCollectionId}
-        onClose={() => setDeleteCollectionId(null)}
-        message="¿Eliminar esta colección? Los lugares no se borran."
-        onConfirm={() => {
-          if (deleteCollectionId) {
-            deletePlaceCollection(deleteCollectionId);
-            toast.success('Colección eliminada');
-          }
-        }}
-      />
-    </motion.div>
+      {modals}
+      </motion.div>
+    </AnimatePresence>
   );
 }

@@ -7,12 +7,24 @@ type Props = {
   imageUrl?: string;
   subtitle: string;
   index?: number;
+  isActive?: boolean;
   onOpen: () => void;
   onEdit: () => void;
+  onViewDetails?: () => void;
   onDelete?: () => void;
 };
 
-export function CollectionCard({ name, imageUrl, subtitle, index = 0, onOpen, onEdit, onDelete }: Props) {
+export function CollectionCard({
+  name,
+  imageUrl,
+  subtitle,
+  index = 0,
+  isActive = false,
+  onOpen,
+  onEdit,
+  onViewDetails,
+  onDelete,
+}: Props) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
@@ -22,7 +34,9 @@ export function CollectionCard({ name, imageUrl, subtitle, index = 0, onOpen, on
       tabIndex={0}
       onKeyDown={(e) => e.key === 'Enter' && onOpen()}
       onClick={onOpen}
-      className="story-card group relative cursor-pointer overflow-hidden p-0 text-left transition-all hover:border-[#D61E2B]/40"
+      className={`story-card group relative cursor-pointer overflow-hidden p-0 text-left transition-all hover:border-[#D61E2B]/40 ${
+        isActive ? 'border-[#D61E2B]/50 ring-1 ring-[#D61E2B]/30' : ''
+      }`}
     >
       <motion.div
         className="aspect-video bg-[#0B0D10]"
@@ -54,7 +68,7 @@ export function CollectionCard({ name, imageUrl, subtitle, index = 0, onOpen, on
         <EntityCardMenu
           editLabel="Editar colección"
           onEdit={onEdit}
-          onViewDetails={onOpen}
+          onViewDetails={onViewDetails}
           viewDetailsLabel="Ver detalles"
           onDelete={onDelete}
         />

@@ -21,6 +21,7 @@ export const LIBRARY_ENTITY_COLLECTIONS = [
   'worldData',
   'placeCollections',
   'mapCollections',
+  'worldTags',
 ] as const;
 
 export type LibraryEntityCollection = (typeof LIBRARY_ENTITY_COLLECTIONS)[number];

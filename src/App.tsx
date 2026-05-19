@@ -14,6 +14,7 @@ import { SceneDetail } from '@/pages/SceneDetail';
 import { IdeasPage } from '@/pages/IdeasPage';
 import { FavoritesPage } from '@/pages/FavoritesPage';
 import { TrashPage } from '@/pages/TrashPage';
+import { GlobalCharactersPage } from '@/pages/GlobalCharactersPage';
 import { PlaceDetail } from '@/pages/PlaceDetail';
 import { MapView } from '@/pages/MapView';
 import { LoginPage } from '@/pages/LoginPage';
@@ -57,6 +58,7 @@ function AppContent() {
           <Route element={<AuthLayout />}>
             <Route index element={<Dashboard />} />
             <Route path="mundos" element={<WorldsPage />} />
+            <Route path="personajes" element={<GlobalCharactersPage />} />
             <Route path="world/:worldId" element={<WorldView />} />
             <Route path="world/:worldId/character/:characterId" element={<CharacterDetail />} />
             <Route path="world/:worldId/house/:houseId" element={<HouseDetail />} />
@@ -71,7 +73,8 @@ function AppContent() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <Toaster
-        position="top-right"
+        position="bottom-right"
+        offset="1rem"
         toastOptions={{
           style: {
             background: '#151820',

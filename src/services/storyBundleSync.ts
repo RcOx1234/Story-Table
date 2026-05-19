@@ -25,6 +25,7 @@ type StorySlice = Pick<
   | 'worldData'
   | 'placeCollections'
   | 'mapCollections'
+  | 'worldTags'
   | 'characterOrderByWorld'
   | 'dashboardWorldIds'
 >;
@@ -45,6 +46,7 @@ export const EMPTY_STORY_SLICE: StorySlice = {
   worldData: [],
   placeCollections: [],
   mapCollections: [],
+  worldTags: [],
   characterOrderByWorld: {},
   dashboardWorldIds: [],
 };
@@ -76,6 +78,7 @@ export function getStorySlice(): StorySlice {
     worldData: s.worldData,
     placeCollections: s.placeCollections,
     mapCollections: s.mapCollections,
+    worldTags: s.worldTags,
     characterOrderByWorld: s.characterOrderByWorld,
     dashboardWorldIds: s.dashboardWorldIds,
   };
@@ -98,6 +101,7 @@ function applyStorySlice(data: Record<string, unknown>): void {
     worldData: (data.worldData as AppState['worldData']) ?? [],
     placeCollections: (data.placeCollections as AppState['placeCollections']) ?? [],
     mapCollections: (data.mapCollections as AppState['mapCollections']) ?? [],
+    worldTags: (data.worldTags as AppState['worldTags']) ?? [],
     characterOrderByWorld: (data.characterOrderByWorld as AppState['characterOrderByWorld']) ?? {},
     dashboardWorldIds: (data.dashboardWorldIds as AppState['dashboardWorldIds']) ?? [],
   });

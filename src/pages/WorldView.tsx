@@ -19,7 +19,10 @@ import {
   Database,
   ScrollText,
   Landmark,
+  Pencil,
 } from 'lucide-react';
+import { getWorldSectionOrder } from '@/lib/worldSections';
+import { WorldSectionsEditorModal } from '@/components/modals/crud/WorldSectionsEditorModal';
 import { CharactersSection } from '@/sections/CharactersSection';
 import { ScenesSection } from '@/sections/ScenesSection';
 import { PlacesSection } from '@/sections/PlacesSection';
@@ -58,14 +61,21 @@ export function WorldView() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<SectionType>('characters');
   const world = useAppStore((s) => s.getWorldById(worldId ?? ''));
+  const updateWorld = useAppStore((s) => s.updateWorld);
   const toggleFavoriteWorld = useAppStore((s) => s.toggleFavoriteWorld);
   const [lockOpen, setLockOpen] = useState(false);
   const [unlocked, setUnlocked] = useState(false);
+  const [sectionsEditorOpen, setSectionsEditorOpen] = useState(false);
+
+  const visibleTabs = world ? getWorldSectionOrder(world).map((id) => tabs.find((t) => t.id === id)!).filter(Boolean) : tabs;
 
   useEffect(() => {
     const t = searchParams.get('tab') as SectionType | null;
-    if (t && tabs.some((x) => x.id === t)) setActiveTab(t);
-  }, [searchParams]);
+    if (t && visibleTabs.some((x) => x.id === t)) setActiveTab(t);
+    else if (visibleTabs.length && !visibleTabs.some((x) => x.id === activeTab)) {
+      setActiveTab(visibleTabs[0].id);
+    }
+  }, [searchParams, world?.id, world?.enabledSections, world?.sectionOrder]);
 
   useEffect(() => {
     if (!world || world.isDeleted) return;
@@ -171,8 +181,8 @@ export function WorldView() {
           </div>
         </div>
 
-        <div className="scrollbar-thin flex gap-1 overflow-x-auto border-b border-[#1E2230] pb-2">
-          {tabs.map((tab) => (
+        <motion.div className="scrollbar-thin flex items-center gap-1 overflow-x-auto border-b border-[#1E2230] pb-2">
+          {visibleTabs.map((tab) => (
             <button
               key={tab.id}
               type="button"
@@ -183,8 +193,28 @@ export function WorldView() {
               {tab.label}
             </button>
           ))}
-        </div>
+          <div className="ml-auto flex shrink-0 items-center gap-1 pl-2">
+            <button
+              type="button"
+              onClick={() => setSectionsEditorOpen(true)}
+              className="rounded-lg p-2 text-[#5A6078] transition-colors hover:bg-[#1E2230] hover:text-[#E8E9EB]"
+              title="Editar y ordenar secciones"
+              aria-label="Editar secciones"
+            >
+              <Pencil size={16} />
+            </button>
+          </div>
+        </motion.div>
       </div>
+
+      <WorldSectionsEditorModal
+        open={sectionsEditorOpen}
+        onClose={() => setSectionsEditorOpen(false)}
+        world={world}
+        onSave={(enabledSections, sectionOrder) => {
+          updateWorld(world.id, { enabledSections, sectionOrder });
+        }}
+      />
 
       <AnimatePresence mode="wait">
         <motion.div

@@ -2,7 +2,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAppStore } from '@/store';
 import {
   LayoutDashboard, Globe, Lightbulb, Heart, Trash2,
-  ChevronLeft, ChevronRight, BookOpen, Feather, LogOut,
+  ChevronLeft, ChevronRight, BookOpen, Feather, LogOut, Users,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { isFirebaseConfigured } from '@/lib/firebase';
@@ -16,11 +16,13 @@ export function Sidebar() {
   const user = useAppStore((s) => s.user);
   const logoutStore = useAppStore((s) => s.logout);
   const worlds = useAppStore((s) => s.worlds.filter((w) => !w.isDeleted));
+  const characterCount = useAppStore((s) => s.characters.filter((c) => !c.isDeleted).length);
   const ideas = useAppStore((s) => s.ideas.filter((i) => !i.worldId && !i.isDeleted));
 
   const menuItems = [
     { id: 'mesa', icon: LayoutDashboard, label: 'Mi Mesa', path: '/', count: null as number | null },
     { id: 'mundos', icon: Globe, label: 'Mis Mundos', path: '/mundos', count: worlds.length },
+    { id: 'personajes', icon: Users, label: 'Personajes', path: '/personajes', count: characterCount },
     { id: 'ideas', icon: Lightbulb, label: 'Ideas', path: '/ideas', count: ideas.length },
     { id: 'fav', icon: Heart, label: 'Favoritos', path: '/favorites', count: null },
     { id: 'trash', icon: Trash2, label: 'Papelera', path: '/trash', count: null },

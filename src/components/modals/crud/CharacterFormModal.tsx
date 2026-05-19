@@ -2,22 +2,14 @@ import { useState, useEffect } from 'react';
 import { BaseModal } from './BaseModal';
 import { ImageInputField } from '@/components/common/ImageInputField';
 import { useAppStore, useStore } from '@/store';
-import type { Character, CharacterRole, Relationship } from '@/types';
+import type { Character, CharacterGender, CharacterRole, Relationship } from '@/types';
+import { GENDER_OPTIONS } from '@/lib/characterGender';
 import { RELATIONSHIP_TYPE_OPTIONS } from '@/lib/relationshipTypes';
-
-const ROLES: { value: CharacterRole; label: string }[] = [
-  { value: 'protagonist', label: 'Protagonista' },
-  { value: 'antagonist', label: 'Antagonista' },
-  { value: 'secondary', label: 'Secundario' },
-  { value: 'supporting', label: 'Apoyo' },
-  { value: 'extra', label: 'Extra' },
-  { value: 'king', label: 'Rey' },
-  { value: 'queen', label: 'Reina' },
-  { value: 'assassin', label: 'Asesino' },
-  { value: 'prince', label: 'Príncipe' },
-  { value: 'princess', label: 'Princesa' },
-  { value: 'other', label: 'Otro' },
-];
+import { CHARACTER_ROLE_OPTIONS } from '@/lib/characterRoles';
+import { WorldTagInput } from '@/components/common/WorldTagInput';
+import { resolveTagNames } from '@/lib/worldTags';
+import { StorySelect } from '@/components/common/StorySelect';
+import type { World } from '@/types';
 
 type Props = {
   open: boolean;
@@ -25,6 +17,10 @@ type Props = {
   worldId: string;
   initial?: Character | null;
   onSubmit: (data: Omit<Character, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  showWorldPicker?: boolean;
+  worldsList?: World[];
+  defaultHouseId?: string;
+  defaultHouseName?: string;
 };
 
 function emptyCharacter(worldId: string): Omit<Character, 'id' | 'createdAt' | 'updatedAt'> {
@@ -49,20 +45,37 @@ function emptyCharacter(worldId: string): Omit<Character, 'id' | 'createdAt' | '
     quotes: [],
     arc: '',
     status: 'alive',
+    gender: 'unspecified',
     isFavorite: false,
     isDeleted: false,
     tags: [],
+    tagIds: [],
   };
 }
 
-export function CharacterFormModal({ open, onClose, worldId, initial, onSubmit }: Props) {
-  const timelines = useAppStore((s) => s.getTimelinesByWorld(worldId));
-  const houses = useAppStore((s) => s.getHousesByWorld(worldId));
-  const worldCharacters = useAppStore((s) => s.getCharactersByWorld(worldId));
-  const [form, setForm] = useState<Omit<Character, 'id' | 'createdAt' | 'updatedAt'>>(() => emptyCharacter(worldId));
+export function CharacterFormModal({
+  open,
+  onClose,
+  worldId,
+  initial,
+  onSubmit,
+  showWorldPicker = false,
+  worldsList = [],
+  defaultHouseId,
+  defaultHouseName,
+}: Props) {
+  const [pickedWorldId, setPickedWorldId] = useState(worldId);
+  const effectiveWorldId = showWorldPicker ? pickedWorldId : worldId;
+  const timelines = useAppStore((s) => s.getTimelinesByWorld(effectiveWorldId));
+  const houses = useAppStore((s) => s.getHousesByWorld(effectiveWorldId));
+  const worldCharacters = useAppStore((s) => s.getCharactersByWorld(effectiveWorldId));
+  const [form, setForm] = useState<Omit<Character, 'id' | 'createdAt' | 'updatedAt'>>(() =>
+    emptyCharacter(effectiveWorldId)
+  );
   const [mainImage, setMainImage] = useState('');
   const [quotesRaw, setQuotesRaw] = useState('');
-  const [tagsRaw, setTagsRaw] = useState('');
+  const [tagIds, setTagIds] = useState<string[]>([]);
+  const worldTags = useAppStore((s) => s.getWorldTagsByWorld(effectiveWorldId));
   const [ageTimelineDraft, setAgeTimelineDraft] = useState<Record<string, string>>({});
   const [err, setErr] = useState('');
   const [relCharId, setRelCharId] = useState('');
@@ -71,25 +84,37 @@ export function CharacterFormModal({ open, onClose, worldId, initial, onSubmit }
 
   useEffect(() => {
     if (!open) return;
-    const timelinesSnap = useStore.getState().getTimelinesByWorld(worldId);
-    const base = initial ? { ...emptyCharacter(worldId), ...initial, worldId } : emptyCharacter(worldId);
+    const wid = showWorldPicker ? pickedWorldId || worldsList[0]?.id || worldId : worldId;
+    if (showWorldPicker && !pickedWorldId && worldsList[0]) setPickedWorldId(worldsList[0].id);
+    const timelinesSnap = useStore.getState().getTimelinesByWorld(wid);
+    const base = initial
+      ? { ...emptyCharacter(wid), ...initial, worldId: wid }
+      : {
+          ...emptyCharacter(wid),
+          houseId: defaultHouseId,
+          house: defaultHouseName ?? '',
+        };
     setForm(base);
     setMainImage(initial?.images[0] ?? '');
     setQuotesRaw((initial?.quotes ?? []).join('\n'));
-    setTagsRaw((initial?.tags ?? []).join(', '));
+    setTagIds(initial?.tagIds ?? []);
     const draft: Record<string, string> = {};
     for (const tl of timelinesSnap) {
       draft[tl.id] = String(base.ageByTimeline[tl.id] ?? '');
     }
     setAgeTimelineDraft(draft);
     setErr('');
-  }, [open, worldId, initial?.id, initial?.updatedAt]);
+  }, [open, worldId, pickedWorldId, initial?.id, initial?.updatedAt, defaultHouseId, showWorldPicker]);
 
   const patch = (p: Partial<Omit<Character, 'id' | 'createdAt' | 'updatedAt'>>) => setForm((f) => ({ ...f, ...p }));
 
   const save = () => {
     if (!form.name.trim()) {
       setErr('El nombre es obligatorio');
+      return;
+    }
+    if (!initial && (!form.gender || form.gender === 'unspecified')) {
+      setErr('Selecciona el sexo del personaje');
       return;
     }
     const ageByTimeline: Record<string, number> = {};
@@ -101,17 +126,20 @@ export function CharacterFormModal({ open, onClose, worldId, initial, onSubmit }
       .split('\n')
       .map((q) => q.trim())
       .filter(Boolean);
-    const tags = tagsRaw
-      .split(',')
-      .map((t) => t.trim())
-      .filter(Boolean);
+    const tags = resolveTagNames(tagIds, worldTags);
     const images = mainImage.trim() ? [mainImage.trim()] : [];
+    if (showWorldPicker && !effectiveWorldId) {
+      setErr('Selecciona un mundo');
+      return;
+    }
     onSubmit({
       ...form,
+      worldId: effectiveWorldId,
       name: form.name.trim(),
       ageByTimeline,
       quotes,
       tags,
+      tagIds,
       images: images.length ? images : form.images,
     });
     setErr('');
@@ -138,6 +166,22 @@ export function CharacterFormModal({ open, onClose, worldId, initial, onSubmit }
       }
     >
       {err && <p className="mb-3 text-sm text-[#D61E2B]">{err}</p>}
+      {showWorldPicker && !initial && (
+        <div className="mb-4">
+          <label className="mb-1 block text-xs uppercase text-[#5A6078]">Mundo *</label>
+          <StorySelect
+            value={pickedWorldId}
+            onChange={(id) => {
+              setPickedWorldId(id);
+              setForm(emptyCharacter(id));
+            }}
+            options={worldsList.map((w) => ({ value: w.id, label: w.name }))}
+            placeholder="Elige un mundo…"
+            clearable={false}
+            className="max-w-sm"
+          />
+        </div>
+      )}
       <div
         className={`grid max-h-[65vh] gap-6 overflow-y-auto pr-1 ${
           hasPreview ? 'md:grid-cols-[minmax(220px,280px)_minmax(0,1fr)]' : ''
@@ -169,9 +213,25 @@ export function CharacterFormModal({ open, onClose, worldId, initial, onSubmit }
           <input className="story-input w-full" value={form.alias} onChange={(e) => patch({ alias: e.target.value })} />
         </div>
         <div>
+          <label className="mb-1 block text-xs uppercase text-[#5A6078]">
+            Sexo {!initial && '*'}
+          </label>
+          <select
+            className="story-input w-full text-sm"
+            value={form.gender ?? 'unspecified'}
+            onChange={(e) => patch({ gender: e.target.value as CharacterGender })}
+          >
+            {GENDER_OPTIONS.map((g) => (
+              <option key={g.value} value={g.value}>
+                {g.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
           <label className="mb-1 block text-xs uppercase text-[#5A6078]">Rol</label>
           <select className="story-input w-full text-sm" value={form.role} onChange={(e) => patch({ role: e.target.value as CharacterRole })}>
-            {ROLES.map((r) => (
+            {CHARACTER_ROLE_OPTIONS.map((r) => (
               <option key={r.value} value={r.value}>
                 {r.label}
               </option>
@@ -326,7 +386,7 @@ export function CharacterFormModal({ open, onClose, worldId, initial, onSubmit }
         </div>
         <div className="md:col-span-2">
           <label className="mb-1 block text-xs uppercase text-[#5A6078]">Tags (coma)</label>
-          <input className="story-input w-full" value={tagsRaw} onChange={(e) => setTagsRaw(e.target.value)} />
+          <WorldTagInput worldId={worldId} tagIds={tagIds} onChange={setTagIds} />
         </div>
         <div className="flex items-center gap-2 md:col-span-2">
           <input id="cf-fav" type="checkbox" checked={form.isFavorite} onChange={(e) => patch({ isFavorite: e.target.checked })} />

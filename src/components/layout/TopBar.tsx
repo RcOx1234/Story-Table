@@ -1,5 +1,5 @@
 import { useAppStore, useStore, type AppState } from '@/store';
-import { Search, Plus, Bell, Command, User, Settings, LogOut, Lightbulb, FileText, Sparkles, Download, Upload, CloudUpload, CloudCog } from 'lucide-react';
+import { Search, Plus, Bell, Command, User, Settings, LogOut, Lightbulb, FileText, Sparkles, Download, Upload, CloudUpload, CloudCog, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useRef, useState, type ChangeEvent } from 'react';
 import {
@@ -28,6 +28,7 @@ export function TopBar() {
   const [savingCloud, setSavingCloud] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const autoSaveEnabled = useAppStore((s) => s.firebaseAutoSaveEnabled);
+  const autoSaveSyncing = useAppStore((s) => s.firebaseAutoSaveSyncing);
   const setAutoSaveEnabled = useAppStore((s) => s.setFirebaseAutoSaveEnabled);
 
   const handleLogout = async () => {
@@ -146,17 +147,34 @@ export function TopBar() {
           <>
             <button
               type="button"
-              aria-label={autoSaveEnabled ? 'Desactivar auto-guardado' : 'Activar auto-guardado'}
-              title={autoSaveEnabled ? 'Auto-guardado activo' : 'Auto-guardado desactivado'}
+              aria-label={
+                autoSaveSyncing
+                  ? 'Guardando en Firebase…'
+                  : autoSaveEnabled
+                    ? 'Desactivar auto-guardado'
+                    : 'Activar auto-guardado'
+              }
+              title={
+                autoSaveSyncing
+                  ? 'Guardando…'
+                  : autoSaveEnabled
+                    ? 'Auto-guardado activo'
+                    : 'Auto-guardado desactivado'
+              }
               onClick={() => {
+                if (autoSaveSyncing) return;
                 setAutoSaveEnabled(!autoSaveEnabled);
                 toast.success(autoSaveEnabled ? 'Auto-guardado desactivado' : 'Auto-guardado activado');
               }}
               className={`rounded-xl p-2.5 transition-all hover:bg-[#1E2230] ${
                 autoSaveEnabled ? 'text-white' : 'text-white/50'
-              }`}
+              } ${autoSaveSyncing ? 'pointer-events-none' : ''}`}
             >
-              <CloudCog size={20} />
+              {autoSaveSyncing ? (
+                <Loader2 size={20} className="animate-spin" />
+              ) : (
+                <CloudCog size={20} />
+              )}
             </button>
             <button
               type="button"

@@ -4,13 +4,19 @@ import { useNavigationReturn } from '@/hooks/useNavigationReturn';
 import { useAppStore } from '@/store';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Heart, Edit2, Users, Sparkles, Trash2, Plus, Castle } from 'lucide-react';
-import { RELATIONSHIP_TYPE_OPTIONS, relationshipTypeLabel } from '@/lib/relationshipTypes';
+import { RELATIONSHIP_TYPE_OPTIONS } from '@/lib/relationshipTypes';
+import { groupRelationships, RELATIONSHIP_GROUP_LABELS, type RelationshipGroupId } from '@/lib/relationshipGroups';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { ChevronDown } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { EntityReference } from '@/components/common/EntityReference';
+import { RelationshipChip } from '@/components/common/RelationshipChip';
+import { StorySelect } from '@/components/common/StorySelect';
+import { relationSlot, type RelationSlot } from '@/lib/characterGenealogy';
+import { useNavigate } from 'react-router-dom';
 import { ConfirmDeleteModal } from '@/components/modals/crud/ConfirmDeleteModal';
 import { toast } from 'sonner';
 import { CharacterFormModal } from '@/components/modals/crud/CharacterFormModal';
@@ -39,19 +45,22 @@ const statusLabels: Record<string, { label: string; color: string }> = {
 type TabType = 'info' | 'relationships' | 'quotes';
 type InfoSub = 'physical' | 'personality' | 'story';
 
-function relationshipBucket(type: string): 'family' | 'friends' | 'rivals' | 'other' {
-  const t = type.toLowerCase();
-  if (/familia|padre|madre|herman|hij[oa]|primo|tío|tia|abuel|consorte|espos|marid|mujer/i.test(t)) return 'family';
-  if (/amig|aliad|mentor|compañ|alumno|maestro/i.test(t)) return 'friends';
-  if (/enemig|rival|antagon|adversari|odio/i.test(t)) return 'rivals';
-  return 'other';
-}
+const REL_GROUPS: RelationshipGroupId[] = [
+  'core_family',
+  'extended_family',
+  'house',
+  'friends',
+  'conflicts',
+  'other',
+];
 
-const relSectionLabels: Record<string, string> = {
-  family: 'Familia y vínculos cercanos',
-  friends: 'Amistades y alianzas',
-  rivals: 'Rivalidades y tensión',
-  other: 'Otros vínculos',
+const CORE_SUB_LABELS: Record<RelationSlot, string> = {
+  father: 'Padre',
+  mother: 'Madre',
+  spouse: 'Pareja / cónyuge',
+  child: 'Hijos',
+  sibling: 'Hermanos',
+  extended: 'Otros',
 };
 
 function InfoBlock({ title, children }: { title: string; children: ReactNode }) {
@@ -65,9 +74,11 @@ function InfoBlock({ title, children }: { title: string; children: ReactNode }) 
 
 export function CharacterDetail() {
   const { worldId, characterId } = useParams<{ worldId: string; characterId: string }>();
+  const navigate = useNavigate();
   const goBack = useNavigationReturn(`/world/${worldId}`);
   const character = useAppStore((s) => s.characters.find((c) => c.id === characterId));
   const updateCharacter = useAppStore((s) => s.updateCharacter);
+  const syncCharacterRelationship = useAppStore((s) => s.syncCharacterRelationship);
   const toggleFavorite = useAppStore((s) => s.toggleFavoriteCharacter);
   const deleteCharacter = useAppStore((s) => s.deleteCharacter);
   const worldCharacters = useAppStore((s) =>
@@ -111,14 +122,7 @@ export function CharacterDetail() {
     { id: 'story', label: 'Historia' },
   ];
 
-  const groupedRels = character.relationships.reduce(
-    (acc, rel) => {
-      const b = relationshipBucket(rel.type);
-      acc[b].push(rel);
-      return acc;
-    },
-    { family: [] as typeof character.relationships, friends: [] as typeof character.relationships, rivals: [] as typeof character.relationships, other: [] as typeof character.relationships }
-  );
+  const groupedRels = groupRelationships(character.relationships);
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mx-auto max-w-4xl">
@@ -305,38 +309,32 @@ export function CharacterDetail() {
                       <Plus size={14} /> Agregar
                     </button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-72 border-[#2A3045] bg-[#111318] p-3 text-[#E8E9EB]">
+                  <DropdownMenuContent align="end" className="w-80 border-[#2A3045] bg-[#111318] p-3 text-[#E8E9EB]">
                     <p className="mb-2 text-[10px] font-mono uppercase text-[#5A6078]">Nuevo vínculo</p>
-                    <select
-                      className="story-input mb-2 w-full text-sm"
+                    <StorySelect
                       value={addRelCharId}
-                      onChange={(e) => setAddRelCharId(e.target.value)}
-                    >
-                      <option value="">Personaje…</option>
-                      {worldCharacters
+                      onChange={setAddRelCharId}
+                      options={worldCharacters
                         .filter((ch) => ch.id !== character.id)
-                        .map((ch) => (
-                          <option key={ch.id} value={ch.id}>
-                            {ch.name}
-                          </option>
-                        ))}
-                    </select>
-                    <select
-                      className="story-input mb-2 w-full text-sm"
+                        .map((ch) => ({
+                          value: ch.id,
+                          label: ch.name,
+                          imageUrl: ch.images[0],
+                        }))}
+                      placeholder="Personaje…"
+                      className="mb-2"
+                    />
+                    <StorySelect
                       value={addRelType}
-                      onChange={(e) => setAddRelType(e.target.value)}
-                    >
-                      <option value="">Tipo de relación…</option>
-                      {['Familia', 'Vínculos', 'Tensión', 'Otros'].map((group) => (
-                        <optgroup key={group} label={group}>
-                          {RELATIONSHIP_TYPE_OPTIONS.filter((o) => o.group === group).map((o) => (
-                            <option key={o.value} value={o.value}>
-                              {o.label}
-                            </option>
-                          ))}
-                        </optgroup>
-                      ))}
-                    </select>
+                      onChange={setAddRelType}
+                      options={RELATIONSHIP_TYPE_OPTIONS.map((o) => ({
+                        value: o.value,
+                        label: o.label,
+                        sublabel: o.group,
+                      }))}
+                      placeholder="Tipo de relación…"
+                      className="mb-2"
+                    />
                     <input
                       className="story-input mb-2 w-full text-sm"
                       placeholder="Descripción (opcional)"
@@ -352,16 +350,12 @@ export function CharacterDetail() {
                           toast.error('Elige personaje y tipo de relación');
                           return;
                         }
-                        updateCharacter(character.id, {
-                          relationships: [
-                            ...character.relationships,
-                            {
-                              characterId: ch.id,
-                              characterName: ch.name,
-                              type: addRelType,
-                              description: addRelDesc.trim(),
-                            },
-                          ],
+                        syncCharacterRelationship(character.id, {
+                          characterId: ch.id,
+                          characterName: ch.name,
+                          type: addRelType,
+                          description: addRelDesc.trim(),
+                          action: 'add',
                         });
                         setAddRelCharId('');
                         setAddRelType('');
@@ -375,44 +369,76 @@ export function CharacterDetail() {
                   </DropdownMenuContent>
                 </DropdownMenu>
               </motion.div>
-              {(['family', 'friends', 'rivals', 'other'] as const).map((bucket) => (
-                <div key={bucket}>
-                  <h4 className="mb-2 text-xs font-mono uppercase tracking-wider text-[#D61E2B]">{relSectionLabels[bucket]}</h4>
-                  {groupedRels[bucket].length === 0 ? (
-                    <p className="text-sm text-[#3A4460]">Nada registrado en esta categoría.</p>
-                  ) : (
-                    <div className="space-y-3">
-                      {groupedRels[bucket].map((rel, i) => (
-                        <motion.div
-                          key={`${rel.characterId}-${i}`}
-                          initial={{ opacity: 0, x: -12 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: i * 0.04 }}
-                          className="story-card flex items-center gap-4 p-4"
-                        >
-                          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-[#D61E2B]/10">
-                            <Users size={16} className="text-[#D61E2B]" />
-                          </div>
-                          <div className="min-w-0 flex-1 space-y-2">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <EntityReference
-                                type="character"
-                                id={rel.characterId}
-                                worldId={character.worldId}
-                                label={rel.characterName}
-                              />
-                              <span className="rounded-full bg-[#D61E2B]/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-[#D61E2B]">
-                                {relationshipTypeLabel(rel.type)}
-                              </span>
+              {REL_GROUPS.map((bucket) =>
+                groupedRels[bucket].length === 0 ? null : (
+                <Collapsible key={bucket} defaultOpen={bucket === 'core_family' || bucket === 'friends'}>
+                  <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg bg-[#1E2230] px-3 py-2 text-left text-xs font-mono uppercase tracking-wider text-[#8B91A7]">
+                    {RELATIONSHIP_GROUP_LABELS[bucket]}
+                    <ChevronDown size={14} />
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="mt-2 space-y-3">
+                    {bucket === 'core_family' ? (
+                      (['father', 'mother', 'spouse', 'child', 'sibling'] as RelationSlot[]).map((sub) => {
+                        const items = groupedRels.core_family.filter((r) => relationSlot(r.type) === sub);
+                        if (items.length === 0) return null;
+                        return (
+                          <div key={sub}>
+                            <p className="mb-1.5 text-[10px] uppercase text-[#5A6078]">{CORE_SUB_LABELS[sub]}</p>
+                            <div className="flex flex-wrap gap-2">
+                              {items.map((rel) => {
+                                const other = worldCharacters.find((c) => c.id === rel.characterId);
+                                if (!other) return null;
+                                return (
+                                  <RelationshipChip
+                                    key={`${rel.characterId}-${rel.type}`}
+                                    character={other}
+                                    relationType={rel.type}
+                                    worldId={character.worldId}
+                                    onOpen={(id) => navigate(`/world/${worldId}/character/${id}`)}
+                                    onRemove={() =>
+                                      syncCharacterRelationship(character.id, {
+                                        characterId: rel.characterId,
+                                        characterName: rel.characterName,
+                                        type: rel.type,
+                                        action: 'remove',
+                                      })
+                                    }
+                                  />
+                                );
+                              })}
                             </div>
-                            <p className="text-xs text-[#8B91A7]">{rel.description}</p>
                           </div>
-                        </motion.div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
+                        );
+                      })
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        {groupedRels[bucket].map((rel) => {
+                          const other = worldCharacters.find((c) => c.id === rel.characterId);
+                          if (!other) return null;
+                          return (
+                            <RelationshipChip
+                              key={`${rel.characterId}-${rel.type}`}
+                              character={other}
+                              relationType={rel.type}
+                              worldId={character.worldId}
+                              onOpen={(id) => navigate(`/world/${worldId}/character/${id}`)}
+                              onRemove={() =>
+                                syncCharacterRelationship(character.id, {
+                                  characterId: rel.characterId,
+                                  characterName: rel.characterName,
+                                  type: rel.type,
+                                  action: 'remove',
+                                })
+                              }
+                            />
+                          );
+                        })}
+                      </div>
+                    )}
+                  </CollapsibleContent>
+                </Collapsible>
+                )
+              )}
             </div>
           )}
 

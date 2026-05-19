@@ -114,7 +114,7 @@ export function SearchModal() {
         </div>
 
         {/* Filters */}
-        <div className="flex gap-1 p-3 border-b border-[#1E2230] overflow-x-auto">
+        <motion.div className="flex gap-1 overflow-x-auto border-b border-[#1E2230] p-3 scrollbar-thin">
           {filters.map((f) => (
             <button
               key={f.id}
@@ -126,7 +126,7 @@ export function SearchModal() {
               {f.label}
             </button>
           ))}
-        </div>
+        </motion.div>
 
         {/* Results */}
         <div className="max-h-[50vh] overflow-y-auto scrollbar-thin p-3">

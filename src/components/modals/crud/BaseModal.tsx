@@ -47,9 +47,9 @@ export function BaseModal({
             role="dialog"
             aria-modal
             aria-labelledby="modal-title"
-            initial={{ opacity: 0, y: 14, scale: 0.985 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 14, scale: 0.985 }}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 8 }}
             transition={{ duration: 0.2 }}
             className={`relative w-full ${maxWidthClass} rounded-[24px] border border-white/10 bg-gradient-to-b from-[#12141a] to-[#0A0A0A] p-0 shadow-[0_40px_100px_rgba(0,0,0,0.65)] max-h-[90vh] flex flex-col overflow-hidden`}
             onClick={(e) => e.stopPropagation()}

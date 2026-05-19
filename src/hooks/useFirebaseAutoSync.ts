@@ -7,19 +7,27 @@ import { pushStoryBundle } from '@/services/storyBundleSync';
 export function useFirebaseAutoSync() {
   const uid = useStore((s) => s.user?.id ?? null);
   const autoSave = useStore((s) => s.firebaseAutoSaveEnabled);
+  const setSyncing = useStore((s) => s.setFirebaseAutoSaveSyncing);
 
   useEffect(() => {
-    if (!isFirebaseConfigured() || !uid || !autoSave) return;
+    if (!isFirebaseConfigured() || !uid || !autoSave) {
+      setSyncing(false);
+      return;
+    }
     let timer: ReturnType<typeof setTimeout>;
     const unsub = useStore.subscribe(() => {
       clearTimeout(timer);
       timer = setTimeout(() => {
-        void pushStoryBundle(uid).catch(() => {});
+        setSyncing(true);
+        void pushStoryBundle(uid)
+          .catch(() => {})
+          .finally(() => setSyncing(false));
       }, 2500);
     });
     return () => {
       clearTimeout(timer);
+      setSyncing(false);
       unsub();
     };
-  }, [uid, autoSave]);
+  }, [uid, autoSave, setSyncing]);
 }
