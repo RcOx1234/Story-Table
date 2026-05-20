@@ -20,6 +20,7 @@ import type {
   WorldDatum,
   Idea,
   Timeline,
+  FantasticElement,
   User,
   SectionType,
   WorldTag,
@@ -150,6 +151,15 @@ export interface AppState {
   deleteTimeline: (id: string) => void;
   getTimelinesByWorld: (worldId: string) => Timeline[];
 
+  // Elementos fantásticos
+  fantasticElements: FantasticElement[];
+  addFantasticElement: (el: Omit<FantasticElement, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  updateFantasticElement: (id: string, data: Partial<FantasticElement>) => void;
+  deleteFantasticElement: (id: string) => void;
+  restoreFantasticElement: (id: string) => void;
+  toggleFavoriteFantasticElement: (id: string) => void;
+  getFantasticElementsByWorld: (worldId: string) => FantasticElement[];
+
   // Houses
   houses: House[];
   addHouse: (house: Omit<House, 'id' | 'createdAt' | 'updatedAt'>) => string;
@@ -205,6 +215,16 @@ export interface AppState {
   toggleSidebar: () => void;
   activeModal: string | null;
   setActiveModal: (modal: string | null) => void;
+  /** Vista previa de inserción (componente, idea, etc.) sin cambiar de página. */
+  insertionPreview: { worldId: string; type: string; id: string } | null;
+  openInsertionPreview: (worldId: string, type: string, id: string) => void;
+  closeInsertionPreview: () => void;
+  entityEditRequest: { worldId: string; type: string; id: string } | null;
+  requestEntityEdit: (worldId: string, type: string, id: string) => void;
+  clearEntityEditRequest: () => void;
+  entityViewRequest: { worldId: string; type: string; id: string } | null;
+  requestEntityView: (worldId: string, type: string, id: string) => void;
+  clearEntityViewRequest: () => void;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
   activeSection: SectionType;
@@ -665,6 +685,44 @@ export const useStore = create<AppState>()(
         set((state) => ({ timelines: state.timelines.filter((t) => t.id !== id) })),
       getTimelinesByWorld: (worldId) => get().timelines.filter((t) => t.worldId === worldId),
 
+      fantasticElements: [],
+      addFantasticElement: (el) => {
+        const item: FantasticElement = {
+          ...el,
+          id: crypto.randomUUID(),
+          isDeleted: false,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        set((state) => ({ fantasticElements: [...state.fantasticElements, item] }));
+      },
+      updateFantasticElement: (id, data) =>
+        set((state) => ({
+          fantasticElements: state.fantasticElements.map((f) =>
+            f.id === id ? { ...f, ...data, updatedAt: new Date().toISOString() } : f
+          ),
+        })),
+      deleteFantasticElement: (id) =>
+        set((state) => ({
+          fantasticElements: state.fantasticElements.map((f) =>
+            f.id === id ? { ...f, isDeleted: true, deletedAt: new Date().toISOString() } : f
+          ),
+        })),
+      restoreFantasticElement: (id) =>
+        set((state) => ({
+          fantasticElements: state.fantasticElements.map((f) =>
+            f.id === id ? { ...f, isDeleted: false, deletedAt: undefined } : f
+          ),
+        })),
+      toggleFavoriteFantasticElement: (id) =>
+        set((state) => ({
+          fantasticElements: state.fantasticElements.map((f) =>
+            f.id === id ? { ...f, isFavorite: !f.isFavorite } : f
+          ),
+        })),
+      getFantasticElementsByWorld: (worldId) =>
+        get().fantasticElements.filter((f) => f.worldId === worldId && !f.isDeleted),
+
       houses: [],
       addHouse: (house) => {
         const h: House = {
@@ -772,6 +830,15 @@ export const useStore = create<AppState>()(
       toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
       activeModal: null,
       setActiveModal: (modal) => set({ activeModal: modal }),
+      insertionPreview: null,
+      openInsertionPreview: (worldId, type, id) => set({ insertionPreview: { worldId, type, id } }),
+      closeInsertionPreview: () => set({ insertionPreview: null }),
+      entityEditRequest: null,
+      requestEntityEdit: (worldId, type, id) => set({ entityEditRequest: { worldId, type, id } }),
+      clearEntityEditRequest: () => set({ entityEditRequest: null }),
+      entityViewRequest: null,
+      requestEntityView: (worldId, type, id) => set({ entityViewRequest: { worldId, type, id } }),
+      clearEntityViewRequest: () => set({ entityViewRequest: null }),
       searchQuery: '',
       setSearchQuery: (query) => set({ searchQuery: query }),
       activeSection: 'characters',
@@ -900,6 +967,7 @@ export const useStore = create<AppState>()(
         organizations: state.organizations,
         ideas: state.ideas,
         timelines: state.timelines,
+        fantasticElements: state.fantasticElements,
         houses: state.houses,
         worldFacts: state.worldFacts,
         worldData: state.worldData,

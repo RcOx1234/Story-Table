@@ -94,6 +94,10 @@ export function GenealogySection({ worldId, houseId, houseName, members }: Props
               characterId={selectedId}
               pickerCharacters={allCharacters}
               houseName={houseName}
+              onFocusCharacter={(id) => {
+                setSelectedId(id);
+                setEditorOpen(true);
+              }}
             />
           </motion.div>
         )}
@@ -109,6 +113,10 @@ export function GenealogySection({ worldId, houseId, houseName, members }: Props
             characterId={selectedId}
             pickerCharacters={allCharacters}
             houseName={houseName}
+            onFocusCharacter={(id) => {
+              setSelectedId(id);
+              setEditorOpen(true);
+            }}
           />
         </div>
       )}

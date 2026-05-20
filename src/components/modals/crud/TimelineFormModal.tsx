@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { BaseModal } from './BaseModal';
+import { StoryRichTextField } from '@/components/common/StoryRichTextField';
 import type { Timeline } from '@/types';
 
 type Props = {
@@ -83,7 +84,7 @@ export function TimelineFormModal({ open, onClose, worldId, initial, onSubmit, n
         </div>
         <div>
           <label className="mb-1 block text-xs uppercase text-[#5A6078]">Descripción</label>
-          <textarea className="story-input h-20 w-full resize-none" value={form.description} onChange={(e) => patch({ description: e.target.value })} />
+          <StoryRichTextField worldId={worldId} value={form.description} onChange={(v) => patch({ description: v })} minHeight="5rem" />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>

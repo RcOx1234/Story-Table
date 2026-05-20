@@ -17,8 +17,12 @@ function relType(type: string): string {
   return normalizeKey(type);
 }
 
-function findChar(characters: Character[], id: string): Character | undefined {
-  return characters.find((c) => c.id === id);
+function findChar(
+  characters: Character[],
+  id: string,
+  resolve?: (id: string) => Character | undefined
+): Character | undefined {
+  return characters.find((c) => c.id === id) ?? resolve?.(id);
 }
 
 function getRels(char: Character, predicate: (t: string) => boolean): Relationship[] {
@@ -216,7 +220,8 @@ function pushSlot(
 
 export function getCharacterRelationsBySlot(
   char: Character,
-  characters: Character[]
+  characters: Character[],
+  resolveCharacter?: (id: string) => Character | undefined
 ): Record<RelationSlot, { rel: Relationship; character: Character }[]> {
   const slots: Record<RelationSlot, { rel: Relationship; character: Character }[]> = {
     father: [],
@@ -229,13 +234,23 @@ export function getCharacterRelationsBySlot(
   const seen = new Set<string>();
 
   for (const rel of char.relationships) {
-    const other = findChar(characters, rel.characterId);
+    const other = findChar(characters, rel.characterId, resolveCharacter);
     if (!other) continue;
     const slot = relationSlot(rel.type);
     pushSlot(slots, seen, slot, rel, other, true);
   }
 
-  for (const other of characters) {
+  const others = new Map<string, Character>();
+  for (const c of characters) others.set(c.id, c);
+  if (resolveCharacter) {
+    for (const rel of char.relationships) {
+      if (!others.has(rel.characterId)) {
+        const resolved = resolveCharacter(rel.characterId);
+        if (resolved) others.set(resolved.id, resolved);
+      }
+    }
+  }
+  for (const other of others.values()) {
     if (other.id === char.id) continue;
     for (const rel of other.relationships) {
       if (rel.characterId !== char.id) continue;
@@ -299,14 +314,123 @@ export function getCharacterRelationsBySlot(
   return slots;
 }
 
+export type GenealogyIssue = {
+  id: string;
+  severity: 'error' | 'warning';
+  message: string;
+  characterId: string;
+  characterName: string;
+  focusCharacterId: string;
+  relatedId?: string;
+  relatedName?: string;
+  hint?: string;
+};
+
 /** Detecta relaciones contradictorias (ej. dos padres distintos). */
 export function detectRelationConflicts(char: Character): string[] {
-  const warnings: string[] = [];
-  const fathers = getRels(char, (t) => t === 'padre');
-  const mothers = getRels(char, (t) => t === 'madre');
-  if (fathers.length > 1) warnings.push('Hay más de un padre registrado.');
-  if (mothers.length > 1) warnings.push('Hay más de una madre registrada.');
-  const spouses = getRels(char, (t) => SPOUSE_TYPES.test(t));
-  if (spouses.length > 3) warnings.push('Muchas parejas registradas; revisa duplicados.');
-  return warnings;
+  return collectGenealogyIssues([char], char.id).map((i) => i.message);
+}
+
+export function collectGenealogyIssues(
+  characters: Character[],
+  focusId?: string
+): GenealogyIssue[] {
+  const issues: GenealogyIssue[] = [];
+  const byId = new Map(characters.map((c) => [c.id, c]));
+  const list = focusId ? characters.filter((c) => c.id === focusId) : characters;
+
+  for (const char of list) {
+    const fathers = getRels(char, (t) => t === 'padre');
+    const mothers = getRels(char, (t) => t === 'madre');
+    if (fathers.length > 1) {
+      issues.push({
+        id: `${char.id}-multi-father`,
+        severity: 'error',
+        message: `${char.name} tiene más de un padre registrado.`,
+        hint: 'Elimina el vínculo duplicado en la sección Padre.',
+        characterId: char.id,
+        characterName: char.name,
+        focusCharacterId: char.id,
+      });
+    }
+    if (mothers.length > 1) {
+      issues.push({
+        id: `${char.id}-multi-mother`,
+        severity: 'error',
+        message: `${char.name} tiene más de una madre registrada.`,
+        hint: 'Elimina el vínculo duplicado en la sección Madre.',
+        characterId: char.id,
+        characterName: char.name,
+        focusCharacterId: char.id,
+      });
+    }
+    const spouses = getRels(char, (t) => SPOUSE_TYPES.test(t));
+    if (spouses.length > 3) {
+      issues.push({
+        id: `${char.id}-many-spouses`,
+        severity: 'warning',
+        message: `${char.name} tiene muchas parejas registradas.`,
+        hint: 'Revisa duplicados en la sección Pareja.',
+        characterId: char.id,
+        characterName: char.name,
+        focusCharacterId: char.id,
+      });
+    }
+
+    for (const rel of char.relationships) {
+      const other = byId.get(rel.characterId);
+      if (!other) {
+        issues.push({
+          id: `${char.id}-missing-${rel.characterId}`,
+          severity: 'warning',
+          message: `Vínculo con «${rel.characterName}» apunta a un personaje que no está en este mundo.`,
+          hint: 'El personaje pudo haberse eliminado o pertenece a otro mundo.',
+          characterId: char.id,
+          characterName: char.name,
+          focusCharacterId: char.id,
+          relatedId: rel.characterId,
+          relatedName: rel.characterName,
+        });
+        continue;
+      }
+      const inv = other.relationships.find(
+        (r) => r.characterId === char.id && relType(r.type) === relType(rel.type)
+      );
+      if (!inv && !PARENT_TYPES.test(relType(rel.type)) && !CHILD_TYPES.test(relType(rel.type))) {
+        issues.push({
+          id: `${char.id}-no-inverse-${other.id}-${rel.type}`,
+          severity: 'warning',
+          message: `«${other.name}» no devuelve el vínculo con ${char.name} (${rel.type}).`,
+          hint: 'Vuelve a añadir la relación o guarda desde el editor de relaciones.',
+          characterId: char.id,
+          characterName: char.name,
+          focusCharacterId: char.id,
+          relatedId: other.id,
+          relatedName: other.name,
+        });
+      }
+    }
+
+    for (const cid of getChildIds(char, characters)) {
+      const child = byId.get(cid);
+      if (!child) continue;
+      const hasParentLink = getRels(child, (t) => PARENT_TYPES.test(t)).some((r) => r.characterId === char.id);
+      const hasChildLink = getRels(char, (t) => CHILD_TYPES.test(t)).some((r) => r.characterId === cid);
+      if (!hasParentLink && !hasChildLink) {
+        issues.push({
+          id: `${char.id}-child-desync-${cid}`,
+          severity: 'warning',
+          message: `El vínculo con el hijo/a «${child.name}» puede estar incompleto.`,
+          hint: 'Añade de nuevo al hijo desde la sección Hijos.',
+          characterId: char.id,
+          characterName: char.name,
+          focusCharacterId: char.id,
+          relatedId: child.id,
+          relatedName: child.name,
+        });
+      }
+    }
+  }
+
+  return issues;
 }

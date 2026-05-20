@@ -5,6 +5,7 @@ import { ImageInputField } from '@/components/common/ImageInputField';
 import { EntityMultiPicker } from '@/components/common/EntityMultiPicker';
 import { useAppStore } from '@/store';
 import type { MapCollection } from '@/types';
+import { StoryRichTextField } from '@/components/common/StoryRichTextField';
 
 type Props = {
   open: boolean;
@@ -76,11 +77,7 @@ export function MapCollectionFormModal({ open, onClose, worldId, initial, onSubm
         </motion.div>
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.08 }}>
           <label className="mb-1 block text-xs uppercase text-[#5A6078]">Descripción</label>
-          <textarea
-            className="story-input h-20 w-full resize-none"
-            value={form.description}
-            onChange={(e) => patch({ description: e.target.value })}
-          />
+          <StoryRichTextField worldId={worldId} value={form.description} onChange={(v) => patch({ description: v })} minHeight="4rem" />
         </motion.div>
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }}>
           <ImageInputField label="Imagen de portada" value={form.imageUrl} onChange={(v) => patch({ imageUrl: v })} />

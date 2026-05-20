@@ -1,6 +1,8 @@
-import { useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { useNavigationReturn } from '@/hooks/useNavigationReturn';
+import { useStoryDataReady } from '@/hooks/useStoryDataReady';
+import { SplashLoader } from '@/components/auth/SplashLoader';
 import { useAppStore, useStore } from '@/store';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowLeft, Heart, Edit2, Trash2, Castle, ScrollText, UserPlus } from 'lucide-react';
@@ -11,6 +13,8 @@ import { houseMemberRoleLabel } from '@/lib/houseMemberRoles';
 import { HouseFormModal } from '@/components/modals/crud/HouseFormModal';
 import { ConfirmDeleteModal } from '@/components/modals/crud/ConfirmDeleteModal';
 import { toast } from 'sonner';
+import { StoryRichTextDisplay } from '@/components/common/StoryRichTextDisplay';
+import { storyEntityDataAttrs } from '@/lib/storyEntityContext';
 
 const nobleRankLabels: Record<NobleRank, string> = {
   emperor: 'Emperador',
@@ -33,17 +37,18 @@ const tabMotion = {
 
 type TabId = 'info' | 'family';
 
-function InfoBlock({ title, children }: { title: string; children: React.ReactNode }) {
+function InfoBlock({ title, text, worldId }: { title: string; text?: string; worldId: string }) {
   return (
     <motion.div className="story-card p-4" {...tabMotion}>
       <h3 className="mb-2 text-xs font-mono uppercase tracking-wider text-[#5A6078]">{title}</h3>
-      <div className="text-sm leading-relaxed text-[#8B91A7]">{children}</div>
+      <StoryRichTextDisplay text={text ?? ''} worldId={worldId} />
     </motion.div>
   );
 }
 
 export function HouseDetail() {
   const { worldId, houseId } = useParams<{ worldId: string; houseId: string }>();
+  const dataReady = useStoryDataReady();
   const goBack = useNavigationReturn(`/world/${worldId}?tab=houses`);
   const house = useAppStore((s) => s.houses.find((h) => h.id === houseId && !h.isDeleted));
   const houses = useAppStore((s) => (worldId ? s.getHousesByWorld(worldId) : []));
@@ -55,6 +60,20 @@ export function HouseDetail() {
   const [formOpen, setFormOpen] = useState(false);
   const [membersOpen, setMembersOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  useEffect(() => {
+    if (searchParams.get('edit') === '1') {
+      setFormOpen(true);
+      const next = new URLSearchParams(searchParams);
+      next.delete('edit');
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
+
+  if (!dataReady) {
+    return <SplashLoader message="Cargando…" submessage="Recuperando datos del mundo" />;
+  }
 
   if (!house || !worldId) {
     return (
@@ -97,6 +116,7 @@ export function HouseDetail() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2 }}
       className="mx-auto max-w-4xl"
+      {...storyEntityDataAttrs('house', house.id, worldId, house.name)}
     >
       <div className="mb-6 flex items-start justify-between gap-4">
         <div className="flex items-center gap-4">
@@ -185,9 +205,9 @@ export function HouseDetail() {
           <AnimatePresence mode="wait">
             {tab === 'info' && (
               <motion.div key="info" className="space-y-3" {...tabMotion}>
-                <InfoBlock title="Descripción">{house.description || 'Sin descripción.'}</InfoBlock>
-                <InfoBlock title="Linaje">{house.lineage || 'Sin datos.'}</InfoBlock>
-                <InfoBlock title="Símbolos e insignias">{house.symbols || 'Sin datos.'}</InfoBlock>
+                <InfoBlock title="Descripción" text={house.description} worldId={worldId} />
+                <InfoBlock title="Linaje" text={house.lineage} worldId={worldId} />
+                <InfoBlock title="Símbolos e insignias" text={house.symbols} worldId={worldId} />
               </motion.div>
             )}
 

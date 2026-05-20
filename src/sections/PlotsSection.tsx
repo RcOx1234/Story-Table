@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { useWorldEditFromUrl } from '@/hooks/useWorldEditFromUrl';
+import { useSectionCardMenuDeps, entityCardMenuProps } from '@/hooks/useEntityCardMenu';
 import { useAppStore } from '@/store';
 import { motion } from 'framer-motion';
 import { Plus, Search, Heart, Route, Zap } from 'lucide-react';
@@ -8,12 +10,15 @@ import { BaseModal } from '@/components/modals/crud/BaseModal';
 import { ConfirmDeleteModal } from '@/components/modals/crud/ConfirmDeleteModal';
 import { EntityCardMenu } from '@/components/common/EntityCardMenu';
 import { toast } from 'sonner';
+import { storyEntityDataAttrs } from '@/lib/storyEntityContext';
+import { RichTextSnippet } from '@/components/common/RichTextSnippet';
 
 interface Props {
   worldId: string;
 }
 
 export function PlotsSection({ worldId }: Props) {
+  const cardMenu = useSectionCardMenuDeps();
   const plots = useAppStore((s) => s.getPlotsByWorld(worldId));
   const addPlot = useAppStore((s) => s.addPlot);
   const updatePlot = useAppStore((s) => s.updatePlot);
@@ -39,6 +44,13 @@ export function PlotsSection({ worldId }: Props) {
     }
     setEditing(null);
   };
+
+  const openEdit = (plot: Plot) => {
+    setEditing(plot);
+    setFormOpen(true);
+  };
+
+  useWorldEditFromUrl(openEdit, (id) => plots.find((p) => p.id === id));
 
   const charNames = (ids: string[]) =>
     ids
@@ -98,6 +110,7 @@ export function PlotsSection({ worldId }: Props) {
               onKeyDown={(e) => e.key === 'Enter' && setDetail(plot)}
               onClick={() => setDetail(plot)}
               className="story-card group relative cursor-pointer overflow-hidden border-l-4 border-l-[#D61E2B] p-5 pl-6 transition-all hover:border-[#D61E2B]/80 hover:shadow-lg hover:shadow-black/20"
+              {...storyEntityDataAttrs('plot', plot.id, worldId, plot.title)}
             >
               <motion.div
                 className="absolute right-2 top-2 z-10 flex items-center gap-0.5"
@@ -115,10 +128,10 @@ export function PlotsSection({ worldId }: Props) {
                   <Heart size={14} className={plot.isFavorite ? 'fill-[#D61E2B] text-[#D61E2B]' : 'text-[#5A6078]'} />
                 </button>
                 <EntityCardMenu
-                  onEdit={() => {
-                    setEditing(plot);
-                    setFormOpen(true);
-                  }}
+                  {...entityCardMenuProps(worldId, 'plot', plot.id, plot.title, {
+                    ...cardMenu,
+                    onViewDetails: () => setDetail(plot),
+                  })}
                   onDelete={() => setDeleteId(plot.id)}
                 />
               </motion.div>
@@ -138,7 +151,11 @@ export function PlotsSection({ worldId }: Props) {
                   </div>
                 </div>
 
-                {plot.synopsis && <p className="mb-3 line-clamp-3 text-sm leading-relaxed text-[#8B91A7]">{plot.synopsis}</p>}
+                {plot.synopsis && (
+                  <div className="mb-3">
+                    <RichTextSnippet text={plot.synopsis} worldId={worldId} lines={3} className="text-sm" />
+                  </div>
+                )}
 
                 {charNames(plot.characters) ? (
                   <p className="mb-3 line-clamp-2 text-xs text-[#5A6078]">

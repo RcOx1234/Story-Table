@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { BaseModal } from './BaseModal';
+import { StoryRichTextField } from '@/components/common/StoryRichTextField';
 import { ImageInputField } from '@/components/common/ImageInputField';
 import type { Place } from '@/types';
 import { useAppStore } from '@/store';
@@ -109,10 +110,11 @@ export function PlaceFormModal({ open, onClose, worldId, initial, onSubmit }: Pr
             <label className="mb-1 block text-xs uppercase text-[#5A6078]">
               {key === 'description' ? 'Descripción' : key === 'customs' ? 'Costumbres' : key === 'symbols' ? 'Símbolos' : 'Población / habitantes'}
             </label>
-            <textarea
-              className="story-input h-20 w-full resize-none"
+            <StoryRichTextField
+              worldId={worldId}
               value={(form[key] as string) ?? ''}
-              onChange={(e) => patch({ [key]: e.target.value } as Partial<Place>)}
+              onChange={(v) => patch({ [key]: v } as Partial<Place>)}
+              minHeight="5rem"
             />
           </div>
         ))}

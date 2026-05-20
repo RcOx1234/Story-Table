@@ -18,6 +18,7 @@ const SECTION_LABELS: Record<SectionType, string> = {
   hechos: 'Hechos',
   ideas: 'Ideas',
   timelines: 'Timeline',
+  fantastic: 'Elementos fantásticos',
 };
 
 type Props = {

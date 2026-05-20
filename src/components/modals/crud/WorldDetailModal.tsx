@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import type { World } from '@/types';
 import { Users, FileText, MapPin, Lightbulb, Clock } from 'lucide-react';
 import { useAppStore } from '@/store';
+import { StoryRichTextDisplay } from '@/components/common/StoryRichTextDisplay';
 
 type Props = {
   open: boolean;
@@ -25,7 +26,7 @@ export function WorldDetailModal({ open, onClose, world, onEdit }: Props) {
       open={open}
       onClose={onClose}
       title={world.name}
-      description={world.description || 'Sin descripción'}
+      description="Resumen del mundo"
       maxWidthClass="max-w-2xl"
       footer={
         <>
@@ -49,6 +50,11 @@ export function WorldDetailModal({ open, onClose, world, onEdit }: Props) {
       }
     >
       <div className="space-y-4">
+        {world.description?.trim() ? (
+          <StoryRichTextDisplay text={world.description} worldId={world.id} className="text-[#8B91A7]" />
+        ) : (
+          <p className="text-sm text-[#5A6078]">Sin descripción.</p>
+        )}
         {world.imageUrl && (
           <div className="aspect-video overflow-hidden rounded-2xl border border-white/10">
             <img src={world.imageUrl} alt="" className="h-full w-full object-cover" />

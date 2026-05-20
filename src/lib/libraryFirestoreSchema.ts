@@ -16,6 +16,7 @@ export const LIBRARY_ENTITY_COLLECTIONS = [
   'organizations',
   'ideas',
   'timelines',
+  'fantasticElements',
   'houses',
   'worldFacts',
   'worldData',

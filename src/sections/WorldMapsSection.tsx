@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigateWithReturn } from '@/hooks/useNavigationReturn';
+import { useSectionCardMenuDeps, entityCardMenuProps } from '@/hooks/useEntityCardMenu';
 import { useAppStore } from '@/store';
 import { motion } from 'framer-motion';
 import { Globe, Plus, Heart, MapPin, FolderPlus, ArrowLeft, Pencil } from 'lucide-react';
@@ -10,6 +11,7 @@ import { CollectionCard } from '@/components/common/CollectionCard';
 import { EntityCardMenu } from '@/components/common/EntityCardMenu';
 import type { MapData, MapCollection } from '@/types';
 import { toast } from 'sonner';
+import { storyEntityDataAttrs } from '@/lib/storyEntityContext';
 import { purgeMapStorage } from '@/lib/trashStorage';
 import { isFirebaseConfigured } from '@/lib/firebase';
 
@@ -17,6 +19,7 @@ type Props = { worldId: string };
 
 export function WorldMapsSection({ worldId }: Props) {
   const navigateWithReturn = useNavigateWithReturn();
+  const cardMenu = useSectionCardMenuDeps();
   const maps = useAppStore((s) => s.getMapsByWorld(worldId));
   const collections = useAppStore((s) => s.getMapCollectionsByWorld(worldId));
   const addMap = useAppStore((s) => s.addMap);
@@ -94,6 +97,7 @@ export function WorldMapsSection({ worldId }: Props) {
       onKeyDown={(e) => e.key === 'Enter' && navigateWithReturn(`/world/${worldId}/map/${m.id}`)}
       onClick={() => navigateWithReturn(`/world/${worldId}/map/${m.id}`)}
       className="story-card group relative cursor-pointer overflow-hidden"
+      {...storyEntityDataAttrs('map', m.id, worldId, m.name)}
     >
       <div className="relative aspect-video bg-[#111318]">
         {m.imageUrl ? (
@@ -117,7 +121,10 @@ export function WorldMapsSection({ worldId }: Props) {
           </button>
           <EntityCardMenu
             editLabel="Editar mapa"
-            onEdit={() => navigateWithReturn(`/world/${worldId}/map/${m.id}`)}
+            {...entityCardMenuProps(worldId, 'map', m.id, m.name, {
+              ...cardMenu,
+              onViewDetails: () => navigateWithReturn(`/world/${worldId}/map/${m.id}`),
+            })}
             onDelete={() => setDeleteTarget(m)}
           />
         </motion.div>

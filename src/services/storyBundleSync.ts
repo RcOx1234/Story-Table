@@ -20,6 +20,7 @@ type StorySlice = Pick<
   | 'organizations'
   | 'ideas'
   | 'timelines'
+  | 'fantasticElements'
   | 'houses'
   | 'worldFacts'
   | 'worldData'
@@ -41,6 +42,7 @@ export const EMPTY_STORY_SLICE: StorySlice = {
   organizations: [],
   ideas: [],
   timelines: [],
+  fantasticElements: [],
   houses: [],
   worldFacts: [],
   worldData: [],
@@ -73,6 +75,7 @@ export function getStorySlice(): StorySlice {
     organizations: s.organizations,
     ideas: s.ideas,
     timelines: s.timelines,
+    fantasticElements: s.fantasticElements,
     houses: s.houses,
     worldFacts: s.worldFacts,
     worldData: s.worldData,
@@ -96,6 +99,7 @@ function applyStorySlice(data: Record<string, unknown>): void {
     organizations: (data.organizations as AppState['organizations']) ?? [],
     ideas: (data.ideas as AppState['ideas']) ?? [],
     timelines: (data.timelines as AppState['timelines']) ?? [],
+    fantasticElements: (data.fantasticElements as AppState['fantasticElements']) ?? [],
     houses: (data.houses as AppState['houses']) ?? [],
     worldFacts: (data.worldFacts as AppState['worldFacts']) ?? [],
     worldData: (data.worldData as AppState['worldData']) ?? [],

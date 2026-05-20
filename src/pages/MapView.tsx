@@ -1,9 +1,11 @@
 import { useParams } from 'react-router-dom';
 import { useNavigationReturn, useNavigateWithReturn } from '@/hooks/useNavigationReturn';
+import { useStoryDataReady } from '@/hooks/useStoryDataReady';
+import { SplashLoader } from '@/components/auth/SplashLoader';
 import { useAppStore } from '@/store';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, MapPin, ZoomIn, ZoomOut, Maximize, Plus, Pencil, Trash2, ExternalLink } from 'lucide-react';
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { MarkerFormModal } from '@/components/modals/crud/MarkerFormModal';
 import { ConfirmDeleteModal } from '@/components/modals/crud/ConfirmDeleteModal';
 import type { MapMarker } from '@/types';
@@ -13,6 +15,7 @@ import { isFirebaseConfigured } from '@/lib/firebase';
 
 export function MapView() {
   const { worldId, mapId } = useParams<{ worldId: string; mapId: string }>();
+  const dataReady = useStoryDataReady();
   const goBack = useNavigationReturn(`/world/${worldId}`);
   const navigateWithReturn = useNavigateWithReturn();
   const mapData = useAppStore((s) => s.maps.find((m) => m.id === mapId));
@@ -34,6 +37,18 @@ export function MapView() {
   const [deleteMarkerId, setDeleteMarkerId] = useState<string | null>(null);
   const [confirmDeleteMap, setConfirmDeleteMap] = useState(false);
 
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -0.12 : 0.12;
+      setScale((s) => Math.min(3, Math.max(0.5, s + delta)));
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [mapData?.id]);
+
   const percentFromEvent = useCallback(
     (clientX: number, clientY: number) => {
       const el = containerRef.current;
@@ -48,6 +63,10 @@ export function MapView() {
     },
     [mapData]
   );
+
+  if (!dataReady) {
+    return <SplashLoader message="Cargando…" submessage="Recuperando mapa" />;
+  }
 
   if (!mapData || !worldId) {
     return (

@@ -1,13 +1,15 @@
-import { useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { useNavigationReturn } from '@/hooks/useNavigationReturn';
 import { useAppStore } from '@/store';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Heart, Edit2, Flame, MapPin, Users, Music, Quote, Trash2 } from 'lucide-react';
 import { EntityReference } from '@/components/common/EntityReference';
 import { ConfirmDeleteModal } from '@/components/modals/crud/ConfirmDeleteModal';
+import { StoryRichTextDisplay } from '@/components/common/StoryRichTextDisplay';
 import { SceneFormModal } from '@/components/modals/crud/SceneFormModal';
 import { toast } from 'sonner';
+import { storyEntityDataAttrs } from '@/lib/storyEntityContext';
 
 const statusLabels: Record<string, { label: string; color: string }> = {
   pending: { label: 'Pendiente', color: '#EAB308' },
@@ -35,6 +37,16 @@ export function SceneDetail() {
   const [activeTab, setActiveTab] = useState<TabType>('content');
   const [formOpen, setFormOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  useEffect(() => {
+    if (searchParams.get('edit') === '1') {
+      setFormOpen(true);
+      const next = new URLSearchParams(searchParams);
+      next.delete('edit');
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   if (!scene || !worldId) {
     return (
@@ -55,7 +67,12 @@ export function SceneDetail() {
   ];
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mx-auto max-w-4xl">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="mx-auto max-w-4xl"
+      {...storyEntityDataAttrs('scene', scene.id, worldId, scene.title)}
+    >
       <div className="mb-6 flex items-start justify-between">
         <div className="flex items-center gap-4">
           <button
@@ -148,7 +165,7 @@ export function SceneDetail() {
         <div className="story-card p-6">
           {scene.description && (
             <div className="mb-4 border-b border-[#1E2230] pb-4">
-              <p className="text-sm italic text-[#8B91A7]">{scene.description}</p>
+              <StoryRichTextDisplay text={scene.description} worldId={worldId} className="italic" />
             </div>
           )}
           {scene.images.length > 0 && (
@@ -165,7 +182,7 @@ export function SceneDetail() {
           )}
           <div className="prose prose-invert max-w-none">
             {scene.content ? (
-              <div className="whitespace-pre-wrap text-sm leading-relaxed text-[#E8E9EB]">{scene.content}</div>
+              <StoryRichTextDisplay text={scene.content} worldId={worldId} className="text-[#E8E9EB]" />
             ) : (
               <p className="py-8 text-center text-[#3A4460]">Sin contenido</p>
             )}

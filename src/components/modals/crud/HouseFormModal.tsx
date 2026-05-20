@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Castle } from 'lucide-react';
 import { toast } from 'sonner';
 import { BaseModal } from './BaseModal';
+import { StoryRichTextField } from '@/components/common/StoryRichTextField';
 import { useAppStore } from '@/store';
 import type { House, NobleRank } from '@/types';
 import { ImageInputField } from '@/components/common/ImageInputField';
@@ -12,7 +13,7 @@ const NOBLE_RANKS: { value: NobleRank; label: string }[] = [
   { value: 'duke', label: 'Duque' },
   { value: 'marquis', label: 'Marqu?s' },
   { value: 'count', label: 'Conde' },
-  { value: 'baron', label: 'BarÛn' },
+  { value: 'baron', label: 'Barùn' },
   { value: 'knight', label: 'Caballero' },
   { value: 'commoner', label: 'Plebeyo' },
   { value: 'other', label: 'Otro' },
@@ -141,7 +142,7 @@ export function HouseFormModal({ open, onClose, worldId, initial, onSubmit }: Pr
         </div>
 
         <Field label="Descripcion?n">
-          <textarea className="story-input h-20 w-full resize-none" value={form.description} onChange={(e) => patch({ description: e.target.value })} />
+          <StoryRichTextField worldId={worldId} value={form.description} onChange={(v) => patch({ description: v })} minHeight="5rem" />
         </Field>
 
         <div className="grid gap-3 sm:grid-cols-2">
@@ -191,11 +192,11 @@ export function HouseFormModal({ open, onClose, worldId, initial, onSubmit }: Pr
         </div>
 
         <Field label="Linaje">
-          <textarea className="story-input h-16 w-full resize-none" value={form.lineage} onChange={(e) => patch({ lineage: e.target.value })} />
+          <StoryRichTextField worldId={worldId} value={form.lineage} onChange={(v) => patch({ lineage: v })} minHeight="4rem" />
         </Field>
 
         <Field label="S?mbolos">
-          <textarea className="story-input h-16 w-full resize-none" value={form.symbols} onChange={(e) => patch({ symbols: e.target.value })} />
+          <StoryRichTextField worldId={worldId} value={form.symbols} onChange={(v) => patch({ symbols: v })} minHeight="4rem" />
         </Field>
 
         <Field label="Etiquetas (separadas por coma)">

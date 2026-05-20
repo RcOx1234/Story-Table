@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useWorldEditFromUrl } from '@/hooks/useWorldEditFromUrl';
 import { useNavigateWithReturn } from '@/hooks/useNavigationReturn';
 import { useAppStore } from '@/store';
 import { motion } from 'framer-motion';
@@ -73,6 +74,13 @@ export function TimelinesSection({ worldId }: Props) {
     }
     setEditing(null);
   };
+
+  const openEdit = (timeline: Timeline) => {
+    setEditing(timeline);
+    setFormOpen(true);
+  };
+
+  useWorldEditFromUrl(openEdit, (id) => timelines.find((t) => t.id === id));
 
   const assignScenes = () => {
     if (!active) return;

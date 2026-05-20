@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { useWorldEditFromUrl } from '@/hooks/useWorldEditFromUrl';
+import { useSectionCardMenuDeps, entityCardMenuProps } from '@/hooks/useEntityCardMenu';
 import { useAppStore } from '@/store';
 import { motion } from 'framer-motion';
 import { Plus, Search, Heart, ScrollText, Calendar } from 'lucide-react';
@@ -8,6 +10,8 @@ import { BaseModal } from '@/components/modals/crud/BaseModal';
 import { ConfirmDeleteModal } from '@/components/modals/crud/ConfirmDeleteModal';
 import { EntityCardMenu } from '@/components/common/EntityCardMenu';
 import { toast } from 'sonner';
+import { storyEntityDataAttrs } from '@/lib/storyEntityContext';
+import { RichTextSnippet } from '@/components/common/RichTextSnippet';
 
 const factTypeLabels: Record<WorldFactType, string> = {
   battle: 'Batalla',
@@ -26,6 +30,7 @@ interface Props {
 }
 
 export function FactsSection({ worldId }: Props) {
+  const cardMenu = useSectionCardMenuDeps();
   const facts = useAppStore((s) => s.getWorldFactsByWorld(worldId));
   const addWorldFact = useAppStore((s) => s.addWorldFact);
   const updateWorldFact = useAppStore((s) => s.updateWorldFact);
@@ -61,6 +66,13 @@ export function FactsSection({ worldId }: Props) {
     setEditing(null);
     setFormOpen(true);
   };
+
+  const openEdit = (fact: WorldFact) => {
+    setEditing(fact);
+    setFormOpen(true);
+  };
+
+  useWorldEditFromUrl(openEdit, (id) => facts.find((f) => f.id === id));
 
   return (
     <div>
@@ -101,6 +113,7 @@ export function FactsSection({ worldId }: Props) {
               onKeyDown={(e) => e.key === 'Enter' && setViewing(fact)}
               onClick={() => setViewing(fact)}
               className="story-card group relative cursor-pointer overflow-hidden p-5"
+              {...storyEntityDataAttrs('fact', fact.id, worldId, fact.title)}
             >
               <div className="absolute right-3 top-3 flex items-center gap-0.5">
                 <button
@@ -115,10 +128,10 @@ export function FactsSection({ worldId }: Props) {
                   <Heart size={14} className={fact.isFavorite ? 'fill-[#D61E2B] text-[#D61E2B]' : 'text-[#5A6078]'} />
                 </button>
                 <EntityCardMenu
-                  onEdit={() => {
-                    setEditing(fact);
-                    setFormOpen(true);
-                  }}
+                  {...entityCardMenuProps(worldId, 'fact', fact.id, fact.title, {
+                    ...cardMenu,
+                    onViewDetails: () => setViewing(fact),
+                  })}
                   onDelete={() => setDeleteId(fact.id)}
                 />
               </div>
@@ -139,7 +152,7 @@ export function FactsSection({ worldId }: Props) {
                 )}
               </div>
               <h3 className="mb-2 font-semibold text-[#E8E9EB]">{fact.title}</h3>
-              {fact.description && <p className="line-clamp-3 text-sm text-[#8B91A7]">{fact.description}</p>}
+              {fact.description && <RichTextSnippet text={fact.description} worldId={worldId} lines={3} className="text-sm" />}
               <div className="mt-3 border-t border-[#1E2230] pt-3 text-xs text-[#5A6078]">
                 {fact.relatedCharacterIds.length} personajes · {fact.relatedPlaceIds.length} lugares
                 {timelineName(fact.timelineId) && ` · ${timelineName(fact.timelineId)}`}

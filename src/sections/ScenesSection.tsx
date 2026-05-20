@@ -1,13 +1,16 @@
 import { useState } from 'react';
 import { useNavigateWithReturn } from '@/hooks/useNavigationReturn';
 import { useAppStore } from '@/store';
+import { useSectionCardMenuDeps, entityCardMenuProps } from '@/hooks/useEntityCardMenu';
 import { motion } from 'framer-motion';
 import { Plus, Search, Heart, Flame, Users, MapPin } from 'lucide-react';
 import type { Scene } from '@/types';
+import { storyEntityDataAttrs } from '@/lib/storyEntityContext';
 import { SceneFormModal } from '@/components/modals/crud/SceneFormModal';
 import { ConfirmDeleteModal } from '@/components/modals/crud/ConfirmDeleteModal';
 import { EntityCardMenu } from '@/components/common/EntityCardMenu';
 import { toast } from 'sonner';
+import { RichTextSnippet } from '@/components/common/RichTextSnippet';
 
 const statusLabels: Record<string, { label: string; color: string }> = {
   pending: { label: 'Pendiente', color: '#EAB308' },
@@ -26,6 +29,7 @@ interface Props {
 
 export function ScenesSection({ worldId }: Props) {
   const navigateWithReturn = useNavigateWithReturn();
+  const cardMenu = useSectionCardMenuDeps();
   const scenes = useAppStore((s) => s.getScenesByWorld(worldId));
   const addScene = useAppStore((s) => s.addScene);
   const updateScene = useAppStore((s) => s.updateScene);
@@ -113,6 +117,7 @@ export function ScenesSection({ worldId }: Props) {
               transition={{ delay: i * 0.05 }}
               onClick={() => navigateWithReturn(`/world/${worldId}/scene/${scene.id}`)}
               className="group story-card cursor-pointer p-5 transition-all hover:bg-[#1A1E28]"
+              {...storyEntityDataAttrs('scene', scene.id, worldId, scene.title)}
             >
               <div className="flex items-start justify-between">
                 <div className="min-w-0 flex-1">
@@ -128,7 +133,11 @@ export function ScenesSection({ worldId }: Props) {
                       {statusLabels[scene.status]?.label}
                     </span>
                   </div>
-                  {scene.description && <p className="mb-3 line-clamp-2 text-sm text-[#8B91A7]">{scene.description}</p>}
+                  {scene.description && (
+                    <div className="mb-3">
+                      <RichTextSnippet text={scene.description} worldId={worldId} lines={2} className="text-sm" />
+                    </div>
+                  )}
                   <div className="flex flex-wrap items-center gap-4 text-xs text-[#5A6078]">
                     {scene.placeName && (
                       <span className="flex items-center gap-1">
@@ -157,10 +166,7 @@ export function ScenesSection({ worldId }: Props) {
                     <Heart size={16} className={scene.isFavorite ? 'fill-[#D61E2B] text-[#D61E2B]' : 'text-[#5A6078]'} />
                   </button>
                   <EntityCardMenu
-                    onEdit={() => {
-                      setEditing(scene);
-                      setFormOpen(true);
-                    }}
+                    {...entityCardMenuProps(worldId, 'scene', scene.id, scene.title, cardMenu)}
                     onDelete={() => setDeleteId(scene.id)}
                   />
                 </div>

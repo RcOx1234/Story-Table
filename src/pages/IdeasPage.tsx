@@ -8,6 +8,7 @@ import { IdeaFormModal } from '@/components/modals/crud/IdeaFormModal';
 import { BaseModal } from '@/components/modals/crud/BaseModal';
 import type { Idea } from '@/types';
 import { toast } from 'sonner';
+import { StoryRichTextDisplay } from '@/components/common/StoryRichTextDisplay';
 
 const typeLabels: Record<string, { label: string; color: string }> = {
   scene: { label: 'Escena', color: '#22C55E' },
@@ -143,7 +144,13 @@ export function IdeasPage() {
                   className="min-w-0 flex-1 text-left"
                   onClick={() => setPreviewIdea(idea)}
                 >
-                  <p className="mb-2 text-sm text-[#E8E9EB]">{idea.description}</p>
+                  <div className="mb-2 line-clamp-3 text-sm">
+                    <StoryRichTextDisplay
+                      text={idea.description}
+                      worldId={idea.worldId ?? undefined}
+                      className="text-[#E8E9EB]"
+                    />
+                  </div>
                   {idea.audioUrl && <AudioPlayer src={idea.audioUrl} compact className="mb-2 max-w-xs" />}
                   <div className="flex flex-wrap items-center gap-2">
                     <span
@@ -238,7 +245,11 @@ export function IdeasPage() {
               />
             )}
             {previewIdea.audioUrl && <AudioPlayer src={previewIdea.audioUrl} />}
-            <p className="whitespace-pre-wrap text-sm leading-relaxed text-[#E8E9EB]">{previewIdea.description}</p>
+            <StoryRichTextDisplay
+              text={previewIdea.description}
+              worldId={previewIdea.worldId ?? undefined}
+              className="text-[#E8E9EB]"
+            />
             <div className="flex flex-wrap gap-2">
               <span
                 className="rounded-full px-2 py-0.5 text-[10px] font-medium uppercase"

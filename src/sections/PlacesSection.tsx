@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigateWithReturn } from '@/hooks/useNavigationReturn';
+import { useSectionCardMenuDeps, entityCardMenuProps } from '@/hooks/useEntityCardMenu';
 import { useAppStore } from '@/store';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Search, MapPin, Heart, FolderPlus, ArrowLeft, ChevronRight } from 'lucide-react';
@@ -13,6 +14,8 @@ import { CollectionCard } from '@/components/common/CollectionCard';
 import { PlaceCollectionDetailModal } from '@/components/modals/crud/PlaceCollectionDetailModal';
 import { collectionTypeLabel } from '@/lib/collectionTypes';
 import { toast } from 'sonner';
+import { storyEntityDataAttrs } from '@/lib/storyEntityContext';
+import { RichTextSnippet } from '@/components/common/RichTextSnippet';
 
 const typeLabels: Record<string, string> = {
   city: 'Ciudad',
@@ -33,6 +36,7 @@ interface Props {
 
 export function PlacesSection({ worldId }: Props) {
   const navigateWithReturn = useNavigateWithReturn();
+  const cardMenu = useSectionCardMenuDeps();
   const places = useAppStore((s) => s.getPlacesByWorld(worldId));
   const collections = useAppStore((s) => s.getPlaceCollectionsByWorld(worldId));
   const addPlace = useAppStore((s) => s.addPlace);
@@ -107,6 +111,7 @@ export function PlacesSection({ worldId }: Props) {
       onKeyDown={(e) => e.key === 'Enter' && navigateWithReturn(`/world/${worldId}/place/${place.id}`)}
       onClick={() => navigateWithReturn(`/world/${worldId}/place/${place.id}`)}
       className="story-card group relative cursor-pointer overflow-hidden p-0"
+      {...storyEntityDataAttrs('place', place.id, worldId, place.name)}
     >
       <div className="absolute right-2 top-2 z-10 flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
         <button
@@ -121,10 +126,10 @@ export function PlacesSection({ worldId }: Props) {
           <Heart size={14} className={place.isFavorite ? 'fill-[#D61E2B] text-[#D61E2B]' : 'text-[#5A6078]'} />
         </button>
         <EntityCardMenu
-          onEdit={() => {
-            setEditing(place);
-            setFormOpen(true);
-          }}
+          {...entityCardMenuProps(worldId, 'place', place.id, place.name, {
+            ...cardMenu,
+            onViewDetails: () => navigateWithReturn(`/world/${worldId}/place/${place.id}`),
+          })}
           onDelete={() => setDeleteId(place.id)}
         />
       </div>
@@ -142,7 +147,7 @@ export function PlacesSection({ worldId }: Props) {
           {typeLabels[place.type]}
         </span>
         <h3 className="mb-1 font-semibold text-[#E8E9EB]">{place.name}</h3>
-        {place.description && <p className="line-clamp-2 text-xs text-[#8B91A7]">{place.description}</p>}
+        {place.description && <RichTextSnippet text={place.description} worldId={worldId} lines={2} />}
       </div>
     </motion.div>
   );

@@ -2,6 +2,9 @@ import { useAppStore } from '@/store';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
 import { useFirebaseAutoSync } from '@/hooks/useFirebaseAutoSync';
+import { StoryTableContextMenu } from '@/components/common/StoryTableContextMenu';
+import { StoryInsertionHost } from '@/components/common/StoryInsertionHost';
+import { StoryEntityActionHost } from '@/components/common/StoryEntityActionHost';
 import type { ReactNode } from 'react';
 
 interface MainLayoutProps {
@@ -14,6 +17,9 @@ export function MainLayout({ children }: MainLayoutProps) {
 
   return (
     <div className="flex h-screen w-full bg-[#0B0D10] overflow-hidden">
+      <StoryTableContextMenu />
+      <StoryInsertionHost />
+      <StoryEntityActionHost />
       <Sidebar />
       <div 
         className="flex-1 flex flex-col min-w-0 transition-all duration-300"

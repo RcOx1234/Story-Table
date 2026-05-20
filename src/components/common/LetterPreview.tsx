@@ -1,10 +1,12 @@
 import type { Component } from '@/types';
+import { StoryRichTextDisplay } from '@/components/common/StoryRichTextDisplay';
 
 type Props = {
   component: Component;
+  worldId?: string;
 };
 
-export function LetterPreview({ component }: Props) {
+export function LetterPreview({ component, worldId }: Props) {
   const to = component.letterTo || component.target || 'Destinatario';
   const from = component.letterFrom || '—';
   const date = component.letterDate || '';
@@ -12,6 +14,7 @@ export function LetterPreview({ component }: Props) {
   const body = component.description || '';
   const closing = component.letterClosing || 'Atentamente,';
   const signature = from !== '—' ? from : component.name;
+  const wId = worldId ?? component.worldId;
 
   return (
     <div className="mx-auto max-w-lg">
@@ -36,8 +39,12 @@ export function LetterPreview({ component }: Props) {
             </p>
           )}
           <p className="pt-2 text-base leading-relaxed">{salutation}</p>
-          <div className="min-h-[120px] whitespace-pre-wrap text-[15px] leading-[1.85] text-[#3d3428]">
-            {body || <span className="italic text-[#8a7b66]">Sin contenido de la carta…</span>}
+          <div className="min-h-[120px] text-[15px] leading-[1.85] text-[#3d3428] [&_.story-rich-display]:text-[#3d3428] [&_button]:border-[#8a7b66]/50">
+            {body ? (
+              <StoryRichTextDisplay text={body} worldId={wId} onLightSurface />
+            ) : (
+              <span className="italic text-[#8a7b66]">Sin contenido de la carta…</span>
+            )}
           </div>
           <div className="pt-4">
             <p className="text-base">{closing}</p>

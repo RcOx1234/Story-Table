@@ -4,6 +4,7 @@ import { useAppStore } from '@/store';
 import type { WorldFact, WorldFactType } from '@/types';
 import { EntityMultiPicker } from '@/components/common/EntityMultiPicker';
 import { MultiImageInputField } from '@/components/common/MultiImageInputField';
+import { StoryRichTextField } from '@/components/common/StoryRichTextField';
 
 const FACT_TYPES: { value: WorldFactType; label: string }[] = [
   { value: 'battle', label: 'Batalla' },
@@ -131,19 +132,11 @@ export function FactFormModal({ open, onClose, worldId, initial, onSubmit }: Pro
         </div>
         <div>
           <label className="mb-1 block text-xs uppercase text-[#5A6078]">Descripción</label>
-          <textarea
-            className="story-input h-24 w-full resize-none"
-            value={form.description}
-            onChange={(e) => patch({ description: e.target.value })}
-          />
+          <StoryRichTextField worldId={worldId} value={form.description} onChange={(v) => patch({ description: v })} minHeight="5rem" />
         </div>
         <div>
           <label className="mb-1 block text-xs uppercase text-[#5A6078]">Consecuencia</label>
-          <textarea
-            className="story-input h-20 w-full resize-none"
-            value={form.consequence}
-            onChange={(e) => patch({ consequence: e.target.value })}
-          />
+          <StoryRichTextField worldId={worldId} value={form.consequence} onChange={(v) => patch({ consequence: v })} minHeight="4rem" />
         </div>
         <div>
           <label className="mb-1 block text-xs uppercase text-[#5A6078]">Línea temporal (opcional)</label>

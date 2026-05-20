@@ -173,18 +173,6 @@ export function GenealogyTree({
     resetView();
   }, [effectiveRoot, resetView]);
 
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const onWheel = (e: WheelEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      setScale((s) => Math.min(1.6, Math.max(0.4, s - e.deltaY * 0.001)));
-    };
-    el.addEventListener('wheel', onWheel, { passive: false });
-    return () => el.removeEventListener('wheel', onWheel);
-  }, [fullscreen]);
-
   const handleMouseDown = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest('button')) return;
     setDragging(true);
@@ -213,7 +201,7 @@ export function GenealogyTree({
     >
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,#1a1f2a_0%,transparent_65%)] opacity-40" />
       <p className="pointer-events-none absolute bottom-2 left-3 z-10 text-[10px] text-[#5A6078]">
-        Arrastra para mover · Rueda para zoom
+        Arrastra para mover · Usa +/− para zoom
       </p>
 
       <div

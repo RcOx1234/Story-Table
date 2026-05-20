@@ -4,6 +4,7 @@ import { useAppStore } from '@/store';
 import type { Component } from '@/types';
 import { Box, Mail, Gem, Sword, Sparkles, ScrollText, type LucideIcon } from 'lucide-react';
 import { ImageInputField } from '@/components/common/ImageInputField';
+import { StoryRichTextField } from '@/components/common/StoryRichTextField';
 
 const TYPES: { value: Component['type']; label: string }[] = [
   { value: 'object', label: 'Objeto' },
@@ -176,7 +177,7 @@ export function ComponentFormModal({ open, onClose, worldId, initial, onSubmit }
             </div>
             <div>
               <label className="mb-1 block text-xs uppercase text-[#5A6078]">Cuerpo de la carta *</label>
-              <textarea className="story-input h-32 w-full resize-none font-serif" value={form.description} onChange={(e) => patch({ description: e.target.value })} />
+              <StoryRichTextField worldId={worldId} value={form.description} onChange={(v) => patch({ description: v })} minHeight="7rem" className="[&_textarea]:font-serif" />
             </div>
             <div>
               <label className="mb-1 block text-xs uppercase text-[#5A6078]">Despedida / cierre</label>
@@ -187,11 +188,11 @@ export function ComponentFormModal({ open, onClose, worldId, initial, onSubmit }
           <>
             <div>
               <label className="mb-1 block text-xs uppercase text-[#5A6078]">Descripción</label>
-              <textarea className="story-input h-20 w-full resize-none" value={form.description} onChange={(e) => patch({ description: e.target.value })} />
+              <StoryRichTextField worldId={worldId} value={form.description} onChange={(v) => patch({ description: v })} minHeight="4rem" />
             </div>
             <div>
               <label className="mb-1 block text-xs uppercase text-[#5A6078]">Historia / origen</label>
-              <textarea className="story-input h-20 w-full resize-none" value={form.history} onChange={(e) => patch({ history: e.target.value })} />
+              <StoryRichTextField worldId={worldId} value={form.history} onChange={(v) => patch({ history: v })} minHeight="4rem" />
             </div>
             <div>
               <label className="mb-1 block text-xs uppercase text-[#5A6078]">{TARGET_LABEL[form.type]}</label>
@@ -201,7 +202,7 @@ export function ComponentFormModal({ open, onClose, worldId, initial, onSubmit }
               <label className="mb-1 flex items-center gap-2 text-xs uppercase text-[#5A6078]">
                 <Sparkles size={12} className="text-[#EAB308]" /> Poderes o efecto
               </label>
-              <textarea className="story-input h-16 w-full resize-none" value={form.effect ?? ''} onChange={(e) => patch({ effect: e.target.value })} />
+              <StoryRichTextField worldId={worldId} value={form.effect ?? ''} onChange={(v) => patch({ effect: v })} minHeight="3.5rem" />
             </div>
           </>
         )}

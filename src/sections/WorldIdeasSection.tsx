@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { useWorldEditFromUrl } from '@/hooks/useWorldEditFromUrl';
+import { useSectionCardMenuDeps, entityCardMenuProps } from '@/hooks/useEntityCardMenu';
 import { useAppStore } from '@/store';
 import { motion } from 'framer-motion';
 import { Plus, Lightbulb, Heart, Pencil, UserCircle } from 'lucide-react';
@@ -7,6 +9,8 @@ import { BaseModal } from '@/components/modals/crud/BaseModal';
 import { ConfirmDeleteModal } from '@/components/modals/crud/ConfirmDeleteModal';
 import { EntityCardMenu } from '@/components/common/EntityCardMenu';
 import type { Idea } from '@/types';
+import { StoryRichTextDisplay } from '@/components/common/StoryRichTextDisplay';
+import { storyEntityDataAttrs } from '@/lib/storyEntityContext';
 import { toast } from 'sonner';
 import { AudioPlayer } from '@/components/common/AudioPlayer';
 
@@ -25,6 +29,7 @@ const typeLabels: Record<string, { label: string; color: string }> = {
 };
 
 export function WorldIdeasSection({ worldId }: Props) {
+  const cardMenu = useSectionCardMenuDeps();
   const ideas = useAppStore((s) => s.ideas.filter((i) => i.worldId === worldId && !i.isDeleted));
   const addIdea = useAppStore((s) => s.addIdea);
   const deleteIdea = useAppStore((s) => s.deleteIdea);
@@ -43,6 +48,13 @@ export function WorldIdeasSection({ worldId }: Props) {
     addIdea(data);
     toast.success('Idea guardada');
   };
+
+  const openEdit = (idea: Idea) => {
+    setEditFromDetail(idea);
+    setFormOpen(true);
+  };
+
+  useWorldEditFromUrl(openEdit, (id) => ideas.find((i) => i.id === id));
 
   return (
     <div>
@@ -91,6 +103,7 @@ export function WorldIdeasSection({ worldId }: Props) {
               onKeyDown={(e) => e.key === 'Enter' && setDetail(idea)}
               onClick={() => setDetail(idea)}
               className="story-card group relative flex cursor-pointer items-start gap-4 p-4 transition-all hover:border-[#D61E2B]/30"
+              {...storyEntityDataAttrs('idea', idea.id, worldId, idea.description.slice(0, 48) || 'Idea')}
             >
               <button
                 type="button"
@@ -103,7 +116,9 @@ export function WorldIdeasSection({ worldId }: Props) {
                 <Heart size={14} className={idea.isFavorite ? 'fill-[#D61E2B] text-[#D61E2B]' : 'text-[#5A6078]'} />
               </button>
               <div className="min-w-0 flex-1">
-                <p className="mb-2 line-clamp-3 text-sm text-[#E8E9EB]">{idea.description}</p>
+                <div className="mb-2 line-clamp-3 text-sm">
+                  <StoryRichTextDisplay text={idea.description} worldId={worldId} className="text-[#E8E9EB]" />
+                </div>
                 {idea.audioUrl && <AudioPlayer src={idea.audioUrl} compact className="mb-2 max-w-xs" />}
                 <div className="flex items-center gap-2">
                   <span
@@ -120,8 +135,10 @@ export function WorldIdeasSection({ worldId }: Props) {
               </div>
               <EntityCardMenu
                 className="flex-shrink-0 opacity-70 group-hover:opacity-100"
-                onEdit={() => setDetail(idea)}
-                editLabel="Ver detalle"
+                {...entityCardMenuProps(worldId, 'idea', idea.id, idea.description.slice(0, 48) || 'Idea', {
+                  ...cardMenu,
+                  onViewDetails: () => setDetail(idea),
+                })}
                 onDelete={() => setDeleteId(idea.id)}
               />
             </motion.div>
@@ -183,7 +200,7 @@ export function WorldIdeasSection({ worldId }: Props) {
               />
             )}
             {detail.audioUrl && <AudioPlayer src={detail.audioUrl} />}
-            <p className="whitespace-pre-wrap text-sm leading-relaxed text-[#E8E9EB]">{detail.description}</p>
+            <StoryRichTextDisplay text={detail.description} worldId={worldId} className="text-[#E8E9EB]" />
             <div className="flex flex-wrap gap-2">
               <span
                 className="rounded-full px-2 py-0.5 text-[10px] font-medium uppercase"

@@ -1,6 +1,7 @@
 import { BaseModal } from './BaseModal';
 import { LetterPreview } from '@/components/common/LetterPreview';
 import { EntityReference } from '@/components/common/EntityReference';
+import { StoryRichTextDisplay } from '@/components/common/StoryRichTextDisplay';
 import { useAppStore } from '@/store';
 import type { Component } from '@/types';
 
@@ -50,7 +51,7 @@ export function ComponentDetailModal({ open, onClose, component, worldId, onEdit
     >
       <div className="max-h-[70vh] space-y-6 overflow-y-auto pr-1">
         {component.type === 'letter' ? (
-          <LetterPreview component={component} />
+          <LetterPreview component={component} worldId={worldId} />
         ) : (
           <>
             {component.imageUrl && (
@@ -64,13 +65,13 @@ export function ComponentDetailModal({ open, onClose, component, worldId, onEdit
               {component.description && (
                 <div>
                   <h4 className="mb-1 text-xs font-mono uppercase tracking-wider text-[#5A6078]">Descripción</h4>
-                  <p className="whitespace-pre-wrap leading-relaxed text-[#E8E9EB]">{component.description}</p>
+                  <StoryRichTextDisplay text={component.description} worldId={worldId} className="text-[#E8E9EB]" />
                 </div>
               )}
               {component.history && (
                 <div>
                   <h4 className="mb-1 text-xs font-mono uppercase tracking-wider text-[#5A6078]">Historia / origen</h4>
-                  <p className="whitespace-pre-wrap leading-relaxed text-[#8B91A7]">{component.history}</p>
+                  <StoryRichTextDisplay text={component.history} worldId={worldId} />
                 </div>
               )}
               {component.target && (
@@ -82,7 +83,7 @@ export function ComponentDetailModal({ open, onClose, component, worldId, onEdit
               {component.effect && (
                 <div>
                   <h4 className="mb-1 text-xs font-mono uppercase tracking-wider text-[#5A6078]">Poder / efecto</h4>
-                  <p className="whitespace-pre-wrap text-[#EAB308]">{component.effect}</p>
+                  <StoryRichTextDisplay text={component.effect} worldId={worldId} className="text-[#EAB308]" />
                 </div>
               )}
             </div>

@@ -13,6 +13,7 @@ export const ALL_WORLD_SECTIONS: SectionType[] = [
   'hechos',
   'ideas',
   'timelines',
+  'fantastic',
 ];
 
 export const DEFAULT_NEW_WORLD_SECTIONS: SectionType[] = ['characters', 'scenes', 'places'];

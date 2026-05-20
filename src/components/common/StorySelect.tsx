@@ -142,9 +142,10 @@ export function StorySelect({
         side="bottom"
         sideOffset={6}
         collisionPadding={12}
-        className="z-[60] max-w-[min(24rem,92vw)] border-[#2A3045] bg-[#111318] p-0 shadow-xl"
+        className="z-[60] flex max-h-[min(320px,70vh)] max-w-[min(24rem,92vw)] flex-col overflow-hidden border-[#2A3045] bg-[#111318] p-0 shadow-xl"
         style={{ minWidth: popoverMinWidth, width: 'max-content' }}
         onOpenAutoFocus={(e) => e.preventDefault()}
+        onWheel={(e) => e.stopPropagation()}
       >
         {showSearch && (
           <div className="relative shrink-0 border-b border-[#2A3045] p-2">
@@ -163,8 +164,10 @@ export function StorySelect({
         )}
         <div
           ref={listRef}
-          className="max-h-56 overflow-y-auto overscroll-contain p-1 scrollbar-thin"
+          className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-1 scrollbar-thin"
+          style={{ maxHeight: 'min(14rem, 50vh)' }}
           role="listbox"
+          onWheel={(e) => e.stopPropagation()}
         >
           {filtered.length === 0 ? (
             <p className="px-3 py-4 text-center text-xs text-[#5A6078]">{emptyLabel}</p>

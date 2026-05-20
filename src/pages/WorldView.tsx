@@ -20,6 +20,7 @@ import {
   ScrollText,
   Landmark,
   Pencil,
+  Sparkles,
 } from 'lucide-react';
 import { getWorldSectionOrder } from '@/lib/worldSections';
 import { WorldSectionsEditorModal } from '@/components/modals/crud/WorldSectionsEditorModal';
@@ -35,6 +36,7 @@ import { WorldMapsSection } from '@/sections/WorldMapsSection';
 import { HousesSection } from '@/sections/HousesSection';
 import { FactsSection } from '@/sections/FactsSection';
 import { DatosSection } from '@/sections/DatosSection';
+import { FantasticElementsSection } from '@/sections/FantasticElementsSection';
 import type { SectionType } from '@/types';
 import { isWorldUnlocked } from '@/lib/worldUnlock';
 import { WorldPasswordModal } from '@/components/modals/crud/WorldPasswordModal';
@@ -52,6 +54,7 @@ const tabs: { id: SectionType; label: string; icon: typeof Users }[] = [
   { id: 'hechos', label: 'Hechos', icon: ScrollText },
   { id: 'ideas', label: 'Ideas', icon: Lightbulb },
   { id: 'timelines', label: 'Timeline', icon: Landmark },
+  { id: 'fantastic', label: 'Fantásticos', icon: Sparkles },
 ];
 
 export function WorldView() {
@@ -236,6 +239,7 @@ export function WorldView() {
           {activeTab === 'houses' && <HousesSection worldId={world.id} />}
           {activeTab === 'datos' && <DatosSection worldId={world.id} />}
           {activeTab === 'hechos' && <FactsSection worldId={world.id} />}
+          {activeTab === 'fantastic' && <FantasticElementsSection worldId={world.id} />}
         </motion.div>
       </AnimatePresence>
     </motion.div>

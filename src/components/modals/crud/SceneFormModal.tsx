@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { BaseModal } from './BaseModal';
+import { StoryRichTextField } from '@/components/common/StoryRichTextField';
 import { EntityMultiPicker } from '@/components/common/EntityMultiPicker';
 import { MultiImageInputField } from '@/components/common/MultiImageInputField';
 import { useAppStore } from '@/store';
@@ -163,11 +164,11 @@ export function SceneFormModal({ open, onClose, worldId, initial, onSubmit }: Pr
         </div>
         <div>
           <label className="mb-1 block text-xs uppercase text-[#5A6078]">Descripción corta</label>
-          <input className="story-input w-full" value={form.description} onChange={(e) => patch({ description: e.target.value })} />
+          <StoryRichTextField worldId={worldId} value={form.description} onChange={(v) => patch({ description: v })} minHeight="4rem" />
         </div>
         <div>
           <label className="mb-1 block text-xs uppercase text-[#5A6078]">Contenido</label>
-          <textarea className="story-input h-36 w-full resize-none" value={form.content} onChange={(e) => patch({ content: e.target.value })} />
+          <StoryRichTextField worldId={worldId} value={form.content} onChange={(v) => patch({ content: v })} minHeight="10rem" />
         </div>
         <EntityMultiPicker
           label="Personajes"
@@ -233,11 +234,11 @@ export function SceneFormModal({ open, onClose, worldId, initial, onSubmit }: Pr
         </div>
         <div>
           <label className="mb-1 block text-xs uppercase text-[#5A6078]">Diálogos (líneas “Personaje|texto”)</label>
-          <textarea className="story-input h-20 w-full resize-none" value={dialoguesRaw} onChange={(e) => setDialoguesRaw(e.target.value)} />
+          <StoryRichTextField worldId={worldId} value={dialoguesRaw} onChange={setDialoguesRaw} minHeight="4rem" />
         </div>
         <div>
           <label className="mb-1 block text-xs uppercase text-[#5A6078]">Revelaciones (una por línea)</label>
-          <textarea className="story-input h-20 w-full resize-none" value={revealsRaw} onChange={(e) => setRevealsRaw(e.target.value)} />
+          <StoryRichTextField worldId={worldId} value={revealsRaw} onChange={setRevealsRaw} minHeight="4rem" />
         </div>
         <div>
           <label className="mb-1 block text-xs uppercase text-[#5A6078]">Estado</label>

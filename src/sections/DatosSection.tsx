@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { useWorldEditFromUrl } from '@/hooks/useWorldEditFromUrl';
+import { useSectionCardMenuDeps, entityCardMenuProps } from '@/hooks/useEntityCardMenu';
 import { useAppStore } from '@/store';
 import { motion } from 'framer-motion';
 import { Plus, Search, Heart, BookOpen } from 'lucide-react';
@@ -8,6 +10,8 @@ import { BaseModal } from '@/components/modals/crud/BaseModal';
 import { ConfirmDeleteModal } from '@/components/modals/crud/ConfirmDeleteModal';
 import { EntityCardMenu } from '@/components/common/EntityCardMenu';
 import { toast } from 'sonner';
+import { storyEntityDataAttrs } from '@/lib/storyEntityContext';
+import { RichTextSnippet } from '@/components/common/RichTextSnippet';
 
 const datumTypeLabels: Record<WorldDatumType, string> = {
   geography: 'Geografía',
@@ -26,6 +30,7 @@ interface Props {
 }
 
 export function DatosSection({ worldId }: Props) {
+  const cardMenu = useSectionCardMenuDeps();
   const data = useAppStore((s) => s.getWorldDataByWorld(worldId));
   const addWorldDatum = useAppStore((s) => s.addWorldDatum);
   const updateWorldDatum = useAppStore((s) => s.updateWorldDatum);
@@ -58,6 +63,13 @@ export function DatosSection({ worldId }: Props) {
     setEditing(null);
     setFormOpen(true);
   };
+
+  const openEdit = (datum: WorldDatum) => {
+    setEditing(datum);
+    setFormOpen(true);
+  };
+
+  useWorldEditFromUrl(openEdit, (id) => data.find((d) => d.id === id));
 
   return (
     <div>
@@ -98,6 +110,7 @@ export function DatosSection({ worldId }: Props) {
               onKeyDown={(e) => e.key === 'Enter' && setViewing(datum)}
               onClick={() => setViewing(datum)}
               className="story-card group relative cursor-pointer p-5"
+              {...storyEntityDataAttrs('datum', datum.id, worldId, datum.title)}
             >
               <div className="absolute right-3 top-3 flex items-center gap-0.5">
                 <button
@@ -112,10 +125,10 @@ export function DatosSection({ worldId }: Props) {
                   <Heart size={14} className={datum.isFavorite ? 'fill-[#D61E2B] text-[#D61E2B]' : 'text-[#5A6078]'} />
                 </button>
                 <EntityCardMenu
-                  onEdit={() => {
-                    setEditing(datum);
-                    setFormOpen(true);
-                  }}
+                  {...entityCardMenuProps(worldId, 'datum', datum.id, datum.title, {
+                    ...cardMenu,
+                    onViewDetails: () => setViewing(datum),
+                  })}
                   onDelete={() => setDeleteId(datum.id)}
                 />
               </div>
@@ -131,7 +144,7 @@ export function DatosSection({ worldId }: Props) {
                 </span>
               </div>
               <h3 className="mb-2 font-semibold text-[#E8E9EB]">{datum.title}</h3>
-              {datum.content && <p className="line-clamp-4 text-sm text-[#8B91A7]">{datum.content}</p>}
+              {datum.content && <RichTextSnippet text={datum.content} worldId={worldId} lines={3} className="text-sm" />}
               <div className="mt-3 border-t border-[#1E2230] pt-3 text-xs text-[#5A6078]">
                 {datum.relatedCharacterIds.length} personajes · {datum.relatedPlaceIds.length} lugares
               </div>

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { BaseModal } from './BaseModal';
+import { StoryRichTextField } from '@/components/common/StoryRichTextField';
 import { useAppStore } from '@/store';
 import type { Plot, PlotType } from '@/types';
 import { EntityMultiPicker } from '@/components/common/EntityMultiPicker';
@@ -114,7 +115,7 @@ export function PlotFormModal({ open, onClose, worldId, initial, onSubmit }: Pro
         </div>
         <div>
           <label className="mb-1 block text-xs uppercase text-[#5A6078]">Sinopsis</label>
-          <textarea className="story-input h-24 w-full resize-none" value={form.synopsis} onChange={(e) => patch({ synopsis: e.target.value })} />
+          <StoryRichTextField worldId={worldId} value={form.synopsis} onChange={(v) => patch({ synopsis: v })} minHeight="6rem" />
         </div>
         <EntityMultiPicker
           label="Personajes"
@@ -138,7 +139,7 @@ export function PlotFormModal({ open, onClose, worldId, initial, onSubmit }: Pro
         <MultiImageInputField label="Imágenes de la trama" value={form.images ?? []} onChange={(images) => patch({ images })} />
         <div>
           <label className="mb-1 block text-xs uppercase text-[#5A6078]">Giros / twists (una por línea)</label>
-          <textarea className="story-input h-24 w-full resize-none" value={twistsRaw} onChange={(e) => setTwistsRaw(e.target.value)} />
+          <StoryRichTextField worldId={worldId} value={twistsRaw} onChange={setTwistsRaw} minHeight="5rem" />
         </div>
         <div>
           <label className="mb-1 block text-xs uppercase text-[#5A6078]">Estado</label>

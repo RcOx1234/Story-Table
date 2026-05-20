@@ -1,7 +1,8 @@
 import type { Character, Relationship } from '@/types';
 import { normalizeKey } from '@/lib/normalizeLabels';
-import { childRelationType, parentRelationType } from '@/lib/characterGender';
+import { childRelationType, parentRelationType, siblingRelationTypeFor } from '@/lib/characterGender';
 import { encodeRelationshipDescription } from '@/lib/relationshipMeta';
+import { validateRelationshipAdd } from '@/lib/relationshipLimits';
 
 /** Relación inversa aproximada (género neutro cuando aplica). */
 const INVERSE_MAP: Record<string, string> = {
@@ -122,6 +123,15 @@ export function syncRelationshipChange(
   let sourceRels = [...(updates.get(sourceId)?.relationships ?? source.relationships)];
   let targetRels = [...(updates.get(target.id)?.relationships ?? target.relationships)];
 
+  if (patch.action === 'add') {
+    const err = validateRelationshipAdd(source, target, patch.type, patch.inverseType);
+    if (err) return updates;
+    if (patch.inverseType) {
+      const errTarget = validateRelationshipAdd(target, source, patch.inverseType, patch.type);
+      if (errTarget) return updates;
+    }
+  }
+
   if (patch.action === 'remove') {
     if (SPOUSE_TYPES.test(normalizeKey(patch.type))) {
       sourceRels = removeSpouseLinksTo(sourceRels, patch.characterId);
@@ -137,8 +147,12 @@ export function syncRelationshipChange(
     return updates;
   }
 
-  const inverse = patch.inverseType ?? inverseRelationshipType(patch.type);
-  const isSpouse = SPOUSE_TYPES.test(normalizeKey(patch.type));
+  let inverse = patch.inverseType ?? inverseRelationshipType(patch.type);
+  const typeKey = normalizeKey(patch.type);
+  if (/^herman[oa]$/.test(typeKey)) {
+    inverse = siblingRelationTypeFor(target.gender);
+  }
+  const isSpouse = SPOUSE_TYPES.test(typeKey);
 
   if (patch.action === 'update' && patch.previousType) {
     sourceRels = removeRel(sourceRels, patch.characterId, patch.previousType);

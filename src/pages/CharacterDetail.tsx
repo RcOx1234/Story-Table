@@ -1,7 +1,10 @@
-import { useState, type ReactNode } from 'react';
-import { useParams } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { useNavigationReturn } from '@/hooks/useNavigationReturn';
-import { useAppStore } from '@/store';
+import { useStoryDataReady } from '@/hooks/useStoryDataReady';
+import { SplashLoader } from '@/components/auth/SplashLoader';
+import { validateRelationshipAdd } from '@/lib/relationshipLimits';
+import { useAppStore, useStore } from '@/store';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Heart, Edit2, Users, Sparkles, Trash2, Plus, Castle } from 'lucide-react';
 import { RELATIONSHIP_TYPE_OPTIONS } from '@/lib/relationshipTypes';
@@ -20,6 +23,8 @@ import { useNavigate } from 'react-router-dom';
 import { ConfirmDeleteModal } from '@/components/modals/crud/ConfirmDeleteModal';
 import { toast } from 'sonner';
 import { CharacterFormModal } from '@/components/modals/crud/CharacterFormModal';
+import { StoryRichTextDisplay } from '@/components/common/StoryRichTextDisplay';
+import { storyEntityDataAttrs } from '@/lib/storyEntityContext';
 
 const roleLabels: Record<string, string> = {
   protagonist: 'Protagonista',
@@ -63,17 +68,40 @@ const CORE_SUB_LABELS: Record<RelationSlot, string> = {
   extended: 'Otros',
 };
 
-function InfoBlock({ title, children }: { title: string; children: ReactNode }) {
+function InfoBlock({ title, text, worldId }: { title: string; text?: string; worldId: string }) {
   return (
     <div className="story-card p-4">
       <h3 className="mb-2 text-xs font-mono uppercase tracking-wider text-[#5A6078]">{title}</h3>
-      <div className="text-sm leading-relaxed text-[#8B91A7]">{children}</div>
+      <StoryRichTextDisplay text={text ?? ''} worldId={worldId} />
+    </div>
+  );
+}
+
+function OrphanRelationChip({
+  rel,
+  onRemove,
+}: {
+  rel: { characterId: string; characterName: string; type: string };
+  onRemove?: () => void;
+}) {
+  return (
+    <div className="flex max-w-full items-center gap-2 rounded-xl border border-[#2A3045] bg-[#111318] py-1.5 pl-2 pr-2">
+      <span className="min-w-0">
+        <span className="block truncate text-sm font-medium text-[#E8E9EB]">{rel.characterName || 'Personaje'}</span>
+        <span className="block truncate text-[10px] text-[#5A6078]">{rel.type}</span>
+      </span>
+      {onRemove && (
+        <button type="button" className="text-[10px] text-[#D61E2B] hover:underline" onClick={onRemove}>
+          Quitar
+        </button>
+      )}
     </div>
   );
 }
 
 export function CharacterDetail() {
   const { worldId, characterId } = useParams<{ worldId: string; characterId: string }>();
+  const dataReady = useStoryDataReady();
   const navigate = useNavigate();
   const goBack = useNavigationReturn(`/world/${worldId}`);
   const character = useAppStore((s) => s.characters.find((c) => c.id === characterId));
@@ -94,10 +122,24 @@ export function CharacterDetail() {
   const [addRelCharId, setAddRelCharId] = useState('');
   const [addRelType, setAddRelType] = useState('');
   const [addRelDesc, setAddRelDesc] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  useEffect(() => {
+    if (searchParams.get('edit') === '1') {
+      setFormOpen(true);
+      const next = new URLSearchParams(searchParams);
+      next.delete('edit');
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   const linkedHouse = character
     ? houses.find((h) => h.id === character.houseId) ?? houses.find((h) => h.name === character.house)
     : undefined;
+
+  if (!dataReady) {
+    return <SplashLoader message="Cargando…" submessage="Recuperando datos del mundo" />;
+  }
 
   if (!character || !worldId) {
     return (
@@ -125,7 +167,12 @@ export function CharacterDetail() {
   const groupedRels = groupRelationships(character.relationships);
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mx-auto max-w-4xl">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="mx-auto max-w-4xl"
+      {...storyEntityDataAttrs('character', character.id, worldId, character.name)}
+    >
       <div className="mb-6 flex items-start justify-between">
         <div className="flex items-center gap-4">
           <button
@@ -226,12 +273,14 @@ export function CharacterDetail() {
                 <Sparkles size={14} className="text-[#8B5CF6]" />
                 <h3 className="text-sm font-semibold text-[#E8E9EB]">Destacado</h3>
               </div>
-              {character.powers ? <p className="text-sm text-[#8B91A7]">{character.powers}</p> : null}
+              {character.powers ? (
+                <StoryRichTextDisplay text={character.powers} worldId={worldId} className="text-sm" />
+              ) : null}
               {character.goals ? (
-                <p className="mt-2 text-xs text-[#5A6078]">
+                <div className="mt-2 text-xs">
                   <span className="font-medium text-[#8B91A7]">Meta: </span>
-                  {character.goals}
-                </p>
+                  <StoryRichTextDisplay text={character.goals} worldId={worldId} className="inline text-[#5A6078]" />
+                </div>
               ) : null}
             </div>
           )}
@@ -270,25 +319,25 @@ export function CharacterDetail() {
 
               {infoSub === 'physical' && (
                 <div className="space-y-3">
-                  <InfoBlock title="Apariencia">{character.appearance || 'Sin datos.'}</InfoBlock>
-                  <InfoBlock title="Poderes y habilidades">{character.powers || 'Sin datos.'}</InfoBlock>
+                  <InfoBlock title="Apariencia" text={character.appearance} worldId={worldId} />
+                  <InfoBlock title="Poderes y habilidades" text={character.powers} worldId={worldId} />
                 </div>
               )}
 
               {infoSub === 'personality' && (
                 <div className="space-y-3">
-                  <InfoBlock title="Personalidad">{character.personality || 'Sin datos.'}</InfoBlock>
-                  <InfoBlock title="Motivaciones y metas">{character.goals || 'Sin datos.'}</InfoBlock>
-                  <InfoBlock title="Miedos">{character.fears || 'Sin datos.'}</InfoBlock>
-                  <InfoBlock title="Traumas">{character.traumas || 'Sin datos.'}</InfoBlock>
-                  <InfoBlock title="Punto de quiebre">{character.breakingPoint || 'Sin datos.'}</InfoBlock>
+                  <InfoBlock title="Personalidad" text={character.personality} worldId={worldId} />
+                  <InfoBlock title="Motivaciones y metas" text={character.goals} worldId={worldId} />
+                  <InfoBlock title="Miedos" text={character.fears} worldId={worldId} />
+                  <InfoBlock title="Traumas" text={character.traumas} worldId={worldId} />
+                  <InfoBlock title="Punto de quiebre" text={character.breakingPoint} worldId={worldId} />
                 </div>
               )}
 
               {infoSub === 'story' && (
                 <div className="space-y-3">
-                  <InfoBlock title="Trasfondo">{character.backstory || 'Sin datos.'}</InfoBlock>
-                  <InfoBlock title="Arco narrativo">{character.arc || 'Sin datos.'}</InfoBlock>
+                  <InfoBlock title="Trasfondo" text={character.backstory} worldId={worldId} />
+                  <InfoBlock title="Arco narrativo" text={character.arc} worldId={worldId} />
                 </div>
               )}
             </div>
@@ -350,6 +399,11 @@ export function CharacterDetail() {
                           toast.error('Elige personaje y tipo de relación');
                           return;
                         }
+                        const limitErr = validateRelationshipAdd(character, ch, addRelType);
+                        if (limitErr) {
+                          toast.error(limitErr);
+                          return;
+                        }
                         syncCharacterRelationship(character.id, {
                           characterId: ch.id,
                           characterName: ch.name,
@@ -357,6 +411,14 @@ export function CharacterDetail() {
                           description: addRelDesc.trim(),
                           action: 'add',
                         });
+                        const fresh = useStore.getState().getCharacterById(character.id);
+                        const ok = fresh?.relationships.some(
+                          (r) => r.characterId === ch.id && r.type === addRelType
+                        );
+                        if (!ok) {
+                          toast.error('No se guardó la relación. Puede que ya exista padre/madre u otro conflicto.');
+                          return;
+                        }
                         setAddRelCharId('');
                         setAddRelType('');
                         setAddRelDesc('');
@@ -371,50 +433,104 @@ export function CharacterDetail() {
               </motion.div>
               {REL_GROUPS.map((bucket) =>
                 groupedRels[bucket].length === 0 ? null : (
-                <Collapsible key={bucket} defaultOpen={bucket === 'core_family' || bucket === 'friends'}>
+                <Collapsible key={bucket} defaultOpen>
                   <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg bg-[#1E2230] px-3 py-2 text-left text-xs font-mono uppercase tracking-wider text-[#8B91A7]">
                     {RELATIONSHIP_GROUP_LABELS[bucket]}
+                    <span className="rounded-full bg-[#111318] px-2 py-0.5 text-[10px] text-[#5A6078]">
+                      {groupedRels[bucket].length}
+                    </span>
                     <ChevronDown size={14} />
                   </CollapsibleTrigger>
                   <CollapsibleContent className="mt-2 space-y-3">
                     {bucket === 'core_family' ? (
-                      (['father', 'mother', 'spouse', 'child', 'sibling'] as RelationSlot[]).map((sub) => {
-                        const items = groupedRels.core_family.filter((r) => relationSlot(r.type) === sub);
-                        if (items.length === 0) return null;
-                        return (
-                          <div key={sub}>
-                            <p className="mb-1.5 text-[10px] uppercase text-[#5A6078]">{CORE_SUB_LABELS[sub]}</p>
-                            <div className="flex flex-wrap gap-2">
-                              {items.map((rel) => {
-                                const other = worldCharacters.find((c) => c.id === rel.characterId);
-                                if (!other) return null;
-                                return (
-                                  <RelationshipChip
-                                    key={`${rel.characterId}-${rel.type}`}
-                                    character={other}
-                                    relationType={rel.type}
-                                    worldId={character.worldId}
-                                    onOpen={(id) => navigate(`/world/${worldId}/character/${id}`)}
-                                    onRemove={() =>
-                                      syncCharacterRelationship(character.id, {
-                                        characterId: rel.characterId,
-                                        characterName: rel.characterName,
-                                        type: rel.type,
-                                        action: 'remove',
-                                      })
-                                    }
-                                  />
-                                );
-                              })}
+                      <>
+                        {(['father', 'mother', 'spouse', 'child', 'sibling'] as RelationSlot[]).map((sub) => {
+                          const items = groupedRels.core_family.filter((r) => relationSlot(r.type) === sub);
+                          if (items.length === 0) return null;
+                          return (
+                            <div key={sub}>
+                              <p className="mb-1.5 text-[10px] uppercase text-[#5A6078]">{CORE_SUB_LABELS[sub]}</p>
+                              <div className="flex flex-wrap gap-2">
+                                {items.map((rel) => {
+                                  const other = worldCharacters.find((c) => c.id === rel.characterId);
+                                  const remove = () =>
+                                    syncCharacterRelationship(character.id, {
+                                      characterId: rel.characterId,
+                                      characterName: rel.characterName,
+                                      type: rel.type,
+                                      action: 'remove',
+                                    });
+                                  if (!other) {
+                                    return (
+                                      <OrphanRelationChip key={`${rel.characterId}-${rel.type}`} rel={rel} onRemove={remove} />
+                                    );
+                                  }
+                                  return (
+                                    <RelationshipChip
+                                      key={`${rel.characterId}-${rel.type}`}
+                                      character={other}
+                                      relationType={rel.type}
+                                      worldId={character.worldId}
+                                      onOpen={(id) => navigate(`/world/${worldId}/character/${id}`)}
+                                      onRemove={remove}
+                                    />
+                                  );
+                                })}
+                              </div>
                             </div>
-                          </div>
-                        );
-                      })
+                          );
+                        })}
+                        {(() => {
+                          const orphans = groupedRels.core_family.filter(
+                            (r) => !(['father', 'mother', 'spouse', 'child', 'sibling'] as RelationSlot[]).includes(relationSlot(r.type))
+                          );
+                          if (orphans.length === 0) return null;
+                          return (
+                            <div>
+                              <p className="mb-1.5 text-[10px] uppercase text-[#5A6078]">Otros (familia)</p>
+                              <div className="flex flex-wrap gap-2">
+                                {orphans.map((rel) => {
+                                  const other = worldCharacters.find((c) => c.id === rel.characterId);
+                                  const remove = () =>
+                                    syncCharacterRelationship(character.id, {
+                                      characterId: rel.characterId,
+                                      characterName: rel.characterName,
+                                      type: rel.type,
+                                      action: 'remove',
+                                    });
+                                  if (!other) {
+                                    return <OrphanRelationChip key={`${rel.characterId}-${rel.type}`} rel={rel} onRemove={remove} />;
+                                  }
+                                  return (
+                                    <RelationshipChip
+                                      key={`${rel.characterId}-${rel.type}`}
+                                      character={other}
+                                      relationType={rel.type}
+                                      worldId={character.worldId}
+                                      onOpen={(id) => navigate(`/world/${worldId}/character/${id}`)}
+                                      onRemove={remove}
+                                    />
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </>
                     ) : (
                       <div className="flex flex-wrap gap-2">
                         {groupedRels[bucket].map((rel) => {
                           const other = worldCharacters.find((c) => c.id === rel.characterId);
-                          if (!other) return null;
+                          const remove = () =>
+                            syncCharacterRelationship(character.id, {
+                              characterId: rel.characterId,
+                              characterName: rel.characterName,
+                              type: rel.type,
+                              action: 'remove',
+                            });
+                          if (!other) {
+                            return <OrphanRelationChip key={`${rel.characterId}-${rel.type}`} rel={rel} onRemove={remove} />;
+                          }
                           return (
                             <RelationshipChip
                               key={`${rel.characterId}-${rel.type}`}
@@ -422,14 +538,7 @@ export function CharacterDetail() {
                               relationType={rel.type}
                               worldId={character.worldId}
                               onOpen={(id) => navigate(`/world/${worldId}/character/${id}`)}
-                              onRemove={() =>
-                                syncCharacterRelationship(character.id, {
-                                  characterId: rel.characterId,
-                                  characterName: rel.characterName,
-                                  type: rel.type,
-                                  action: 'remove',
-                                })
-                              }
+                              onRemove={remove}
                             />
                           );
                         })}

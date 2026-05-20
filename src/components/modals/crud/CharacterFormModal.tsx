@@ -1,15 +1,18 @@
 import { useState, useEffect } from 'react';
+import { User, BookOpen, Link2 } from 'lucide-react';
 import { BaseModal } from './BaseModal';
 import { ImageInputField } from '@/components/common/ImageInputField';
+import { StoryRichTextField } from '@/components/common/StoryRichTextField';
 import { useAppStore, useStore } from '@/store';
 import type { Character, CharacterGender, CharacterRole, Relationship } from '@/types';
 import { GENDER_OPTIONS } from '@/lib/characterGender';
-import { RELATIONSHIP_TYPE_OPTIONS } from '@/lib/relationshipTypes';
+import { RELATIONSHIP_TYPE_OPTIONS, relationshipTypeLabel } from '@/lib/relationshipTypes';
 import { CHARACTER_ROLE_OPTIONS } from '@/lib/characterRoles';
 import { WorldTagInput } from '@/components/common/WorldTagInput';
 import { resolveTagNames } from '@/lib/worldTags';
 import { StorySelect } from '@/components/common/StorySelect';
 import type { World } from '@/types';
+import { toast } from 'sonner';
 
 type Props = {
   open: boolean;
@@ -22,6 +25,10 @@ type Props = {
   defaultHouseId?: string;
   defaultHouseName?: string;
 };
+
+type FormTab = 'identity' | 'story' | 'relations';
+
+const GENDER_FORM_OPTIONS = GENDER_OPTIONS.filter((g) => g.value !== 'unspecified');
 
 function emptyCharacter(worldId: string): Omit<Character, 'id' | 'createdAt' | 'updatedAt'> {
   return {
@@ -45,13 +52,25 @@ function emptyCharacter(worldId: string): Omit<Character, 'id' | 'createdAt' | '
     quotes: [],
     arc: '',
     status: 'alive',
-    gender: 'unspecified',
+    gender: 'male',
     isFavorite: false,
     isDeleted: false,
     tags: [],
     tagIds: [],
   };
 }
+
+const STORY_FIELDS: { key: 'appearance' | 'personality' | 'backstory' | 'traumas' | 'goals' | 'breakingPoint' | 'fears' | 'powers' | 'arc'; label: string }[] = [
+  { key: 'appearance', label: 'Apariencia' },
+  { key: 'personality', label: 'Personalidad' },
+  { key: 'backstory', label: 'Trasfondo' },
+  { key: 'traumas', label: 'Traumas' },
+  { key: 'goals', label: 'Deseo principal' },
+  { key: 'breakingPoint', label: 'Qué lo quiebra' },
+  { key: 'fears', label: 'Miedos' },
+  { key: 'powers', label: 'Poderes / habilidades' },
+  { key: 'arc', label: 'Arco narrativo' },
+];
 
 export function CharacterFormModal({
   open,
@@ -72,6 +91,7 @@ export function CharacterFormModal({
   const [form, setForm] = useState<Omit<Character, 'id' | 'createdAt' | 'updatedAt'>>(() =>
     emptyCharacter(effectiveWorldId)
   );
+  const [tab, setTab] = useState<FormTab>('identity');
   const [mainImage, setMainImage] = useState('');
   const [quotesRaw, setQuotesRaw] = useState('');
   const [tagIds, setTagIds] = useState<string[]>([]);
@@ -94,7 +114,9 @@ export function CharacterFormModal({
           houseId: defaultHouseId,
           house: defaultHouseName ?? '',
         };
+    if (base.gender === 'unspecified') base.gender = 'male';
     setForm(base);
+    setTab('identity');
     setMainImage(initial?.images[0] ?? '');
     setQuotesRaw((initial?.quotes ?? []).join('\n'));
     setTagIds(initial?.tagIds ?? []);
@@ -113,8 +135,8 @@ export function CharacterFormModal({
       setErr('El nombre es obligatorio');
       return;
     }
-    if (!initial && (!form.gender || form.gender === 'unspecified')) {
-      setErr('Selecciona el sexo del personaje');
+    if (!form.gender || form.gender === 'unspecified') {
+      setErr('Selecciona el sexo del personaje (hombre o mujer)');
       return;
     }
     const ageByTimeline: Record<string, number> = {};
@@ -146,26 +168,33 @@ export function CharacterFormModal({
     onClose();
   };
 
-  const hasPreview = Boolean(mainImage.trim() || form.images[0]);
+  const portrait = mainImage.trim() || form.images[0];
+  const tabs: { id: FormTab; label: string; icon: typeof User }[] = [
+    { id: 'identity', label: 'Identidad', icon: User },
+    { id: 'story', label: 'Historia', icon: BookOpen },
+    { id: 'relations', label: 'Relaciones', icon: Link2 },
+  ];
 
   return (
     <BaseModal
       open={open}
       onClose={onClose}
       title={initial ? 'Editar personaje' : 'Nuevo personaje'}
-      maxWidthClass="max-w-4xl"
+      maxWidthClass="max-w-5xl"
       footer={
         <>
           <button type="button" className="story-btn-secondary text-sm" onClick={onClose}>
             Cancelar
           </button>
           <button type="button" className="story-btn-primary text-sm" onClick={save}>
-            Guardar
+            Guardar personaje
           </button>
         </>
       }
     >
-      {err && <p className="mb-3 text-sm text-[#D61E2B]">{err}</p>}
+      {err && (
+        <p className="mb-3 rounded-lg border border-[#D61E2B]/30 bg-[#D61E2B]/10 px-3 py-2 text-sm text-[#D61E2B]">{err}</p>
+      )}
       {showWorldPicker && !initial && (
         <div className="mb-4">
           <label className="mb-1 block text-xs uppercase text-[#5A6078]">Mundo *</label>
@@ -182,218 +211,233 @@ export function CharacterFormModal({
           />
         </div>
       )}
-      <div
-        className={`grid max-h-[65vh] gap-6 overflow-y-auto pr-1 ${
-          hasPreview ? 'md:grid-cols-[minmax(220px,280px)_minmax(0,1fr)]' : ''
-        }`}
-      >
-        {hasPreview && (
-          <>
-            <div className="mx-auto w-full max-w-[220px] md:sticky md:top-0 md:mx-0 md:max-w-none md:self-start">
-              <div className="overflow-hidden rounded-2xl border border-[#2A3045] bg-[#111318] shadow-[0_20px_50px_rgba(0,0,0,0.35)]">
-                <div className="aspect-[3/4] w-full">
-                  <img
-                    src={(mainImage.trim() || form.images[0]) as string}
-                    alt=""
-                    className="h-full w-full object-cover"
-                  />
+
+      <div className="mb-4 flex gap-1 overflow-x-auto border-b border-[#2A3045] pb-2">
+        {tabs.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => setTab(t.id)}
+            className={`flex shrink-0 items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all ${
+              tab === t.id ? 'bg-[#D61E2B] text-white shadow-lg shadow-[#D61E2B]/20' : 'bg-[#1E2230] text-[#8B91A7] hover:text-[#E8E9EB]'
+            }`}
+          >
+            <t.icon size={14} />
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="grid max-h-[62vh] gap-6 overflow-y-auto pr-1 lg:grid-cols-[220px_minmax(0,1fr)]">
+        <div className="space-y-3 lg:sticky lg:top-0 lg:self-start">
+          <div className="overflow-hidden rounded-2xl border border-[#2A3045] bg-gradient-to-b from-[#161922] to-[#0B0D10] shadow-xl">
+            <div className="aspect-[3/4] w-full">
+              {portrait ? (
+                <img src={portrait} alt="" className="h-full w-full object-cover" />
+              ) : (
+                <div className="flex h-full flex-col items-center justify-center gap-2 text-[#5A6078]">
+                  <User size={40} className="opacity-40" />
+                  <span className="text-xs">Sin retrato</span>
+                </div>
+              )}
+            </div>
+            <div className="border-t border-[#2A3045] p-3">
+              <p className="truncate text-center font-semibold text-[#E8E9EB]">{form.name || 'Sin nombre'}</p>
+              {form.alias && <p className="truncate text-center text-xs text-[#8B91A7]">«{form.alias}»</p>}
+            </div>
+          </div>
+          <ImageInputField label="Retrato" value={mainImage} onChange={setMainImage} />
+        </div>
+
+        <div className="min-w-0 space-y-4">
+          {tab === 'identity' && (
+            <div className="space-y-4 rounded-xl border border-[#2A3045]/60 bg-[#111318]/80 p-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-xs uppercase tracking-wider text-[#5A6078]">Nombre *</label>
+                  <input className="story-input w-full" value={form.name} onChange={(e) => patch({ name: e.target.value })} />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs uppercase tracking-wider text-[#5A6078]">Alias</label>
+                  <input className="story-input w-full" value={form.alias} onChange={(e) => patch({ alias: e.target.value })} />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs uppercase tracking-wider text-[#5A6078]">Sexo *</label>
+                  <select
+                    className="story-input w-full text-sm"
+                    value={form.gender === 'unspecified' ? 'male' : form.gender}
+                    onChange={(e) => patch({ gender: e.target.value as CharacterGender })}
+                  >
+                    {GENDER_FORM_OPTIONS.map((g) => (
+                      <option key={g.value} value={g.value}>
+                        {g.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs uppercase tracking-wider text-[#5A6078]">Rol narrativo</label>
+                  <select className="story-input w-full text-sm" value={form.role} onChange={(e) => patch({ role: e.target.value as CharacterRole })}>
+                    {CHARACTER_ROLE_OPTIONS.map((r) => (
+                      <option key={r.value} value={r.value}>
+                        {r.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs uppercase tracking-wider text-[#5A6078]">Casa</label>
+                  <select
+                    className="story-input w-full text-sm"
+                    value={form.houseId ?? ''}
+                    onChange={(e) => {
+                      const h = houses.find((x) => x.id === e.target.value);
+                      patch({ houseId: e.target.value || undefined, house: h?.name ?? '' });
+                    }}
+                  >
+                    <option value="">— Sin casa —</option>
+                    {houses.map((h) => (
+                      <option key={h.id} value={h.id}>
+                        {h.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs uppercase tracking-wider text-[#5A6078]">Estado</label>
+                  <select className="story-input w-full text-sm" value={form.status} onChange={(e) => patch({ status: e.target.value as Character['status'] })}>
+                    <option value="alive">Vivo</option>
+                    <option value="dead">Muerto</option>
+                    <option value="missing">Desaparecido</option>
+                    <option value="unknown">Desconocido</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs uppercase tracking-wider text-[#5A6078]">Edad</label>
+                  <input type="number" className="story-input w-full" value={form.age || ''} onChange={(e) => patch({ age: Number(e.target.value) || 0 })} />
                 </div>
               </div>
-              <p className="mt-2 text-center text-xs text-[#5A6078]">Vista previa</p>
+              {timelines.map((tl) => (
+                <div key={tl.id}>
+                  <label className="mb-1 block text-xs uppercase text-[#5A6078]">Edad en «{tl.name}»</label>
+                  <input
+                    className="story-input max-w-xs w-full"
+                    value={ageTimelineDraft[tl.id] ?? ''}
+                    onChange={(e) => setAgeTimelineDraft((d) => ({ ...d, [tl.id]: e.target.value }))}
+                    placeholder="opcional"
+                  />
+                </div>
+              ))}
+              <div>
+                <label className="mb-1 block text-xs uppercase text-[#5A6078]">Tags</label>
+                <WorldTagInput worldId={effectiveWorldId} tagIds={tagIds} onChange={setTagIds} />
+              </div>
+              <label className="flex items-center gap-2 text-sm text-[#E8E9EB]">
+                <input id="cf-fav" type="checkbox" checked={form.isFavorite} onChange={(e) => patch({ isFavorite: e.target.checked })} className="accent-[#D61E2B]" />
+                Marcar como favorito
+              </label>
             </div>
-          </>
-        )}
-        <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
-        <div>
-          <label className="mb-1 block text-xs uppercase text-[#5A6078]">Nombre *</label>
-          <input className="story-input w-full" value={form.name} onChange={(e) => patch({ name: e.target.value })} />
-        </div>
-        <div>
-          <label className="mb-1 block text-xs uppercase text-[#5A6078]">Alias</label>
-          <input className="story-input w-full" value={form.alias} onChange={(e) => patch({ alias: e.target.value })} />
-        </div>
-        <div>
-          <label className="mb-1 block text-xs uppercase text-[#5A6078]">
-            Sexo {!initial && '*'}
-          </label>
-          <select
-            className="story-input w-full text-sm"
-            value={form.gender ?? 'unspecified'}
-            onChange={(e) => patch({ gender: e.target.value as CharacterGender })}
-          >
-            {GENDER_OPTIONS.map((g) => (
-              <option key={g.value} value={g.value}>
-                {g.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="mb-1 block text-xs uppercase text-[#5A6078]">Rol</label>
-          <select className="story-input w-full text-sm" value={form.role} onChange={(e) => patch({ role: e.target.value as CharacterRole })}>
-            {CHARACTER_ROLE_OPTIONS.map((r) => (
-              <option key={r.value} value={r.value}>
-                {r.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="mb-1 block text-xs uppercase text-[#5A6078]">Casa / afiliación</label>
-          <select
-            className="story-input w-full text-sm"
-            value={form.houseId ?? ''}
-            onChange={(e) => {
-              const h = houses.find((x) => x.id === e.target.value);
-              patch({ houseId: e.target.value || undefined, house: h?.name ?? '' });
-            }}
-          >
-            <option value="">— Sin casa —</option>
-            {houses.map((h) => (
-              <option key={h.id} value={h.id}>
-                {h.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="mb-1 block text-xs uppercase text-[#5A6078]">Edad general</label>
-          <input type="number" className="story-input w-full" value={form.age || ''} onChange={(e) => patch({ age: Number(e.target.value) || 0 })} />
-        </div>
-        <div>
-          <label className="mb-1 block text-xs uppercase text-[#5A6078]">Estado</label>
-          <select className="story-input w-full text-sm" value={form.status} onChange={(e) => patch({ status: e.target.value as Character['status'] })}>
-            <option value="alive">Vivo</option>
-            <option value="dead">Muerto</option>
-            <option value="missing">Desaparecido</option>
-            <option value="unknown">Desconocido</option>
-          </select>
-        </div>
-        {timelines.map((tl) => (
-          <div key={tl.id} className="md:col-span-2">
-            <label className="mb-1 block text-xs uppercase text-[#5A6078]">Edad en “{tl.name}”</label>
-            <input
-              className="story-input w-full max-w-xs"
-              value={ageTimelineDraft[tl.id] ?? ''}
-              onChange={(e) => setAgeTimelineDraft((d) => ({ ...d, [tl.id]: e.target.value }))}
-              placeholder="opcional"
-            />
-          </div>
-        ))}
-        <div className="md:col-span-2">
-          <ImageInputField label="Imagen principal" value={mainImage} onChange={setMainImage} />
-        </div>
-        {(
-          [
-            ['appearance', 'Apariencia'],
-            ['personality', 'Personalidad'],
-            ['backstory', 'Trasfondo'],
-            ['traumas', 'Traumas'],
-            ['goals', 'Deseo principal'],
-            ['breakingPoint', 'Qué lo quiebra'],
-            ['fears', 'Miedos'],
-            ['powers', 'Poderes / habilidades'],
-            ['arc', 'Arco'],
-          ] as const
-        ).map(([key, label]) => (
-          <div key={key} className="md:col-span-2">
-            <label className="mb-1 block text-xs uppercase text-[#5A6078]">{label}</label>
-            <textarea
-              className="story-input h-20 w-full resize-none"
-              value={(form[key] as string) ?? ''}
-              onChange={(e) => patch({ [key]: e.target.value } as Partial<Character>)}
-            />
-          </div>
-        ))}
-
-        <div className="md:col-span-2 space-y-3 rounded-xl border border-[#2A3045] bg-[#111318] p-4">
-          <h4 className="text-xs font-mono uppercase tracking-wider text-[#5A6078]">Relaciones</h4>
-          {form.relationships.length > 0 && (
-            <ul className="space-y-2">
-              {form.relationships.map((rel, idx) => (
-                <li key={`${rel.characterId}-${idx}`} className="flex items-start justify-between gap-2 rounded-lg bg-[#1E2230] p-2 text-xs">
-                  <span className="text-[#E8E9EB]">
-                    <strong>{rel.characterName}</strong> · {rel.type}
-                    {rel.description ? <span className="block text-[#8B91A7]">{rel.description}</span> : null}
-                  </span>
-                  <button
-                    type="button"
-                    className="shrink-0 text-[#D61E2B] hover:underline"
-                    onClick={() =>
-                      patch({ relationships: form.relationships.filter((_, i) => i !== idx) })
-                    }
-                  >
-                    Quitar
-                  </button>
-                </li>
-              ))}
-            </ul>
           )}
-          <div className="grid gap-2 sm:grid-cols-3">
-            <select className="story-input text-sm" value={relCharId} onChange={(e) => setRelCharId(e.target.value)}>
-              <option value="">Personaje…</option>
-              {worldCharacters
-                .filter((ch) => ch.id !== initial?.id)
-                .map((ch) => (
-                  <option key={ch.id} value={ch.id}>
-                    {ch.name}
-                  </option>
-                ))}
-            </select>
-            <select className="story-input text-sm" value={relType} onChange={(e) => setRelType(e.target.value)}>
-              <option value="">Tipo de relación…</option>
-              {['Familia', 'Vínculos', 'Tensión', 'Otros'].map((group) => (
-                <optgroup key={group} label={group}>
-                  {RELATIONSHIP_TYPE_OPTIONS.filter((o) => o.group === group).map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </optgroup>
+
+          {tab === 'story' && (
+            <div className="space-y-4">
+              {STORY_FIELDS.map(({ key, label }) => (
+                <div key={key} className="rounded-xl border border-[#2A3045]/50 bg-[#111318]/60 p-3">
+                  <label className="mb-2 block text-xs font-medium uppercase tracking-wider text-[#8B91A7]">{label}</label>
+                  <StoryRichTextField
+                    worldId={effectiveWorldId}
+                    value={(form[key] as string) ?? ''}
+                    onChange={(v) => patch({ [key]: v })}
+                    minHeight="5rem"
+                  />
+                </div>
               ))}
-            </select>
-            <input
-              className="story-input text-sm sm:col-span-1"
-              placeholder="Descripción"
-              value={relDesc}
-              onChange={(e) => setRelDesc(e.target.value)}
-            />
-          </div>
-          <button
-            type="button"
-            className="story-btn-secondary text-xs"
-            onClick={() => {
-              const ch = worldCharacters.find((x) => x.id === relCharId);
-              if (!ch || !relType) return;
-              const next: Relationship = {
-                characterId: ch.id,
-                characterName: ch.name,
-                type: relType,
-                description: relDesc.trim(),
-              };
-              patch({ relationships: [...form.relationships, next] });
-              setRelCharId('');
-              setRelType('');
-              setRelDesc('');
-            }}
-          >
-            Añadir relación
-          </button>
-        </div>
-        <div className="md:col-span-2">
-          <label className="mb-1 block text-xs uppercase text-[#5A6078]">Frases memorables (una por línea)</label>
-          <textarea className="story-input h-24 w-full resize-none" value={quotesRaw} onChange={(e) => setQuotesRaw(e.target.value)} />
-        </div>
-        <div className="md:col-span-2">
-          <label className="mb-1 block text-xs uppercase text-[#5A6078]">Tags (coma)</label>
-          <WorldTagInput worldId={worldId} tagIds={tagIds} onChange={setTagIds} />
-        </div>
-        <div className="flex items-center gap-2 md:col-span-2">
-          <input id="cf-fav" type="checkbox" checked={form.isFavorite} onChange={(e) => patch({ isFavorite: e.target.checked })} />
-          <label htmlFor="cf-fav" className="text-sm text-[#E8E9EB]">
-            Favorito
-          </label>
-        </div>
+              <div className="rounded-xl border border-[#2A3045]/50 bg-[#111318]/60 p-3">
+                <label className="mb-2 block text-xs font-medium uppercase tracking-wider text-[#8B91A7]">Frases memorables</label>
+                <StoryRichTextField
+                  worldId={effectiveWorldId}
+                  value={quotesRaw}
+                  onChange={setQuotesRaw}
+                  minHeight="5rem"
+                  placeholder="Una cita por línea"
+                />
+              </div>
+            </div>
+          )}
+
+          {tab === 'relations' && (
+            <div className="space-y-3 rounded-xl border border-[#2A3045] bg-gradient-to-b from-[#13161c] to-[#111318] p-4">
+              <h4 className="text-xs font-mono uppercase tracking-wider text-[#D61E2B]">Vínculos con otros personajes</h4>
+              {form.relationships.length > 0 ? (
+                <ul className="space-y-2">
+                  {form.relationships.map((rel, idx) => (
+                    <li key={`${rel.characterId}-${rel.type}-${idx}`} className="flex items-center justify-between gap-2 rounded-lg bg-[#1E2230] px-3 py-2">
+                      <span className="text-sm text-[#E8E9EB]">
+                        <strong>{rel.characterName}</strong>
+                        <span className="ml-2 text-xs text-[#5A6078]">{relationshipTypeLabel(rel.type)}</span>
+                      </span>
+                      <button
+                        type="button"
+                        className="text-xs text-[#D61E2B] hover:underline"
+                        onClick={() => patch({ relationships: form.relationships.filter((_, i) => i !== idx) })}
+                      >
+                        Quitar
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-xs text-[#5A6078]">Sin relaciones en esta ficha (puedes añadirlas aquí o en el árbol genealógico).</p>
+              )}
+              <div className="grid gap-2 sm:grid-cols-3">
+                <StorySelect
+                  value={relCharId}
+                  onChange={setRelCharId}
+                  options={worldCharacters
+                    .filter((ch) => ch.id !== initial?.id)
+                    .map((ch) => ({ value: ch.id, label: ch.name, imageUrl: ch.images[0] }))}
+                  placeholder="Personaje…"
+                />
+                <StorySelect
+                  value={relType}
+                  onChange={setRelType}
+                  options={RELATIONSHIP_TYPE_OPTIONS.map((o) => ({ value: o.value, label: o.label, sublabel: o.group }))}
+                  placeholder="Tipo…"
+                />
+                <input className="story-input text-sm" placeholder="Nota" value={relDesc} onChange={(e) => setRelDesc(e.target.value)} />
+              </div>
+              <button
+                type="button"
+                className="story-btn-secondary text-xs"
+                onClick={() => {
+                  const ch = worldCharacters.find((x) => x.id === relCharId);
+                  if (!ch || !relType) {
+                    toast.error('Elige personaje y tipo');
+                    return;
+                  }
+                  const dup = form.relationships.some(
+                    (r) => r.characterId === ch.id && r.type === relType
+                  );
+                  if (dup) {
+                    toast.error('Esa relación ya está en la lista');
+                    return;
+                  }
+                  const next: Relationship = {
+                    characterId: ch.id,
+                    characterName: ch.name,
+                    type: relType,
+                    description: relDesc.trim(),
+                  };
+                  patch({ relationships: [...form.relationships, next] });
+                  setRelCharId('');
+                  setRelType('');
+                  setRelDesc('');
+                }}
+              >
+                Añadir relación
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </BaseModal>

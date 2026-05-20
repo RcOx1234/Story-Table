@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { BaseModal } from './BaseModal';
 import { useAppStore } from '@/store';
 import type { MapMarker, MapMarkerEntityType } from '@/types';
+import { StoryRichTextField } from '@/components/common/StoryRichTextField';
 
 const TYPES: { value: MapMarkerEntityType; label: string }[] = [
   { value: 'place', label: 'Lugar' },
@@ -140,7 +141,12 @@ export function MarkerFormModal({ open, onClose, worldId, initial, coords, onSub
         </div>
         <div>
           <label className="mb-1 block text-xs uppercase text-[#5A6078]">Descripción</label>
-          <textarea className="story-input h-20 w-full resize-none" value={form.description ?? form.note} onChange={(e) => patch({ description: e.target.value, note: e.target.value })} />
+          <StoryRichTextField
+            worldId={worldId}
+            value={form.description ?? form.note ?? ''}
+            onChange={(v) => patch({ description: v, note: v })}
+            minHeight="4rem"
+          />
         </div>
         <div>
           <label className="mb-1 block text-xs uppercase text-[#5A6078]">Lugar (opcional)</label>

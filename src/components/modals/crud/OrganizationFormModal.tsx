@@ -4,6 +4,7 @@ import { ImageInputField } from '@/components/common/ImageInputField';
 import { EntityMultiPicker } from '@/components/common/EntityMultiPicker';
 import { useAppStore } from '@/store';
 import type { Organization } from '@/types';
+import { StoryRichTextField } from '@/components/common/StoryRichTextField';
 
 const TYPES: { value: Organization['type']; label: string }[] = [
   { value: 'house', label: 'Casa' },
@@ -117,10 +118,11 @@ export function OrganizationFormModal({ open, onClose, worldId, initial, onSubmi
             <label className="mb-1 block text-xs uppercase text-[#5A6078]">
               {key === 'goals' ? 'Objetivos' : key === 'symbols' ? 'Símbolos' : key === 'hierarchy' ? 'Jerarquía' : 'Historia'}
             </label>
-            <textarea
-              className="story-input h-20 w-full resize-none"
+            <StoryRichTextField
+              worldId={worldId}
               value={(form[key] as string) ?? ''}
-              onChange={(e) => patch({ [key]: e.target.value } as Partial<Organization>)}
+              onChange={(v) => patch({ [key]: v } as Partial<Organization>)}
+              minHeight="4rem"
             />
           </div>
         ))}

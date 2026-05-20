@@ -7,6 +7,7 @@ import { WorldTagInput } from '@/components/common/WorldTagInput';
 import { useAppStore } from '@/store';
 import { PLACE_COLLECTION_TYPE_OPTIONS } from '@/lib/collectionTypes';
 import type { PlaceCollection, PlaceCollectionType } from '@/types';
+import { StoryRichTextField } from '@/components/common/StoryRichTextField';
 
 type Props = {
   open: boolean;
@@ -126,19 +127,11 @@ export function PlaceCollectionFormModal({ open, onClose, worldId, initial, onSu
         </motion.div>
         <div>
           <label className="mb-1 block text-xs uppercase text-[#5A6078]">Descripción</label>
-          <textarea
-            className="story-input h-20 w-full resize-none"
-            value={form.description}
-            onChange={(e) => patch({ description: e.target.value })}
-          />
+          <StoryRichTextField worldId={worldId} value={form.description} onChange={(v) => patch({ description: v })} minHeight="4rem" />
         </div>
         <motion.div>
           <label className="mb-1 block text-xs uppercase text-[#5A6078]">Notas</label>
-          <textarea
-            className="story-input h-16 w-full resize-none"
-            value={form.notes ?? ''}
-            onChange={(e) => patch({ notes: e.target.value })}
-          />
+          <StoryRichTextField worldId={worldId} value={form.notes ?? ''} onChange={(v) => patch({ notes: v })} minHeight="3.5rem" />
         </motion.div>
         <ImageInputField label="Imagen de portada" value={form.imageUrl} onChange={(v) => patch({ imageUrl: v })} />
         <EntityMultiPicker

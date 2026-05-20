@@ -5,6 +5,7 @@ import type { Idea } from '@/types';
 import { FileText, Globe, Lightbulb, Tag, UserCircle } from 'lucide-react';
 import { ImageInputField } from '@/components/common/ImageInputField';
 import { AudioPlayer } from '@/components/common/AudioPlayer';
+import { StoryRichTextField } from '@/components/common/StoryRichTextField';
 
 type Props = {
   open: boolean;
@@ -104,13 +105,23 @@ export function IdeaFormModal({ open, onClose, worldId, initial, onSubmit }: Pro
       )}
 
       <div className="mb-3 flex items-start gap-3 rounded-xl border border-[#2A3045] bg-[#111318]/80 p-3">
-        <Lightbulb size={20} className="mt-0.5 shrink-0 text-[#EAB308]" />
-        <textarea
-          className="min-h-[7rem] w-full resize-none border-0 bg-transparent text-sm text-[#E8E9EB] placeholder:text-[#5A6078] focus:outline-none"
-          placeholder="Describe tu idea..."
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-        />
+        <Lightbulb size={20} className="mt-2 shrink-0 text-[#EAB308]" />
+        <div className="min-w-0 flex-1">
+          <StoryRichTextField
+            worldId={worldId ?? undefined}
+            insertionWorldId={effectiveWorldId ?? ''}
+            onInsertionWorldChange={(id) => {
+              if (worldId === null) setTargetWorld(id || null);
+            }}
+            value={description}
+            onChange={setDescription}
+            minHeight="7rem"
+            placeholder="Describe tu idea..."
+            hideHint
+            showInsertionWorldPicker={false}
+            className="[&_textarea]:border-0 [&_textarea]:bg-transparent [&_textarea]:p-0"
+          />
+        </div>
       </div>
 
       <div className="mb-3 grid gap-3 sm:grid-cols-2">

@@ -3,11 +3,14 @@ import { useNavigationReturn } from '@/hooks/useNavigationReturn';
 import { useAppStore } from '@/store';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Heart, MapPin, Edit2, Trash2, FileText, Users } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { EntityReference } from '@/components/common/EntityReference';
 import { ConfirmDeleteModal } from '@/components/modals/crud/ConfirmDeleteModal';
 import { PlaceFormModal } from '@/components/modals/crud/PlaceFormModal';
 import { toast } from 'sonner';
+import { StoryRichTextDisplay } from '@/components/common/StoryRichTextDisplay';
+import { storyEntityDataAttrs } from '@/lib/storyEntityContext';
 
 const typeLabels: Record<string, string> = {
   city: 'Ciudad',
@@ -30,6 +33,16 @@ export function PlaceDetail() {
   const deletePlace = useAppStore((s) => s.deletePlace);
   const [formOpen, setFormOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  useEffect(() => {
+    if (searchParams.get('edit') === '1') {
+      setFormOpen(true);
+      const next = new URLSearchParams(searchParams);
+      next.delete('edit');
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   const scenesHere = useAppStore((s) =>
     s.scenes.filter((sc) => sc.worldId === worldId && sc.placeId === placeId && !sc.isDeleted)
@@ -62,7 +75,12 @@ export function PlaceDetail() {
   ];
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mx-auto max-w-3xl">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="mx-auto max-w-3xl"
+      {...storyEntityDataAttrs('place', place.id, worldId, place.name)}
+    >
       <div className="mb-6 flex items-start justify-between">
         <div className="flex items-center gap-4">
           <button
@@ -118,9 +136,10 @@ export function PlaceDetail() {
         {sections.map(({ key, label }) => (
           <div key={key} className="story-card p-5">
             <h3 className="mb-2 font-mono text-sm font-semibold uppercase tracking-wider text-[#E8E9EB]">{label}</h3>
-            <p className="whitespace-pre-wrap text-sm text-[#8B91A7]">
-              {(place[key as keyof typeof place] as string) || <span className="text-[#3A4460]">Sin información</span>}
-            </p>
+            <StoryRichTextDisplay
+              text={(place[key as keyof typeof place] as string) ?? ''}
+              worldId={worldId}
+            />
           </div>
         ))}
       </div>

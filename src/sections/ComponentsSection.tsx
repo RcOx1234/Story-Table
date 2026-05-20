@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { useWorldEditFromUrl } from '@/hooks/useWorldEditFromUrl';
+import { useSectionCardMenuDeps, entityCardMenuProps } from '@/hooks/useEntityCardMenu';
 import { useAppStore } from '@/store';
 import { motion } from 'framer-motion';
 import { Plus, Search, Heart, Box, Gem } from 'lucide-react';
@@ -8,6 +10,8 @@ import { ComponentDetailModal } from '@/components/modals/crud/ComponentDetailMo
 import { ConfirmDeleteModal } from '@/components/modals/crud/ConfirmDeleteModal';
 import { EntityCardMenu } from '@/components/common/EntityCardMenu';
 import { toast } from 'sonner';
+import { storyEntityDataAttrs } from '@/lib/storyEntityContext';
+import { RichTextSnippet } from '@/components/common/RichTextSnippet';
 
 const typeLabels: Record<string, string> = {
   object: 'Objeto',
@@ -23,6 +27,7 @@ interface Props {
 }
 
 export function ComponentsSection({ worldId }: Props) {
+  const cardMenu = useSectionCardMenuDeps();
   const components = useAppStore((s) => s.getComponentsByWorld(worldId));
   const addComp = useAppStore((s) => s.addComponent);
   const updateComponent = useAppStore((s) => s.updateComponent);
@@ -34,7 +39,6 @@ export function ComponentsSection({ worldId }: Props) {
   const [editing, setEditing] = useState<Component | null>(null);
   const [detail, setDetail] = useState<Component | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
-
   const filtered = components.filter(
     (c) =>
       (!typeFilter || c.type === typeFilter) &&
@@ -61,6 +65,8 @@ export function ComponentsSection({ worldId }: Props) {
     setEditing(comp);
     setFormOpen(true);
   };
+
+  useWorldEditFromUrl(openEdit, (id) => components.find((c) => c.id === id));
 
   return (
     <div>
@@ -118,6 +124,7 @@ export function ComponentsSection({ worldId }: Props) {
                 onKeyDown={(e) => e.key === 'Enter' && setDetail(comp)}
                 onClick={() => setDetail(comp)}
                 className="story-card group relative cursor-pointer p-5 transition-all hover:border-[#D61E2B]/30"
+                {...storyEntityDataAttrs('component', comp.id, worldId, comp.name)}
               >
                 <div className="absolute right-3 top-3 flex items-center gap-0.5">
                   <button
@@ -133,7 +140,10 @@ export function ComponentsSection({ worldId }: Props) {
                   </button>
                   <EntityCardMenu
                     className="opacity-70 group-hover:opacity-100"
-                    onEdit={() => openEdit(comp)}
+                    {...entityCardMenuProps(worldId, 'component', comp.id, comp.name, {
+                      ...cardMenu,
+                      onViewDetails: () => setDetail(comp),
+                    })}
                     onDelete={() => setDeleteId(comp.id)}
                   />
                 </div>
@@ -150,12 +160,21 @@ export function ComponentsSection({ worldId }: Props) {
                 </div>
                 <h3 className="mb-1 font-semibold text-[#E8E9EB]">{comp.name}</h3>
                 {comp.type === 'letter' ? (
-                  <p className="line-clamp-2 text-xs italic text-[#8B91A7]">
-                    {comp.letterTo || comp.target ? `Para: ${comp.letterTo || comp.target}` : comp.description || 'Carta sin contenido'}
-                  </p>
+                  <>
+                    {(comp.letterTo || comp.target) && (
+                      <p className="mb-1 text-xs text-[#5A6078]">
+                        Para: {comp.letterTo || comp.target}
+                      </p>
+                    )}
+                    {comp.description ? (
+                      <RichTextSnippet text={comp.description} worldId={worldId} lines={2} />
+                    ) : (
+                      <p className="text-xs italic text-[#5A6078]">Carta sin contenido</p>
+                    )}
+                  </>
                 ) : (
                   <>
-                    {comp.description && <p className="line-clamp-3 text-xs text-[#8B91A7]">{comp.description}</p>}
+                    {comp.description && <RichTextSnippet text={comp.description} worldId={worldId} lines={3} />}
                     {comp.target && (
                       <p className="mt-2 text-xs text-[#5A6078]">
                         {typeLabels[comp.type]}: {comp.target}

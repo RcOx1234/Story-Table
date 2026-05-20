@@ -1,27 +1,32 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { AlertTriangle, Baby, GitBranch, Plus, Users, X } from 'lucide-react';
+import { Baby, GitBranch, Plus, Users, X } from 'lucide-react';
 import { useAppStore } from '@/store';
 import { StorySelect } from '@/components/common/StorySelect';
 import { RelationshipChip } from '@/components/common/RelationshipChip';
 import {
-  detectRelationConflicts,
+  collectGenealogyIssues,
   getCharacterRelationsBySlot,
   getSpouseIds,
   type RelationSlot,
 } from '@/lib/characterGenealogy';
+import { GenealogyIssuesPanel } from '@/components/houses/GenealogyIssuesPanel';
 import {
   encodeRelationshipDescription,
   getBirthOrder,
   parseRelationshipDescription,
 } from '@/lib/relationshipMeta';
 import {
+  childRelationType,
   genderSublabel,
   normalizeGender,
+  siblingRelationTypeFor,
   spouseRelationTypeFor,
 } from '@/lib/characterGender';
+import { useStore } from '@/store';
+import { validateRelationshipAdd } from '@/lib/relationshipLimits';
 import { normalizeKey } from '@/lib/normalizeLabels';
-import { inverseRelationshipType } from '@/lib/relationshipSync';
+import { inverseRelationshipType, isChildRelationType, isParentRelationType } from '@/lib/relationshipSync';
 import { relationshipTypeLabel } from '@/lib/relationshipTypes';
 
 const SPOUSE_SLOT_TYPES = /^(espos[oa]|consorte|pareja|marido|mujer)$/;
@@ -71,6 +76,7 @@ type Props = {
   pickerCharacters: Character[];
   houseName?: string;
   variant?: 'dialog' | 'panel';
+  onFocusCharacter?: (characterId: string) => void;
 };
 
 function SectionHeader({ title, icon: Icon, count }: { title: string; icon: typeof Users; count: number }) {
@@ -181,14 +187,20 @@ function RelationSection({
         birthOrder: Math.max(1, parseInt(birthOrder, 10) || 1),
       });
     } else if (slot === 'father') {
-      onAdd(pickId, 'padre', 'hijo');
+      onAdd(pickId, 'padre', childRelationType(rootGender));
     } else if (slot === 'mother') {
-      onAdd(pickId, 'madre', 'hija');
+      onAdd(pickId, 'madre', childRelationType(rootGender));
     } else if (slot === 'spouse') {
       const targetChar = allCharacters.find((c) => c.id === pickId) ?? null;
       if (!targetChar) return;
       const t = spouseRelationTypeFor(normalizeGender(rootGender), targetChar.gender);
       const inv = spouseRelationTypeFor(normalizeGender(targetChar.gender), rootGender);
+      onAdd(pickId, t, inv);
+    } else if (slot === 'sibling') {
+      const targetChar = allCharacters.find((c) => c.id === pickId);
+      if (!targetChar) return;
+      const t = siblingRelationTypeFor(targetChar.gender);
+      const inv = siblingRelationTypeFor(rootGender);
       onAdd(pickId, t, inv);
     } else {
       onAdd(pickId, pickType);
@@ -311,17 +323,26 @@ export function GenealogyEditor({
   pickerCharacters,
   houseName,
   variant = 'dialog',
+  onFocusCharacter,
 }: Props) {
   const syncCharacterRelationship = useAppStore((s) => s.syncCharacterRelationship);
   const syncChildRelationship = useAppStore((s) => s.syncChildRelationship);
   const updateCharacter = useAppStore((s) => s.updateCharacter);
 
   const root = useAppStore((s) => s.getCharacterById(characterId));
-  const slots = useMemo(
-    () => (root ? getCharacterRelationsBySlot(root, pickerCharacters) : null),
-    [root, pickerCharacters, characterId]
+  const worldCharacters = useAppStore((s) => s.getCharactersByWorld(worldId));
+  const resolveCharacter = useCallback(
+    (id: string) => worldCharacters.find((c) => c.id === id),
+    [worldCharacters]
   );
-  const warnings = root ? detectRelationConflicts(root) : [];
+  const slots = useMemo(
+    () => (root ? getCharacterRelationsBySlot(root, worldCharacters, resolveCharacter) : null),
+    [root, worldCharacters, resolveCharacter, characterId]
+  );
+  const genealogyIssues = useMemo(
+    () => (root ? collectGenealogyIssues(worldCharacters, characterId) : []),
+    [root, worldCharacters, characterId]
+  );
 
   const characterOptions = useMemo(
     () =>
@@ -360,9 +381,22 @@ export function GenealogyEditor({
   const addLink = (targetId: string, type: string, inverseType?: string) => {
     const target = pickerCharacters.find((c) => c.id === targetId);
     if (!root || !target) return;
-    const spouseDup = SPOUSE_SLOT_TYPES.test(normalizeKey(type)) && excludeKeys.has(targetId);
-    if (spouseDup || excludeKeys.has(`${targetId}|${type}`)) {
+    const typeKey = normalizeKey(type);
+    const spouseDup = SPOUSE_SLOT_TYPES.test(typeKey) && excludeKeys.has(targetId);
+    if (spouseDup || excludeKeys.has(`${targetId}|${typeKey}`)) {
       toast.error('Esa relación ya existe');
+      return;
+    }
+    if ((typeKey === 'padre' && slots?.father.length) || (typeKey === 'madre' && slots?.mother.length)) {
+      const existing = typeKey === 'padre' ? slots!.father[0] : slots!.mother[0];
+      if (existing.character.id !== target.id) {
+        toast.error(`Ya hay un/a ${typeKey === 'padre' ? 'padre' : 'madre'} registrado/a (${existing.character.name}). Elimínalo antes de añadir otro.`);
+        return;
+      }
+    }
+    const limitErr = validateRelationshipAdd(root, target, type, inverseType);
+    if (limitErr) {
+      toast.error(limitErr);
       return;
     }
     syncCharacterRelationship(root.id, {
@@ -372,16 +406,53 @@ export function GenealogyEditor({
       inverseType,
       action: 'add',
     });
+    const updated = useStore.getState().getCharacterById(root.id);
+    const ok = updated?.relationships.some(
+      (r) => r.characterId === target.id && normalizeKey(r.type) === typeKey
+    );
+    if (!ok) {
+      toast.error('No se guardó la relación. Revisa si ya hay padre/madre o datos inconsistentes.');
+      return;
+    }
     toast.success(`Relación añadida: ${relationshipTypeLabel(type)}`);
   };
 
   const addChild = (opts: { childId: string; isMother: boolean; coParentId?: string; birthOrder: number }) => {
     if (!root) return;
+    if (opts.childId === root.id) {
+      toast.error('Un personaje no puede ser hijo de sí mismo');
+      return;
+    }
+    const child = pickerCharacters.find((c) => c.id === opts.childId);
+    if (!child) {
+      toast.error('Personaje no encontrado');
+      return;
+    }
     syncChildRelationship(root.id, opts.childId, {
       isMother: opts.isMother,
       coParentId: opts.coParentId,
       birthOrder: opts.birthOrder,
     });
+    const afterParent = useStore.getState().getCharacterById(root.id);
+    const afterChild = useStore.getState().getCharacterById(opts.childId);
+    const ok =
+      afterParent?.relationships.some(
+        (r) => r.characterId === opts.childId && isChildRelationType(r.type)
+      ) &&
+      afterChild?.relationships.some(
+        (r) => r.characterId === root.id && isParentRelationType(r.type)
+      );
+    if (!ok) {
+      const hint = collectGenealogyIssues(
+        [afterParent, afterChild].filter(Boolean) as Character[],
+        root.id
+      )[0];
+      toast.error(
+        hint?.message ??
+          'No se guardó el vínculo. Puede haber padre/madre duplicado o un conflicto de género.'
+      );
+      return;
+    }
     toast.success('Vínculo guardado en todas las fichas involucradas');
   };
 
@@ -400,7 +471,9 @@ export function GenealogyEditor({
 
   const updateBirthOrder = (targetId: string, type: string, order: number) => {
     if (!root) return;
-    const rel = root.relationships.find((r) => r.characterId === targetId && r.type === type);
+    const rel = root.relationships.find(
+      (r) => r.characterId === targetId && normalizeKey(r.type) === normalizeKey(type)
+    );
     if (!rel) return;
     const { note } = parseRelationshipDescription(rel.description);
     const description = encodeRelationshipDescription({ birthOrder: order }, note);
@@ -434,16 +507,10 @@ export function GenealogyEditor({
         </button>
       </div>
 
-      {warnings.length > 0 && (
-        <div className="mb-4 flex shrink-0 gap-2 rounded-lg border border-[#EAB308]/25 bg-[#EAB308]/8 px-3 py-2 text-xs text-[#EAB308]">
-          <AlertTriangle size={14} className="mt-0.5 shrink-0" />
-          <ul className="list-inside list-disc space-y-0.5">
-            {warnings.map((w) => (
-              <li key={w}>{w}</li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <GenealogyIssuesPanel
+        issues={genealogyIssues}
+        onGoToCharacter={onFocusCharacter}
+      />
 
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain scrollbar-thin pr-1">
         {slots &&

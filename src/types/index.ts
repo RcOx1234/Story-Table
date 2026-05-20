@@ -520,6 +520,40 @@ export interface Timeline {
   updatedAt: string;
 }
 
+export type FantasticElementCategory = 'power' | 'ability' | 'spell' | 'technique' | 'animal';
+
+export interface FantasticElement {
+  id: string;
+  worldId: string;
+  name: string;
+  category: FantasticElementCategory;
+  description: string;
+  /** Nivel de poder / rareza */
+  potency?: string;
+  /** Elemento (fuego, sombra, etc.) */
+  elementAffinity?: string;
+  /** Alcance, duración, coste… */
+  range?: string;
+  duration?: string;
+  cost?: string;
+  /** Hechizos / técnicas */
+  incantation?: string;
+  requirements?: string;
+  /** Animales */
+  species?: string;
+  habitat?: string;
+  temperament?: string;
+  isFictional?: boolean;
+  imageUrl?: string;
+  linkedCharacterIds?: string[];
+  isFavorite: boolean;
+  isDeleted: boolean;
+  deletedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  tags: string[];
+}
+
 export type SectionType =
   | 'characters'
   | 'places'
@@ -532,7 +566,8 @@ export type SectionType =
   | 'datos'
   | 'hechos'
   | 'ideas'
-  | 'timelines';
+  | 'timelines'
+  | 'fantastic';
 
 export interface User {
   id: string;

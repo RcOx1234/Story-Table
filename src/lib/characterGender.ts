@@ -29,6 +29,11 @@ export function parentRelationType(isMother: boolean): 'padre' | 'madre' {
 }
 
 /** Tipo de relación hacia la pareja (esposa = mujer, esposo = hombre). */
+export function siblingRelationTypeFor(gender?: CharacterGender | string): 'hermano' | 'hermana' {
+  if (normalizeGender(gender) === 'female') return 'hermana';
+  return 'hermano';
+}
+
 export function spouseRelationTypeFor(rootGender: CharacterGender, partnerGender?: CharacterGender): string {
   const partner = normalizeGender(partnerGender);
   if (partner === 'female') return 'esposa';

@@ -5,6 +5,7 @@ import { X, Type, Mic, Image, Send, Square } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Idea } from '@/types';
 import { ImageInputField } from '@/components/common/ImageInputField';
+import { StoryRichTextField } from '@/components/common/StoryRichTextField';
 
 export function QuickCaptureModal() {
   const activeModal = useAppStore((s) => s.activeModal);
@@ -162,12 +163,14 @@ export function QuickCaptureModal() {
         <div className="p-5">
           {tab === 'text' && (
             <div className="space-y-4">
-              <textarea
+              <StoryRichTextField
+                insertionWorldId={worldId ?? ''}
+                onInsertionWorldChange={(id) => setWorldId(id || null)}
+                showInsertionWorldPicker={false}
                 value={text}
-                onChange={(e) => setText(e.target.value)}
+                onChange={setText}
+                minHeight="8rem"
                 placeholder="Escribe tu idea aquí..."
-                className="story-input h-32 w-full resize-none"
-                autoFocus
               />
             </div>
           )}
@@ -185,14 +188,30 @@ export function QuickCaptureModal() {
               )}
               <p className="text-sm text-[#8B91A7]">{recording ? `Grabando ${fmt(recordMs)}` : 'Pulsa para grabar'}</p>
               {audioDataUrl && <audio controls src={audioDataUrl} className="mx-auto w-full" />}
-              <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="Notas sobre el audio (opcional)" className="story-input h-20 w-full resize-none" />
+              <StoryRichTextField
+                insertionWorldId={worldId ?? ''}
+                onInsertionWorldChange={(id) => setWorldId(id || null)}
+                showInsertionWorldPicker={false}
+                value={text}
+                onChange={setText}
+                minHeight="5rem"
+                placeholder="Notas sobre el audio (opcional)"
+              />
             </div>
           )}
 
           {tab === 'image' && (
             <div className="space-y-4">
               <ImageInputField label="Imagen" value={imageDataUrl} onChange={setImageDataUrl} />
-              <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="Descripción (opcional)" className="story-input h-20 w-full resize-none" />
+              <StoryRichTextField
+                insertionWorldId={worldId ?? ''}
+                onInsertionWorldChange={(id) => setWorldId(id || null)}
+                showInsertionWorldPicker={false}
+                value={text}
+                onChange={setText}
+                minHeight="5rem"
+                placeholder="Descripción (opcional)"
+              />
             </div>
           )}
 

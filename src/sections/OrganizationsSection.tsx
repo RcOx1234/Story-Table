@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { useWorldEditFromUrl } from '@/hooks/useWorldEditFromUrl';
+import { useSectionCardMenuDeps, entityCardMenuProps } from '@/hooks/useEntityCardMenu';
 import { useAppStore } from '@/store';
 import { motion } from 'framer-motion';
 import { Plus, Search, Heart, Building2, Crown, Users } from 'lucide-react';
@@ -9,6 +11,7 @@ import { ConfirmDeleteModal } from '@/components/modals/crud/ConfirmDeleteModal'
 import { EntityCardMenu } from '@/components/common/EntityCardMenu';
 import { EntityReference } from '@/components/common/EntityReference';
 import { toast } from 'sonner';
+import { storyEntityDataAttrs } from '@/lib/storyEntityContext';
 
 const typeLabels: Record<string, string> = {
   guild: 'Gremio',
@@ -25,6 +28,7 @@ interface Props {
 }
 
 export function OrganizationsSection({ worldId }: Props) {
+  const cardMenu = useSectionCardMenuDeps();
   const organizations = useAppStore((s) => s.getOrganizationsByWorld(worldId));
   const addOrg = useAppStore((s) => s.addOrganization);
   const updateOrganization = useAppStore((s) => s.updateOrganization);
@@ -54,6 +58,13 @@ export function OrganizationsSection({ worldId }: Props) {
     setEditing(null);
     setFormOpen(true);
   };
+
+  const openEdit = (org: Organization) => {
+    setEditing(org);
+    setFormOpen(true);
+  };
+
+  useWorldEditFromUrl(openEdit, (id) => organizations.find((o) => o.id === id));
 
   return (
     <div>
@@ -88,6 +99,7 @@ export function OrganizationsSection({ worldId }: Props) {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.05 }}
                 className="story-card group relative cursor-pointer overflow-hidden p-0 transition-all hover:border-[#D61E2B]/40"
+                {...storyEntityDataAttrs('organization', org.id, worldId, org.name)}
                 role="button"
                 tabIndex={0}
                 onKeyDown={(e) => {
@@ -108,10 +120,10 @@ export function OrganizationsSection({ worldId }: Props) {
                     <Heart size={14} className={org.isFavorite ? 'fill-[#D61E2B] text-[#D61E2B]' : 'text-[#5A6078]'} />
                   </button>
                   <EntityCardMenu
-                    onEdit={() => {
-                      setEditing(org);
-                      setFormOpen(true);
-                    }}
+                    {...entityCardMenuProps(worldId, 'organization', org.id, org.name, {
+                      ...cardMenu,
+                      onViewDetails: () => setViewing(org),
+                    })}
                     onDelete={() => setDeleteId(org.id)}
                   />
                 </div>

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigateWithReturn } from '@/hooks/useNavigationReturn';
+import { useSectionCardMenuDeps, entityCardMenuProps } from '@/hooks/useEntityCardMenu';
 import { useAppStore } from '@/store';
 import { motion } from 'framer-motion';
 import { Plus, Search, Heart, Castle } from 'lucide-react';
@@ -9,6 +10,7 @@ import { HouseFormModal } from '@/components/modals/crud/HouseFormModal';
 import { ConfirmDeleteModal } from '@/components/modals/crud/ConfirmDeleteModal';
 import { EntityCardMenu } from '@/components/common/EntityCardMenu';
 import { toast } from 'sonner';
+import { storyEntityDataAttrs } from '@/lib/storyEntityContext';
 
 const nobleRankLabels: Record<NobleRank, string> = {
   emperor: 'Emperador',
@@ -50,6 +52,7 @@ interface Props {
 
 export function HousesSection({ worldId }: Props) {
   const navigateWithReturn = useNavigateWithReturn();
+  const cardMenu = useSectionCardMenuDeps();
   const houses = useAppStore((s) => s.getHousesByWorld(worldId));
   const addHouse = useAppStore((s) => s.addHouse);
   const updateHouse = useAppStore((s) => s.updateHouse);
@@ -194,6 +197,7 @@ export function HousesSection({ worldId }: Props) {
                 onKeyDown={(e) => e.key === 'Enter' && navigateWithReturn(`/world/${worldId}/house/${house.id}`)}
                 onClick={() => navigateWithReturn(`/world/${worldId}/house/${house.id}`)}
                 className="story-card group relative cursor-pointer p-5 transition-all hover:border-[#D61E2B]/40"
+                {...storyEntityDataAttrs('house', house.id, worldId, house.name)}
               >
                 <motion.div className="absolute right-2 top-2 z-10 flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
                   <button
@@ -208,10 +212,10 @@ export function HousesSection({ worldId }: Props) {
                     <Heart size={14} className={house.isFavorite ? 'fill-[#D61E2B] text-[#D61E2B]' : 'text-[#5A6078]'} />
                   </button>
                   <EntityCardMenu
-                    onEdit={() => {
-                      setEditing(house);
-                      setFormOpen(true);
-                    }}
+                    {...entityCardMenuProps(worldId, 'house', house.id, house.name, {
+                      ...cardMenu,
+                      onViewDetails: () => navigateWithReturn(`/world/${worldId}/house/${house.id}`),
+                    })}
                     onDelete={() => setDeleteId(house.id)}
                   />
                 </motion.div>

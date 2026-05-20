@@ -4,6 +4,7 @@ import { useAppStore } from '@/store';
 import type { WorldDatum, WorldDatumType } from '@/types';
 import { EntityMultiPicker } from '@/components/common/EntityMultiPicker';
 import { MultiImageInputField } from '@/components/common/MultiImageInputField';
+import { StoryRichTextField } from '@/components/common/StoryRichTextField';
 
 const DATUM_TYPES: { value: WorldDatumType; label: string }[] = [
   { value: 'geography', label: 'Geografía' },
@@ -121,11 +122,7 @@ export function DatumFormModal({ open, onClose, worldId, initial, onSubmit }: Pr
         </div>
         <div>
           <label className="mb-1 block text-xs uppercase text-[#5A6078]">Contenido</label>
-          <textarea
-            className="story-input h-32 w-full resize-none"
-            value={form.content}
-            onChange={(e) => patch({ content: e.target.value })}
-          />
+          <StoryRichTextField worldId={worldId} value={form.content} onChange={(v) => patch({ content: v })} minHeight="7rem" />
         </div>
         <EntityMultiPicker
           label="Personajes relacionados"
