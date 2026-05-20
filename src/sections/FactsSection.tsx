@@ -12,6 +12,7 @@ import { EntityCardMenu } from '@/components/common/EntityCardMenu';
 import { toast } from 'sonner';
 import { storyEntityDataAttrs } from '@/lib/storyEntityContext';
 import { RichTextSnippet } from '@/components/common/RichTextSnippet';
+import { StoryRichTextDisplay } from '@/components/common/StoryRichTextDisplay';
 
 const factTypeLabels: Record<WorldFactType, string> = {
   battle: 'Batalla',
@@ -204,13 +205,13 @@ export function FactsSection({ worldId }: Props) {
             {viewing.description && (
               <div>
                 <h4 className="mb-1 text-xs font-mono uppercase tracking-wider text-[#5A6078]">Descripción</h4>
-                <p className="leading-relaxed">{viewing.description}</p>
+                <StoryRichTextDisplay text={viewing.description} worldId={worldId} className="text-[#E8E9EB]" />
               </div>
             )}
             {viewing.consequence && (
               <div>
                 <h4 className="mb-1 text-xs font-mono uppercase tracking-wider text-[#5A6078]">Consecuencia</h4>
-                <p className="leading-relaxed">{viewing.consequence}</p>
+                <StoryRichTextDisplay text={viewing.consequence} worldId={worldId} />
               </div>
             )}
           </div>

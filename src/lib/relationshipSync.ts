@@ -139,13 +139,24 @@ export function repairCharacterRelationships(characters: Character[]): Map<strin
 
 function upsertRel(rels: Relationship[], rel: Relationship): Relationship[] {
   const t = normalizeKey(rel.type);
-  const idx = rels.findIndex((r) => r.characterId === rel.characterId && normalizeKey(r.type) === t);
+  let next = [...rels];
+  if (CHILD_TYPES.test(t)) {
+    next = next.filter(
+      (r) => r.characterId !== rel.characterId || !CHILD_TYPES.test(normalizeKey(r.type))
+    );
+  }
+  if (PARENT_TYPES.test(t)) {
+    next = next.filter(
+      (r) => r.characterId !== rel.characterId || !PARENT_TYPES.test(normalizeKey(r.type))
+    );
+  }
+  const idx = next.findIndex((r) => r.characterId === rel.characterId && normalizeKey(r.type) === t);
   if (idx >= 0) {
-    const next = [...rels];
+    next = [...next];
     next[idx] = { ...next[idx], ...rel, characterName: rel.characterName };
     return next;
   }
-  return [...rels, rel];
+  return [...next, rel];
 }
 
 function removeRel(rels: Relationship[], characterId: string, type?: string): Relationship[] {

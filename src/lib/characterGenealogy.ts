@@ -1,6 +1,6 @@
 import { normalizeKey } from '@/lib/normalizeLabels';
 import { getBirthOrder } from '@/lib/relationshipMeta';
-import { normalizeGender, spouseRelationTypeFor } from '@/lib/characterGender';
+import { childRelationType, normalizeGender, parentRelationType, spouseRelationTypeFor } from '@/lib/characterGender';
 import { areRelationshipTypesReciprocal } from '@/lib/relationshipSync';
 import type { Character, Relationship } from '@/types';
 
@@ -189,7 +189,9 @@ export function relationSlot(type: string): RelationSlot {
 }
 
 function slotSeenKey(slot: RelationSlot, otherId: string, type: string): string {
-  if (slot === 'spouse' || slot === 'sibling') return `${slot}:${otherId}`;
+  if (slot === 'spouse' || slot === 'sibling' || slot === 'child' || slot === 'father' || slot === 'mother') {
+    return `${slot}:${otherId}`;
+  }
   return `${slot}:${otherId}|${relType(type)}`;
 }
 
@@ -210,7 +212,7 @@ function pushSlot(
     return;
   }
 
-  if (existingIdx >= 0 && (slot === 'spouse' || slot === 'sibling')) {
+  if (existingIdx >= 0 && (slot === 'spouse' || slot === 'sibling' || slot === 'child' || slot === 'father' || slot === 'mother')) {
     if (prefer) list[existingIdx] = { rel, character: other };
     return;
   }
@@ -257,26 +259,40 @@ export function getCharacterRelationsBySlot(
       if (rel.characterId !== char.id) continue;
       const t = relType(rel.type);
 
+      /** En la ficha del otro: padre/madre → char es progenitor, other es hijo/a. */
       if (PARENT_TYPES.test(t)) {
-        const childType = t === 'madre' ? 'hija' : 'hijo';
-        pushSlot(slots, seen, 'child', {
-          characterId: other.id,
-          characterName: other.name,
-          type: childType,
-          description: rel.description,
-        }, other);
+        pushSlot(
+          slots,
+          seen,
+          'child',
+          {
+            characterId: other.id,
+            characterName: other.name,
+            type: childRelationType(other.gender),
+            description: rel.description,
+          },
+          other
+        );
         continue;
       }
 
+      /** En la ficha del otro: hijo/hija → other es progenitor, char es hijo/a. */
       if (CHILD_TYPES.test(t)) {
-        const parentType = t === 'hija' ? 'madre' : 'padre';
-        const slot = parentType === 'madre' ? 'mother' : 'father';
-        pushSlot(slots, seen, slot, {
-          characterId: other.id,
-          characterName: other.name,
-          type: parentType,
-          description: rel.description,
-        }, other);
+        const isMother = normalizeGender(other.gender) === 'female';
+        const parentType = parentRelationType(isMother);
+        const slot = isMother ? 'mother' : 'father';
+        pushSlot(
+          slots,
+          seen,
+          slot,
+          {
+            characterId: other.id,
+            characterName: other.name,
+            type: parentType,
+            description: rel.description,
+          },
+          other
+        );
         continue;
       }
 
@@ -311,6 +327,14 @@ export function getCharacterRelationsBySlot(
       rel: { ...entry.rel, type: canonical },
     };
   });
+
+  slots.child = slots.child.map((entry) => ({
+    ...entry,
+    rel: {
+      ...entry.rel,
+      type: childRelationType(entry.character.gender),
+    },
+  }));
 
   return slots;
 }
