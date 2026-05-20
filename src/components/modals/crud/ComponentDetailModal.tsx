@@ -19,10 +19,18 @@ type Props = {
   onClose: () => void;
   component: Component | null;
   worldId: string;
-  onEdit: () => void;
+  onEdit?: () => void;
+  readOnly?: boolean;
 };
 
-export function ComponentDetailModal({ open, onClose, component, worldId, onEdit }: Props) {
+export function ComponentDetailModal({
+  open,
+  onClose,
+  component,
+  worldId,
+  onEdit,
+  readOnly = false,
+}: Props) {
   const scenes = useAppStore((s) => s.getScenesByWorld(worldId));
 
   if (!component) return null;
@@ -43,9 +51,11 @@ export function ComponentDetailModal({ open, onClose, component, worldId, onEdit
           <button type="button" className="story-btn-secondary text-sm" onClick={onClose}>
             Cerrar
           </button>
-          <button type="button" className="story-btn-primary text-sm" onClick={onEdit}>
-            Editar
-          </button>
+          {!readOnly && onEdit && (
+            <button type="button" className="story-btn-primary text-sm" onClick={onEdit}>
+              Editar
+            </button>
+          )}
         </>
       }
     >

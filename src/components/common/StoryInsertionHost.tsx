@@ -44,6 +44,9 @@ export function StoryInsertionHost() {
   const ideas = useAppStore((s) => s.ideas);
   const plots = useAppStore((s) => s.plots);
   const fantasticElements = useAppStore((s) => s.fantasticElements);
+  const worldFacts = useAppStore((s) => s.worldFacts);
+  const worldData = useAppStore((s) => s.worldData);
+  const timelines = useAppStore((s) => s.timelines);
   const getCharacterById = useAppStore((s) => s.getCharacterById);
   const getScenesByWorld = useAppStore((s) => s.getScenesByWorld);
 
@@ -71,23 +74,29 @@ export function StoryInsertionHost() {
         const el = fantasticElements.find((f) => f.id === id && !f.isDeleted);
         return el ? { type, worldId, fantastic: el } : null;
       }
+      case 'fact': {
+        const fact = worldFacts.find((f) => f.id === id && !f.isDeleted);
+        return fact ? { type, worldId, fact } : null;
+      }
+      case 'datum': {
+        const datum = worldData.find((d) => d.id === id && !d.isDeleted);
+        return datum ? { type, worldId, datum } : null;
+      }
+      case 'timeline': {
+        const timeline = timelines.find((t) => t.id === id);
+        return timeline ? { type, worldId, timeline } : null;
+      }
       default:
         return null;
     }
-  }, [preview, components, organizations, ideas, plots, fantasticElements]);
+  }, [preview, components, organizations, ideas, plots, fantasticElements, worldFacts, worldData, timelines]);
 
   if (!payload) return null;
 
   if (payload.type === 'component' && 'component' in payload) {
     const { component, worldId } = payload as { type: 'component'; worldId: string; component: Component };
     return (
-      <ComponentDetailModal
-        open
-        onClose={close}
-        component={component}
-        worldId={worldId}
-        onEdit={close}
-      />
+      <ComponentDetailModal open onClose={close} component={component} worldId={worldId} readOnly />
     );
   }
 
@@ -182,6 +191,66 @@ export function StoryInsertionHost() {
               .join(', ') || '—'}
           </p>
         </div>
+      </BaseModal>
+    );
+  }
+
+  if (payload.type === 'fact' && 'fact' in payload) {
+    const { fact, worldId } = payload as { type: 'fact'; worldId: string; fact: { title: string; description: string } };
+    return (
+      <BaseModal
+        open
+        onClose={close}
+        title={fact.title}
+        maxWidthClass="max-w-xl"
+        footer={
+          <button type="button" className="story-btn-secondary text-sm" onClick={close}>
+            Cerrar
+          </button>
+        }
+      >
+        <StoryRichTextDisplay text={fact.description} worldId={worldId} className="text-[#E8E9EB]" />
+      </BaseModal>
+    );
+  }
+
+  if (payload.type === 'datum' && 'datum' in payload) {
+    const { datum, worldId } = payload as { type: 'datum'; worldId: string; datum: { title: string; content: string } };
+    return (
+      <BaseModal
+        open
+        onClose={close}
+        title={datum.title}
+        maxWidthClass="max-w-xl"
+        footer={
+          <button type="button" className="story-btn-secondary text-sm" onClick={close}>
+            Cerrar
+          </button>
+        }
+      >
+        <StoryRichTextDisplay text={datum.content} worldId={worldId} className="text-[#E8E9EB]" />
+      </BaseModal>
+    );
+  }
+
+  if (payload.type === 'timeline' && 'timeline' in payload) {
+    const { timeline } = payload as { type: 'timeline'; timeline: { name: string; description: string; color: string } };
+    return (
+      <BaseModal
+        open
+        onClose={close}
+        title={timeline.name}
+        description={timeline.description}
+        maxWidthClass="max-w-xl"
+        footer={
+          <button type="button" className="story-btn-secondary text-sm" onClick={close}>
+            Cerrar
+          </button>
+        }
+      >
+        <p className="text-sm text-[#8B91A7]">
+          Color: <span style={{ color: timeline.color }}>{timeline.color}</span>
+        </p>
       </BaseModal>
     );
   }

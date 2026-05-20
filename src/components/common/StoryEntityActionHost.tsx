@@ -17,11 +17,14 @@ import { BaseModal } from '@/components/modals/crud/BaseModal';
 import { StoryRichTextDisplay } from '@/components/common/StoryRichTextDisplay';
 import { toast } from 'sonner';
 import type { StoryEntityType } from '@/lib/storyEntityContext';
+import { canEditInPlaceEntity } from '@/lib/storyInsertionPreview';
+import { useLocation } from 'react-router-dom';
 
 type EditState = { worldId: string; type: StoryEntityType; id: string } | null;
 type ViewState = { worldId: string; type: StoryEntityType; id: string } | null;
 
 export function StoryEntityActionHost() {
+  const location = useLocation();
   const editReq = useAppStore((s) => s.entityEditRequest);
   const viewReq = useAppStore((s) => s.entityViewRequest);
   const clearEdit = useAppStore((s) => s.clearEntityEditRequest);
@@ -34,25 +37,22 @@ export function StoryEntityActionHost() {
   useEffect(() => {
     if (!editReq) return;
     const { worldId, type, id } = editReq;
-    if (['component', 'organization', 'plot', 'idea', 'fantastic'].includes(type)) {
-      setEdit({ worldId, type: type as StoryEntityType, id });
+    if (!canEditInPlaceEntity(type, location.pathname, location.search)) {
+      toast.info('Abre la sección correspondiente del mundo para editar este elemento.');
       clearEdit();
       return;
     }
     setEdit({ worldId, type: type as StoryEntityType, id });
     clearEdit();
-  }, [editReq, clearEdit]);
+  }, [editReq, clearEdit, location.pathname, location.search]);
 
   useEffect(() => {
     if (!viewReq) return;
     const { worldId, type, id } = viewReq;
-    if (['component', 'organization', 'plot', 'idea', 'fantastic'].includes(type)) {
+    if (
+      ['component', 'organization', 'plot', 'idea', 'fantastic', 'fact', 'datum', 'timeline'].includes(type)
+    ) {
       openInsertionPreview(worldId, type, id);
-      clearView();
-      return;
-    }
-    if (['fact', 'datum', 'timeline'].includes(type)) {
-      setView({ worldId, type: type as StoryEntityType, id });
       clearView();
       return;
     }

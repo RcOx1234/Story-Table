@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { useEffect, useRef } from 'react';
 import { useStore } from '@/store';
 import { seedData } from '@/data/seed';
@@ -18,6 +18,7 @@ import { GlobalCharactersPage } from '@/pages/GlobalCharactersPage';
 import { PlaceDetail } from '@/pages/PlaceDetail';
 import { MapView } from '@/pages/MapView';
 import { LoginPage } from '@/pages/LoginPage';
+import { NotFoundPage } from '@/pages/NotFoundPage';
 import { Toaster } from '@/components/ui/sonner';
 import { isFirebaseConfigured } from '@/lib/firebase';
 import { subscribeToAuth } from '@/services/authService';
@@ -70,7 +71,7 @@ function AppContent() {
             <Route path="trash" element={<TrashPage />} />
           </Route>
         </Route>
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
       <Toaster
         position="bottom-right"

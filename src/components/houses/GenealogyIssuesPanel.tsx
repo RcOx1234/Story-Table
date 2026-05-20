@@ -71,9 +71,9 @@ function IssueRow({
         <button
           type="button"
           className="story-btn-secondary shrink-0 px-2 py-1 text-[10px]"
-          onClick={() => onGoToCharacter(issue.focusCharacterId)}
+          onClick={() => onGoToCharacter(issue.relatedId ?? issue.focusCharacterId)}
         >
-          Ver en árbol
+          {issue.relatedId ? 'Ver personaje' : 'Ver en árbol'}
           <ChevronRight size={12} />
         </button>
       )}

@@ -1,6 +1,7 @@
 import type { NavigateFunction } from 'react-router-dom';
 import type { DetectedEntity, StoryEntityType } from '@/lib/storyEntityContext';
-import { opensInPlacePreview } from '@/lib/storyInsertionPreview';
+import { canEditInPlaceEntity, opensInPlacePreview } from '@/lib/storyInsertionPreview';
+import { toast } from 'sonner';
 
 const DETAIL_ROUTE =
   /^\/world\/[^/]+\/(character|scene|place|house|map)\/[^/]+/;
@@ -77,6 +78,14 @@ export function entityCardMenuProps(
           handlers.openInsertionPreview,
           (e) => handlers.requestEntityView(e.worldId, e.type, e.id)
         )),
-    onEdit: () => handlers.requestEntityEdit(worldId, type, id),
+    onEdit: () => {
+      const path = typeof window !== 'undefined' ? window.location.pathname : '';
+      const search = typeof window !== 'undefined' ? window.location.search : '';
+      if (!canEditInPlaceEntity(type, path, search)) {
+        toast.info('Abre la sección correspondiente del mundo para editar este elemento.');
+        return;
+      }
+      handlers.requestEntityEdit(worldId, type, id);
+    },
   };
 }

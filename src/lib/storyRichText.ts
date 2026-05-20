@@ -1,3 +1,4 @@
+import { chipIconHtml } from '@/lib/chipIconHtml';
 import { insertionMeta } from '@/lib/insertionMeta';
 
 /** Referencia embebida: [[tipo:id|etiqueta]] */
@@ -131,12 +132,12 @@ export function editorHtmlToMarkdown(root: HTMLElement): string {
 
 function chipHtml(type: string, id: string, label: string, color: string, bg: string): string {
   const safe = escapeHtml(label);
+  const icon = chipIconHtml(type, color);
   return (
     `<span contenteditable="false" data-story-ref="true" data-story-type="${escapeHtml(type)}" ` +
     `data-story-id="${escapeHtml(id)}" data-story-label="${safe}" ` +
     `class="story-inline-chip" style="--chip-color:${color};--chip-bg:${bg}">` +
-    `<span class="story-inline-chip-icon-slot" aria-hidden="true">` +
-    `<span class="story-inline-chip-glyph" style="color:${color}">●</span>` +
+    `<span class="story-inline-chip-icon-slot" aria-hidden="true">${icon}` +
     `<button type="button" class="story-inline-chip-remove" data-remove-chip aria-label="Quitar">×</button></span>` +
     `<span class="story-inline-chip-label">${safe}</span></span>`
   );

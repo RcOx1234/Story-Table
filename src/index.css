@@ -186,9 +186,9 @@
     align-items: center;
     justify-content: center;
   }
-  .story-inline-chip-glyph {
-    font-size: 0.5rem;
-    line-height: 1;
+  .story-inline-chip-svg {
+    display: block;
+    flex-shrink: 0;
     transition: opacity 0.12s;
   }
   .story-inline-chip-remove {
@@ -204,7 +204,7 @@
     opacity: 0;
     transition: opacity 0.12s, color 0.12s, background-color 0.12s;
   }
-  .story-inline-chip:hover .story-inline-chip-glyph {
+  .story-inline-chip:hover .story-inline-chip-svg {
     opacity: 0;
   }
   .story-inline-chip:hover .story-inline-chip-remove,

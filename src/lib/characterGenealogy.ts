@@ -1,6 +1,7 @@
 import { normalizeKey } from '@/lib/normalizeLabels';
 import { getBirthOrder } from '@/lib/relationshipMeta';
 import { normalizeGender, spouseRelationTypeFor } from '@/lib/characterGender';
+import { areRelationshipTypesReciprocal } from '@/lib/relationshipSync';
 import type { Character, Relationship } from '@/types';
 
 export type GenealogyUnit = {
@@ -333,10 +334,12 @@ export function detectRelationConflicts(char: Character): string[] {
 
 export function collectGenealogyIssues(
   characters: Character[],
-  focusId?: string
+  focusId?: string,
+  /** Personajes del mundo para resolver vínculos (evita falsos «no está en este mundo»). */
+  roster?: Character[]
 ): GenealogyIssue[] {
   const issues: GenealogyIssue[] = [];
-  const byId = new Map(characters.map((c) => [c.id, c]));
+  const rosterById = new Map((roster ?? characters).map((c) => [c.id, c]));
   const list = focusId ? characters.filter((c) => c.id === focusId) : characters;
 
   for (const char of list) {
@@ -378,7 +381,7 @@ export function collectGenealogyIssues(
     }
 
     for (const rel of char.relationships) {
-      const other = byId.get(rel.characterId);
+      const other = rosterById.get(rel.characterId);
       if (!other) {
         issues.push({
           id: `${char.id}-missing-${rel.characterId}`,
@@ -394,25 +397,25 @@ export function collectGenealogyIssues(
         continue;
       }
       const inv = other.relationships.find(
-        (r) => r.characterId === char.id && relType(r.type) === relType(rel.type)
+        (r) => r.characterId === char.id && areRelationshipTypesReciprocal(rel.type, r.type)
       );
-      if (!inv && !PARENT_TYPES.test(relType(rel.type)) && !CHILD_TYPES.test(relType(rel.type))) {
+      if (!inv) {
         issues.push({
           id: `${char.id}-no-inverse-${other.id}-${rel.type}`,
           severity: 'warning',
           message: `«${other.name}» no devuelve el vínculo con ${char.name} (${rel.type}).`,
-          hint: 'Vuelve a añadir la relación o guarda desde el editor de relaciones.',
+          hint: 'Usa «Actualizar relaciones» o vuelve a añadir el vínculo.',
           characterId: char.id,
           characterName: char.name,
-          focusCharacterId: char.id,
+          focusCharacterId: other.id,
           relatedId: other.id,
           relatedName: other.name,
         });
       }
     }
 
-    for (const cid of getChildIds(char, characters)) {
-      const child = byId.get(cid);
+    for (const cid of getChildIds(char, roster ?? characters)) {
+      const child = rosterById.get(cid);
       if (!child) continue;
       const hasParentLink = getRels(child, (t) => PARENT_TYPES.test(t)).some((r) => r.characterId === char.id);
       const hasChildLink = getRels(char, (t) => CHILD_TYPES.test(t)).some((r) => r.characterId === cid);

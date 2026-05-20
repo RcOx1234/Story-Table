@@ -36,10 +36,18 @@ export function GenealogySection({ worldId, houseId, houseName, members }: Props
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [treeFocusId, setTreeFocusId] = useState<string | null>(null);
 
   const handleSelectCharacter = (id: string) => {
     setSelectedId(id);
     setEditorOpen(true);
+    setTreeFocusId(id);
+  };
+
+  const focusCharacter = (id: string) => {
+    setSelectedId(id);
+    setEditorOpen(true);
+    setTreeFocusId(id);
   };
 
   const closeEditor = () => {
@@ -74,6 +82,7 @@ export function GenealogySection({ worldId, houseId, houseName, members }: Props
             rootCharacterId={rootId}
             houseName={houseName}
             selectedId={selectedId}
+            scrollToCharacterId={treeFocusId}
             onSelectCharacter={handleSelectCharacter}
             onAddCharacter={() => setCreateOpen(true)}
           />
@@ -94,10 +103,7 @@ export function GenealogySection({ worldId, houseId, houseName, members }: Props
               characterId={selectedId}
               pickerCharacters={allCharacters}
               houseName={houseName}
-              onFocusCharacter={(id) => {
-                setSelectedId(id);
-                setEditorOpen(true);
-              }}
+              onFocusCharacter={focusCharacter}
             />
           </motion.div>
         )}
@@ -113,10 +119,7 @@ export function GenealogySection({ worldId, houseId, houseName, members }: Props
             characterId={selectedId}
             pickerCharacters={allCharacters}
             houseName={houseName}
-            onFocusCharacter={(id) => {
-              setSelectedId(id);
-              setEditorOpen(true);
-            }}
+            onFocusCharacter={focusCharacter}
           />
         </div>
       )}

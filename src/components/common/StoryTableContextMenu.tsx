@@ -19,6 +19,7 @@ import { useAppStore, useStore } from '@/store';
 import { clampMenuPosition, placeFlyoutMenu } from '@/lib/contextMenuPosition';
 import { detectEntityFromTarget, type DetectedEntity } from '@/lib/storyEntityContext';
 import { isEntityDetailPage, openEntityView } from '@/lib/entityActions';
+import { canEditInPlaceEntity } from '@/lib/storyInsertionPreview';
 import { MENU_ANIM, MENU_PANEL, MENU_SCROLL } from '@/lib/menuStyles';
 import { toast } from 'sonner';
 
@@ -171,6 +172,11 @@ export function StoryTableContextMenu() {
       toast.error('No se puede editar este elemento aquí');
       return;
     }
+    if (!canEditInPlaceEntity(entity.type, location.pathname, location.search)) {
+      toast.info('Abre la sección correspondiente del mundo para editar este elemento.');
+      closeAll();
+      return;
+    }
     closeAll();
     requestEntityEdit(entity.worldId, entity.type, entity.id);
   };
@@ -228,6 +234,10 @@ export function StoryTableContextMenu() {
 
   const onDetailPage = isEntityDetailPage(location.pathname);
   const allowDelete = menu.entity && !onDetailPage;
+  const allowEdit =
+    menu.entity &&
+    (!menu.entity.worldId ||
+      canEditInPlaceEntity(menu.entity.type, location.pathname, location.search));
 
   const submenuPortal =
     submenu &&
@@ -301,14 +311,16 @@ export function StoryTableContextMenu() {
               <ExternalLink size={14} className="text-[#8B91A7]" />
               Ver detalles
             </button>
-            <button
-              type="button"
-              className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-[#E8E9EB] transition-colors hover:bg-[#1E2230]"
-              onClick={() => editEntity(menu.entity!)}
-            >
-              <Pencil size={14} className="text-[#8B91A7]" />
-              Editar
-            </button>
+            {allowEdit && (
+              <button
+                type="button"
+                className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-[#E8E9EB] transition-colors hover:bg-[#1E2230]"
+                onClick={() => editEntity(menu.entity!)}
+              >
+                <Pencil size={14} className="text-[#8B91A7]" />
+                Editar
+              </button>
+            )}
             {allowDelete && (
               <button
                 type="button"

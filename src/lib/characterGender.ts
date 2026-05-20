@@ -10,6 +10,11 @@ export const GENDER_OPTIONS: { value: CharacterGender; label: string }[] = [
 
 export function normalizeGender(g?: CharacterGender | string): CharacterGender {
   if (g === 'male' || g === 'female') return g;
+  const raw = String(g ?? '')
+    .trim()
+    .toLowerCase();
+  if (raw === 'm' || raw === 'hombre' || raw === 'masculino' || raw === 'male' || raw === 'man') return 'male';
+  if (raw === 'f' || raw === 'mujer' || raw === 'femenino' || raw === 'female' || raw === 'woman') return 'female';
   return 'unspecified';
 }
 

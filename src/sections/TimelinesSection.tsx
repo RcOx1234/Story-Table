@@ -16,6 +16,8 @@ import { ConfirmDeleteModal } from '@/components/modals/crud/ConfirmDeleteModal'
 import { BaseModal } from '@/components/modals/crud/BaseModal';
 import { EntityMultiPicker } from '@/components/common/EntityMultiPicker';
 import { toast } from 'sonner';
+import { RichTextSnippet } from '@/components/common/RichTextSnippet';
+import { StoryRichTextDisplay } from '@/components/common/StoryRichTextDisplay';
 
 interface Props {
   worldId: string;
@@ -191,7 +193,9 @@ export function TimelinesSection({ worldId }: Props) {
       {active && (
         <div className="mb-6">
           <h3 className="mb-1 text-lg font-semibold text-[#E8E9EB]">{active.name}</h3>
-          {active.description && <p className="text-sm text-[#8B91A7]">{active.description}</p>}
+          {active.description && (
+            <StoryRichTextDisplay text={active.description} worldId={worldId} className="text-sm" />
+          )}
         </div>
       )}
 
@@ -219,7 +223,9 @@ export function TimelinesSection({ worldId }: Props) {
                   <h4 className="font-medium text-[#E8E9EB]">{scene.title}</h4>
                   <ChevronRight size={14} className="text-[#D61E2B]" />
                 </div>
-                {scene.description && <p className="line-clamp-2 text-xs text-[#8B91A7]">{scene.description}</p>}
+                {scene.description && (
+                  <RichTextSnippet text={scene.description} worldId={worldId} lines={2} className="text-xs" />
+                )}
               </button>
             </motion.div>
           ))}
@@ -237,7 +243,9 @@ export function TimelinesSection({ worldId }: Props) {
               />
               <div className="story-card flex-1 p-4">
                 <h4 className="font-medium text-[#E8E9EB]">{fact.title}</h4>
-                {fact.description && <p className="mt-1 line-clamp-2 text-xs text-[#8B91A7]">{fact.description}</p>}
+                {fact.description && (
+                  <RichTextSnippet text={fact.description} worldId={worldId} lines={2} className="mt-1 text-xs" />
+                )}
               </div>
             </motion.div>
           ))}

@@ -29,6 +29,7 @@ function PersonNode({
   return (
     <button
       type="button"
+      data-character-id={character.id}
       onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => {
         e.stopPropagation();
@@ -141,6 +142,8 @@ type Props = {
   onSelectCharacter: (characterId: string) => void;
   onAddCharacter?: () => void;
   selectedId?: string | null;
+  /** Centra el árbol en este personaje (p. ej. desde avisos del editor). */
+  scrollToCharacterId?: string | null;
 };
 
 export function GenealogyTree({
@@ -150,6 +153,7 @@ export function GenealogyTree({
   onSelectCharacter,
   onAddCharacter,
   selectedId = null,
+  scrollToCharacterId = null,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -172,6 +176,22 @@ export function GenealogyTree({
   useEffect(() => {
     resetView();
   }, [effectiveRoot, resetView]);
+
+  useEffect(() => {
+    const id = scrollToCharacterId;
+    const container = containerRef.current;
+    if (!id || !container) return;
+    const node = container.querySelector<HTMLElement>(`[data-character-id="${id}"]`);
+    if (!node) return;
+    requestAnimationFrame(() => {
+      const cRect = container.getBoundingClientRect();
+      const nRect = node.getBoundingClientRect();
+      setPan((prev) => ({
+        x: prev.x + (cRect.left + cRect.width / 2) - (nRect.left + nRect.width / 2),
+        y: prev.y + (cRect.top + cRect.height / 2) - (nRect.top + nRect.height / 2),
+      }));
+    });
+  }, [scrollToCharacterId, tree]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest('button')) return;

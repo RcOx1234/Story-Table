@@ -40,6 +40,9 @@ import { FantasticElementsSection } from '@/sections/FantasticElementsSection';
 import type { SectionType } from '@/types';
 import { isWorldUnlocked } from '@/lib/worldUnlock';
 import { WorldPasswordModal } from '@/components/modals/crud/WorldPasswordModal';
+import { useStoryDataReady } from '@/hooks/useStoryDataReady';
+import { SplashLoader } from '@/components/auth/SplashLoader';
+import { isFirebaseConfigured } from '@/lib/firebase';
 
 const tabs: { id: SectionType; label: string; icon: typeof Users }[] = [
   { id: 'characters', label: 'Personajes', icon: Users },
@@ -66,8 +69,11 @@ export function WorldView() {
   const world = useAppStore((s) => s.getWorldById(worldId ?? ''));
   const updateWorld = useAppStore((s) => s.updateWorld);
   const toggleFavoriteWorld = useAppStore((s) => s.toggleFavoriteWorld);
+  const storyReady = useStoryDataReady();
   const [lockOpen, setLockOpen] = useState(false);
-  const [unlocked, setUnlocked] = useState(false);
+  const [unlocked, setUnlocked] = useState(() =>
+    worldId && isFirebaseConfigured() ? isWorldUnlocked(worldId) : true
+  );
   const [sectionsEditorOpen, setSectionsEditorOpen] = useState(false);
 
   const visibleTabs = world ? getWorldSectionOrder(world).map((id) => tabs.find((t) => t.id === id)!).filter(Boolean) : tabs;
@@ -91,6 +97,10 @@ export function WorldView() {
     setUnlocked(ok);
     setLockOpen(!ok);
   }, [world?.id, world?.protected, world?.isDeleted]);
+
+  if (isFirebaseConfigured() && !storyReady) {
+    return <SplashLoader />;
+  }
 
   if (!worldId || !world || world.isDeleted) {
     return (

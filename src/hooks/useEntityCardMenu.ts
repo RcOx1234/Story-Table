@@ -2,6 +2,8 @@ import { useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '@/store';
 import { openEntityView, entityCardMenuProps } from '@/lib/entityActions';
+import { canEditInPlaceEntity } from '@/lib/storyInsertionPreview';
+import { toast } from 'sonner';
 import type { StoryEntityType } from '@/lib/storyEntityContext';
 
 /** Dependencias compartidas para EntityCardMenu en listados. */
@@ -45,6 +47,12 @@ export function useEntityCardMenu(
   }, [type, id, worldId, label, onViewDetails, navigate, openInsertionPreview, requestEntityView]);
 
   const edit = useCallback(() => {
+    const path = typeof window !== 'undefined' ? window.location.pathname : '';
+    const search = typeof window !== 'undefined' ? window.location.search : '';
+    if (!canEditInPlaceEntity(type, path, search)) {
+      toast.info('Abre la sección correspondiente del mundo para editar este elemento.');
+      return;
+    }
     requestEntityEdit(worldId, type, id);
   }, [worldId, type, id, requestEntityEdit]);
 

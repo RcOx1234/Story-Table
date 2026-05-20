@@ -1,6 +1,12 @@
 import type { Character, Relationship } from '@/types';
 import { normalizeKey } from '@/lib/normalizeLabels';
-import { childRelationType, parentRelationType, siblingRelationTypeFor } from '@/lib/characterGender';
+import {
+  childRelationType,
+  normalizeGender,
+  parentRelationType,
+  siblingRelationTypeFor,
+  spouseRelationTypeFor,
+} from '@/lib/characterGender';
 import { encodeRelationshipDescription } from '@/lib/relationshipMeta';
 import { validateRelationshipAdd } from '@/lib/relationshipLimits';
 
@@ -54,6 +60,81 @@ function removeSpouseLinksTo(rels: Relationship[], characterId: string): Relatio
 export function inverseRelationshipType(type: string): string {
   const key = normalizeKey(type);
   return INVERSE_MAP[key] ?? type;
+}
+
+/** Tipo inverso esperado en el otro personaje (respeta género en pareja/hermanos/hijos). */
+export function expectedInverseType(
+  fromType: string,
+  fromChar: Character,
+  toChar: Character
+): string {
+  const key = normalizeKey(fromType);
+  if (SPOUSE_TYPES.test(key)) {
+    return spouseRelationTypeFor(normalizeGender(toChar.gender), fromChar.gender);
+  }
+  if (/^herman[oa]$/.test(key)) {
+    return siblingRelationTypeFor(fromChar.gender);
+  }
+  if (CHILD_TYPES.test(key)) {
+    return parentRelationType(normalizeGender(fromChar.gender) === 'female');
+  }
+  if (PARENT_TYPES.test(key)) {
+    return childRelationType(toChar.gender);
+  }
+  return inverseRelationshipType(fromType);
+}
+
+/** Comprueba si dos tipos son vínculo recíproco válido (no exige el mismo string). */
+export function areRelationshipTypesReciprocal(typeA: string, typeB: string): boolean {
+  const a = normalizeKey(typeA);
+  const b = normalizeKey(typeB);
+  if (a === b && (/^herman[oa]$/.test(a) || a === 'pareja' || a === 'consorte')) return true;
+  if (PARENT_TYPES.test(a) && CHILD_TYPES.test(b)) return true;
+  if (CHILD_TYPES.test(a) && PARENT_TYPES.test(b)) return true;
+  if (SPOUSE_TYPES.test(a) && SPOUSE_TYPES.test(b)) return true;
+  return normalizeKey(inverseRelationshipType(typeA)) === b || normalizeKey(inverseRelationshipType(typeB)) === a;
+}
+
+function hasReciprocalLink(char: Character, otherId: string, relType: string): boolean {
+  return char.relationships.some(
+    (r) => r.characterId === otherId && areRelationshipTypesReciprocal(relType, r.type)
+  );
+}
+
+/**
+ * Repara vínculos faltantes o incompatibles (p. ej. esposo/esposa) en un conjunto de personajes.
+ */
+export function repairCharacterRelationships(characters: Character[]): Map<string, Partial<Character>> {
+  const updates = new Map<string, Partial<Character>>();
+  const byId = new Map(characters.map((c) => [c.id, c]));
+
+  const merged = (): Character[] =>
+    characters.map((c) => {
+      const p = updates.get(c.id);
+      return p?.relationships ? ({ ...c, relationships: p.relationships } as Character) : c;
+    });
+
+  for (const char of characters) {
+    for (const rel of char.relationships) {
+      const other = byId.get(rel.characterId);
+      if (!other) continue;
+      const currentOther = merged().find((c) => c.id === other.id) ?? other;
+      if (hasReciprocalLink(currentOther, char.id, rel.type)) continue;
+
+      const inverse = expectedInverseType(rel.type, char, other);
+      const batch = syncRelationshipChange(merged(), char.id, {
+        characterId: other.id,
+        characterName: other.name,
+        type: rel.type,
+        description: rel.description ?? '',
+        inverseType: inverse,
+        action: 'add',
+      });
+      mergeUpdates(updates, batch);
+    }
+  }
+
+  return updates;
 }
 
 function upsertRel(rels: Relationship[], rel: Relationship): Relationship[] {

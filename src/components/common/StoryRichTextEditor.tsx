@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useImperativeHandle, useRef, forwardRef } from 'react';
 import { editorHtmlToMarkdown, markdownToEditorHtml } from '@/lib/storyRichText';
+import { chipIconHtml } from '@/lib/chipIconHtml';
 import { insertionMeta } from '@/lib/insertionMeta';
 
 export type StoryRichTextEditorHandle = {
@@ -80,8 +81,7 @@ export const StoryRichTextEditor = forwardRef<StoryRichTextEditorHandle, Props>(
       chip.style.setProperty('--chip-color', meta.color);
       chip.style.setProperty('--chip-bg', meta.bg);
       chip.innerHTML =
-        `<span class="story-inline-chip-icon-slot" aria-hidden="true">` +
-        `<span class="story-inline-chip-glyph" style="color:${meta.color}">●</span>` +
+        `<span class="story-inline-chip-icon-slot" aria-hidden="true">${chipIconHtml(type, meta.color)}` +
         `<button type="button" class="story-inline-chip-remove" data-remove-chip aria-label="Quitar">×</button></span>` +
         `<span class="story-inline-chip-label">${label.replace(/</g, '')}</span>`;
 

@@ -27,6 +27,7 @@ import type {
 } from '@/types';
 import {
   addChildRelationship,
+  repairCharacterRelationships,
   syncAllRelationshipsFromCharacter,
   syncRelationshipChange,
   type AddChildOptions,
@@ -70,6 +71,7 @@ export interface AppState {
     }
   ) => void;
   syncChildRelationship: (parentId: string, childId: string, options: AddChildOptions) => void;
+  repairWorldRelationships: (worldId: string) => number;
   restoreCharacter: (id: string) => void;
   toggleFavoriteCharacter: (id: string) => void;
   getCharactersByWorld: (worldId: string) => Character[];
@@ -430,6 +432,18 @@ export const useStore = create<AppState>()(
           });
           return { characters };
         }),
+      repairWorldRelationships: (worldId) => {
+        const worldChars = get().characters.filter((c) => c.worldId === worldId && !c.isDeleted);
+        const batch = repairCharacterRelationships(worldChars);
+        if (batch.size === 0) return 0;
+        set((state) => ({
+          characters: state.characters.map((c) => {
+            const p = batch.get(c.id);
+            return p ? ({ ...c, ...p } as Character) : c;
+          }),
+        }));
+        return batch.size;
+      },
       deleteCharacter: (id) =>
         set((state) => ({
           characters: state.characters.map((c) => (c.id === id ? { ...c, isDeleted: true, deletedAt: new Date().toISOString() } : c)),

@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Baby, GitBranch, Plus, Users, X } from 'lucide-react';
+import { Baby, GitBranch, Plus, RefreshCw, Users, X } from 'lucide-react';
 import { useAppStore } from '@/store';
 import { StorySelect } from '@/components/common/StorySelect';
 import { RelationshipChip } from '@/components/common/RelationshipChip';
@@ -20,13 +20,19 @@ import {
   childRelationType,
   genderSublabel,
   normalizeGender,
+  parentRelationType,
   siblingRelationTypeFor,
   spouseRelationTypeFor,
 } from '@/lib/characterGender';
 import { useStore } from '@/store';
 import { validateRelationshipAdd } from '@/lib/relationshipLimits';
 import { normalizeKey } from '@/lib/normalizeLabels';
-import { inverseRelationshipType, isChildRelationType, isParentRelationType } from '@/lib/relationshipSync';
+import {
+  areRelationshipTypesReciprocal,
+  inverseRelationshipType,
+  isChildRelationType,
+  isParentRelationType,
+} from '@/lib/relationshipSync';
 import { relationshipTypeLabel } from '@/lib/relationshipTypes';
 
 const SPOUSE_SLOT_TYPES = /^(espos[oa]|consorte|pareja|marido|mujer)$/;
@@ -128,15 +134,12 @@ function RelationSection({
   rootId: string;
   rootGender?: Character['gender'];
   onAdd: (targetId: string, type: string, inverseType?: string) => void;
-  onAddChild: (opts: { childId: string; isMother: boolean; coParentId?: string; birthOrder: number }) => void;
+  onAddChild: (opts: { childId: string; coParentId?: string; birthOrder: number }) => void;
   onRemove: (targetId: string, type: string, inverseType?: string) => void;
   onUpdateBirthOrder: (targetId: string, type: string, order: number) => void;
 }) {
   const [pickId, setPickId] = useState('');
   const [pickType, setPickType] = useState(addType);
-  const [isMother, setIsMother] = useState(
-    () => normalizeGender(rootGender) === 'female' || slot === 'mother'
-  );
   const [coParentId, setCoParentId] = useState('');
   const [birthOrder, setBirthOrder] = useState('1');
 
@@ -182,7 +185,6 @@ function RelationSection({
     if (slot === 'child') {
       onAddChild({
         childId: pickId,
-        isMother,
         coParentId: coParentId || undefined,
         birthOrder: Math.max(1, parseInt(birthOrder, 10) || 1),
       });
@@ -277,15 +279,6 @@ function RelationSection({
         )}
         {slot === 'child' && (
           <>
-            <label className="flex shrink-0 items-center gap-2 rounded-xl border border-[#2A3045] bg-[#111318] px-3 py-2 text-xs text-[#8B91A7]">
-              <input
-                type="checkbox"
-                checked={isMother}
-                onChange={(e) => setIsMother(e.target.checked)}
-                className="accent-[#D61E2B]"
-              />
-              Es la madre
-            </label>
             {spouseOptions.length > 0 && (
               <StorySelect
                 value={coParentId}
@@ -327,7 +320,9 @@ export function GenealogyEditor({
 }: Props) {
   const syncCharacterRelationship = useAppStore((s) => s.syncCharacterRelationship);
   const syncChildRelationship = useAppStore((s) => s.syncChildRelationship);
+  const repairWorldRelationships = useAppStore((s) => s.repairWorldRelationships);
   const updateCharacter = useAppStore((s) => s.updateCharacter);
+  const [repairing, setRepairing] = useState(false);
 
   const root = useAppStore((s) => s.getCharacterById(characterId));
   const worldCharacters = useAppStore((s) => s.getCharactersByWorld(worldId));
@@ -340,7 +335,7 @@ export function GenealogyEditor({
     [root, worldCharacters, resolveCharacter, characterId]
   );
   const genealogyIssues = useMemo(
-    () => (root ? collectGenealogyIssues(worldCharacters, characterId) : []),
+    () => (root ? collectGenealogyIssues([root], characterId, worldCharacters) : []),
     [root, worldCharacters, characterId]
   );
 
@@ -399,6 +394,13 @@ export function GenealogyEditor({
       toast.error(limitErr);
       return;
     }
+    if (inverseType) {
+      const limitInv = validateRelationshipAdd(target, root, inverseType, type);
+      if (limitInv) {
+        toast.error(limitInv);
+        return;
+      }
+    }
     syncCharacterRelationship(root.id, {
       characterId: target.id,
       characterName: target.name,
@@ -411,13 +413,20 @@ export function GenealogyEditor({
       (r) => r.characterId === target.id && normalizeKey(r.type) === typeKey
     );
     if (!ok) {
-      toast.error('No se guardó la relación. Revisa si ya hay padre/madre o datos inconsistentes.');
+      const limitInv = inverseType
+        ? validateRelationshipAdd(target, root, inverseType, type)
+        : null;
+      toast.error(
+        limitInv ??
+          limitErr ??
+          'No se guardó la relación. Prueba «Actualizar relaciones» o revisa los vínculos en ambas fichas.'
+      );
       return;
     }
     toast.success(`Relación añadida: ${relationshipTypeLabel(type)}`);
   };
 
-  const addChild = (opts: { childId: string; isMother: boolean; coParentId?: string; birthOrder: number }) => {
+  const addChild = (opts: { childId: string; coParentId?: string; birthOrder: number }) => {
     if (!root) return;
     if (opts.childId === root.id) {
       toast.error('Un personaje no puede ser hijo de sí mismo');
@@ -428,8 +437,21 @@ export function GenealogyEditor({
       toast.error('Personaje no encontrado');
       return;
     }
+    const parentGender = normalizeGender(root.gender);
+    if (parentGender === 'unspecified') {
+      toast.error('Define el género de este personaje (Hombre/Mujer) en su ficha antes de añadir un hijo.');
+      return;
+    }
+    const isMother = parentGender === 'female';
+    const parentLink = parentRelationType(isMother);
+    const childLink = childRelationType(child.gender);
+    const limitBefore = validateRelationshipAdd(root, child, childLink, parentLink);
+    if (limitBefore) {
+      toast.error(limitBefore);
+      return;
+    }
     syncChildRelationship(root.id, opts.childId, {
-      isMother: opts.isMother,
+      isMother,
       coParentId: opts.coParentId,
       birthOrder: opts.birthOrder,
     });
@@ -437,18 +459,21 @@ export function GenealogyEditor({
     const afterChild = useStore.getState().getCharacterById(opts.childId);
     const ok =
       afterParent?.relationships.some(
-        (r) => r.characterId === opts.childId && isChildRelationType(r.type)
+        (r) =>
+          r.characterId === opts.childId &&
+          (isChildRelationType(r.type) || areRelationshipTypesReciprocal(childLink, r.type))
       ) &&
       afterChild?.relationships.some(
-        (r) => r.characterId === root.id && isParentRelationType(r.type)
+        (r) =>
+          r.characterId === root.id &&
+          (isParentRelationType(r.type) || areRelationshipTypesReciprocal(parentLink, r.type))
       );
     if (!ok) {
-      const hint = collectGenealogyIssues(
-        [afterParent, afterChild].filter(Boolean) as Character[],
-        root.id
-      )[0];
+      const limitOnChild = validateRelationshipAdd(afterChild!, afterParent!, parentLink, childLink);
+      const limitOnParent = validateRelationshipAdd(afterParent!, afterChild!, childLink, parentLink);
       toast.error(
-        hint?.message ??
+        limitOnChild ??
+          limitOnParent ??
           'No se guardó el vínculo. Puede haber padre/madre duplicado o un conflicto de género.'
       );
       return;
@@ -497,19 +522,37 @@ export function GenealogyEditor({
             </p>
           )}
         </div>
-        <button
-          type="button"
-          aria-label="Cerrar"
-          className="rounded-lg p-2 text-[#5A6078] hover:bg-[#1E2230] hover:text-[#E8E9EB]"
-          onClick={onClose}
-        >
-          <X size={18} />
-        </button>
+        <div className="flex shrink-0 items-center gap-1">
+          <button
+            type="button"
+            disabled={repairing}
+            className="story-btn-secondary flex items-center gap-1 px-2 py-1.5 text-[10px]"
+            title="Sincroniza vínculos bidireccionales en todas las fichas del mundo"
+            onClick={() => {
+              setRepairing(true);
+              const n = repairWorldRelationships(worldId);
+              setRepairing(false);
+              if (n > 0) toast.success(`Relaciones actualizadas en ${n} ficha(s)`);
+              else toast.info('No había vínculos pendientes de sincronizar');
+            }}
+          >
+            <RefreshCw size={12} className={repairing ? 'animate-spin' : ''} />
+            Actualizar relaciones
+          </button>
+          <button
+            type="button"
+            aria-label="Cerrar"
+            className="rounded-lg p-2 text-[#5A6078] hover:bg-[#1E2230] hover:text-[#E8E9EB]"
+            onClick={onClose}
+          >
+            <X size={18} />
+          </button>
+        </div>
       </div>
 
       <GenealogyIssuesPanel
         issues={genealogyIssues}
-        onGoToCharacter={onFocusCharacter}
+        onGoToCharacter={(id) => onFocusCharacter?.(id)}
       />
 
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain scrollbar-thin pr-1">
