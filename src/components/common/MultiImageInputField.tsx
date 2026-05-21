@@ -1,5 +1,5 @@
-import { useRef, useCallback } from 'react';
-import { ImageIcon, Plus, X } from 'lucide-react';
+import { useRef, useCallback, useState } from 'react';
+import { ImageIcon, Link2, Plus, X } from 'lucide-react';
 import { toast } from 'sonner';
 
 type Props = {
@@ -18,8 +18,16 @@ function readFileAsDataUrl(file: File): Promise<string> {
   });
 }
 
+function isLikelyImageUrl(url: string): boolean {
+  const u = url.trim().toLowerCase();
+  if (!u.startsWith('http://') && !u.startsWith('https://') && !u.startsWith('data:image/')) return false;
+  if (u.startsWith('data:image/')) return true;
+  return /\.(jpe?g|png|gif|webp|svg|avif)(\?|$)/i.test(u) || u.includes('image') || true;
+}
+
 export function MultiImageInputField({ label = 'Imágenes', value, onChange, max = 12 }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
+  const [urlDraft, setUrlDraft] = useState('');
 
   const applyFiles = useCallback(
     async (files: FileList | File[]) => {
@@ -46,6 +54,25 @@ export function MultiImageInputField({ label = 'Imágenes', value, onChange, max
     [max, onChange, value]
   );
 
+  const addUrl = () => {
+    const url = urlDraft.trim();
+    if (!url) return;
+    if (!isLikelyImageUrl(url)) {
+      toast.error('Introduce una URL válida (http/https o data:image)');
+      return;
+    }
+    if (value.length >= max) {
+      toast.error(`Máximo ${max} imágenes`);
+      return;
+    }
+    if (value.includes(url)) {
+      toast.error('Esa imagen ya está añadida');
+      return;
+    }
+    onChange([...value, url]);
+    setUrlDraft('');
+  };
+
   return (
     <div className="space-y-2">
       <label className="block text-xs font-mono uppercase tracking-wider text-[#5A6078]">{label}</label>
@@ -60,10 +87,22 @@ export function MultiImageInputField({ label = 'Imágenes', value, onChange, max
           e.target.value = '';
         }}
       />
+      <div className="flex gap-2">
+        <input
+          value={urlDraft}
+          onChange={(e) => setUrlDraft(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addUrl())}
+          className="story-input min-w-0 flex-1 text-sm"
+          placeholder="https://… (URL de imagen)"
+        />
+        <button type="button" className="story-btn-secondary shrink-0 px-2 py-1 text-xs" onClick={addUrl}>
+          <Link2 size={12} className="inline" /> URL
+        </button>
+      </div>
       <div className="flex flex-wrap gap-2">
         {value.map((url, i) => (
           <div key={`${url.slice(0, 24)}-${i}`} className="group relative">
-            <img src={url} alt="" className="h-20 w-20 rounded-lg border border-[#2A3045] object-cover" />
+            <img src={url} alt="" className="h-16 w-16 rounded-lg border border-[#2A3045] object-cover" />
             <button
               type="button"
               aria-label="Quitar imagen"
@@ -78,10 +117,10 @@ export function MultiImageInputField({ label = 'Imágenes', value, onChange, max
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
-            className="flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-[#2A3045] bg-[#111318] text-[#5A6078] transition-all hover:border-[#D61E2B]"
+            className="flex h-16 w-16 flex-col items-center justify-center gap-0.5 rounded-lg border-2 border-dashed border-[#2A3045] bg-[#111318] text-[#5A6078] transition-all hover:border-[#D61E2B]"
           >
-            <Plus size={16} />
-            <span className="text-[9px] uppercase">Añadir</span>
+            <Plus size={14} />
+            <span className="text-[8px] uppercase">Archivo</span>
           </button>
         )}
       </div>
@@ -89,10 +128,10 @@ export function MultiImageInputField({ label = 'Imágenes', value, onChange, max
         <button
           type="button"
           onClick={() => fileRef.current?.click()}
-          className="flex w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-[#2A3045] bg-[#111318] px-4 py-5 transition-all hover:border-[#5A6078]"
+          className="flex w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-[#2A3045] bg-[#111318] px-4 py-4 transition-all hover:border-[#5A6078]"
         >
-          <ImageIcon size={22} className="text-[#5A6078]" />
-          <p className="text-center text-xs text-[#8B91A7]">Arrastra o haz clic para añadir fotos</p>
+          <ImageIcon size={20} className="text-[#5A6078]" />
+          <p className="text-center text-xs text-[#8B91A7]">Archivo, URL arriba, o arrastra imágenes</p>
         </button>
       )}
     </div>

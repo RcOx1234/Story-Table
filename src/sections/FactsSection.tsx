@@ -197,6 +197,18 @@ export function FactsSection({ worldId }: Props) {
       >
         {viewing && (
           <div className="space-y-4 text-sm text-[#8B91A7]">
+            {viewing.images.length > 0 && (
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {viewing.images.map((url, i) => (
+                  <img
+                    key={`${url}-${i}`}
+                    src={url}
+                    alt=""
+                    className="max-h-56 w-full rounded-xl border border-[#2A3045] object-cover"
+                  />
+                ))}
+              </div>
+            )}
             {viewing.dateLabel && (
               <p>
                 <span className="text-[#5A6078]">Fecha:</span> {viewing.dateLabel}

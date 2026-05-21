@@ -13,6 +13,7 @@ import { resolveTagNames } from '@/lib/worldTags';
 import { StorySelect } from '@/components/common/StorySelect';
 import type { World } from '@/types';
 import { toast } from 'sonner';
+import { computeAgeForTimeline } from '@/lib/characterTimelineAge';
 
 type Props = {
   open: boolean;
@@ -38,7 +39,9 @@ function emptyCharacter(worldId: string): Omit<Character, 'id' | 'createdAt' | '
     role: 'secondary',
     house: '',
     age: 0,
+    birthYear: undefined,
     ageByTimeline: {},
+    statusByTimeline: {},
     appearance: '',
     personality: '',
     backstory: '',
@@ -97,6 +100,8 @@ export function CharacterFormModal({
   const [tagIds, setTagIds] = useState<string[]>([]);
   const worldTags = useAppStore((s) => s.getWorldTagsByWorld(effectiveWorldId));
   const [ageTimelineDraft, setAgeTimelineDraft] = useState<Record<string, string>>({});
+  const [statusTimelineDraft, setStatusTimelineDraft] = useState<Record<string, Character['status']>>({});
+  const [useTimelineStatus, setUseTimelineStatus] = useState(false);
   const [err, setErr] = useState('');
   const [relCharId, setRelCharId] = useState('');
   const [relType, setRelType] = useState('');
@@ -125,6 +130,14 @@ export function CharacterFormModal({
       draft[tl.id] = String(base.ageByTimeline[tl.id] ?? '');
     }
     setAgeTimelineDraft(draft);
+    const statusDraft: Record<string, Character['status']> = {};
+    for (const tl of timelinesSnap) {
+      statusDraft[tl.id] = base.statusByTimeline?.[tl.id] ?? base.status;
+    }
+    setStatusTimelineDraft(statusDraft);
+    setUseTimelineStatus(
+      Boolean(initial?.statusByTimeline && Object.keys(initial.statusByTimeline).length > 0)
+    );
     setErr('');
   }, [open, worldId, pickedWorldId, initial?.id, initial?.updatedAt, defaultHouseId, showWorldPicker]);
 
@@ -139,11 +152,21 @@ export function CharacterFormModal({
       setErr('Selecciona el sexo del personaje (hombre o mujer)');
       return;
     }
+    const birthYear =
+      form.birthYear != null && Number.isFinite(form.birthYear) ? Math.round(form.birthYear) : undefined;
     const ageByTimeline: Record<string, number> = {};
     for (const tl of timelines) {
       const v = ageTimelineDraft[tl.id]?.trim();
-      if (v !== undefined && v !== '') ageByTimeline[tl.id] = Number(v) || 0;
+      if (v !== undefined && v !== '') {
+        ageByTimeline[tl.id] = Number(v) || 0;
+      } else if (birthYear != null) {
+        const computed = computeAgeForTimeline(birthYear, tl);
+        if (computed != null) ageByTimeline[tl.id] = computed;
+      }
     }
+    const statusByTimeline: Record<string, Character['status']> | undefined = useTimelineStatus
+      ? Object.fromEntries(timelines.map((tl) => [tl.id, statusTimelineDraft[tl.id] ?? form.status]))
+      : undefined;
     const quotes = quotesRaw
       .split('\n')
       .map((q) => q.trim())
@@ -158,7 +181,9 @@ export function CharacterFormModal({
       ...form,
       worldId: effectiveWorldId,
       name: form.name.trim(),
+      birthYear,
       ageByTimeline,
+      statusByTimeline,
       quotes,
       tags,
       tagIds,
@@ -305,29 +330,97 @@ export function CharacterFormModal({
                 </div>
                 <div>
                   <label className="mb-1 block text-xs uppercase tracking-wider text-[#5A6078]">Estado</label>
-                  <select className="story-input w-full text-sm" value={form.status} onChange={(e) => patch({ status: e.target.value as Character['status'] })}>
+                  <select
+                    className="story-input w-full text-sm disabled:opacity-50"
+                    value={form.status}
+                    disabled={useTimelineStatus && timelines.length > 0}
+                    onChange={(e) => patch({ status: e.target.value as Character['status'] })}
+                  >
                     <option value="alive">Vivo</option>
                     <option value="dead">Muerto</option>
                     <option value="missing">Desaparecido</option>
                     <option value="unknown">Desconocido</option>
                   </select>
+                  {useTimelineStatus && timelines.length > 0 && (
+                    <p className="mt-1 text-[10px] text-[#5A6078]">Configura el estado en cada línea abajo.</p>
+                  )}
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs uppercase tracking-wider text-[#5A6078]">Año de nacimiento</label>
+                  <input
+                    type="number"
+                    className="story-input w-full"
+                    value={form.birthYear ?? ''}
+                    onChange={(e) => {
+                      const raw = e.target.value.trim();
+                      patch({ birthYear: raw === '' ? undefined : Number(raw) || undefined });
+                    }}
+                    placeholder="opcional"
+                  />
                 </div>
                 <div>
                   <label className="mb-1 block text-xs uppercase tracking-wider text-[#5A6078]">Edad</label>
                   <input type="number" className="story-input w-full" value={form.age || ''} onChange={(e) => patch({ age: Number(e.target.value) || 0 })} />
                 </div>
               </div>
-              {timelines.map((tl) => (
-                <div key={tl.id}>
-                  <label className="mb-1 block text-xs uppercase text-[#5A6078]">Edad en «{tl.name}»</label>
-                  <input
-                    className="story-input max-w-xs w-full"
-                    value={ageTimelineDraft[tl.id] ?? ''}
-                    onChange={(e) => setAgeTimelineDraft((d) => ({ ...d, [tl.id]: e.target.value }))}
-                    placeholder="opcional"
-                  />
-                </div>
-              ))}
+              {timelines.length > 0 && (
+                <>
+                  <label className="flex items-center gap-2 text-sm text-[#E8E9EB]">
+                    <input
+                      type="checkbox"
+                      checked={useTimelineStatus}
+                      onChange={(e) => setUseTimelineStatus(e.target.checked)}
+                      className="accent-[#D61E2B]"
+                    />
+                    Estado distinto por línea temporal
+                  </label>
+                  {timelines.map((tl) => {
+                    const computed =
+                      form.birthYear != null ? computeAgeForTimeline(form.birthYear, tl) : null;
+                    return (
+                      <div key={tl.id} className="rounded-lg border border-[#2A3045]/60 bg-[#111318]/40 p-3">
+                        <p className="mb-2 text-xs font-medium text-[#8B91A7]">Línea: {tl.name}</p>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <div>
+                            <label className="mb-1 block text-xs uppercase text-[#5A6078]">Edad</label>
+                            <input
+                              className="story-input w-full"
+                              value={ageTimelineDraft[tl.id] ?? ''}
+                              onChange={(e) => setAgeTimelineDraft((d) => ({ ...d, [tl.id]: e.target.value }))}
+                              placeholder={computed != null ? String(computed) : 'opcional'}
+                            />
+                            {computed != null && !ageTimelineDraft[tl.id]?.trim() && (
+                              <p className="mt-1 text-[10px] text-[#5A6078]">
+                                Calculada: {computed} años (según año de la línea)
+                              </p>
+                            )}
+                          </div>
+                          {useTimelineStatus && (
+                            <div>
+                              <label className="mb-1 block text-xs uppercase text-[#5A6078]">Estado</label>
+                              <select
+                                className="story-input w-full text-sm"
+                                value={statusTimelineDraft[tl.id] ?? form.status}
+                                onChange={(e) =>
+                                  setStatusTimelineDraft((d) => ({
+                                    ...d,
+                                    [tl.id]: e.target.value as Character['status'],
+                                  }))
+                                }
+                              >
+                                <option value="alive">Vivo</option>
+                                <option value="dead">Muerto</option>
+                                <option value="missing">Desaparecido</option>
+                                <option value="unknown">Desconocido</option>
+                              </select>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </>
+              )}
               <div>
                 <label className="mb-1 block text-xs uppercase text-[#5A6078]">Tags</label>
                 <WorldTagInput worldId={effectiveWorldId} tagIds={tagIds} onChange={setTagIds} />

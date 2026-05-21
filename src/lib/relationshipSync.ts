@@ -242,7 +242,7 @@ export function syncRelationshipChange(
   let inverse = patch.inverseType ?? inverseRelationshipType(patch.type);
   const typeKey = normalizeKey(patch.type);
   if (/^herman[oa]$/.test(typeKey)) {
-    inverse = siblingRelationTypeFor(target.gender);
+    inverse = siblingRelationTypeFor(source.gender);
   }
   const isSpouse = SPOUSE_TYPES.test(typeKey);
 

@@ -129,7 +129,7 @@ export function SearchModal() {
         </motion.div>
 
         {/* Results */}
-        <div className="max-h-[50vh] overflow-y-auto scrollbar-thin p-3">
+        <div className="max-h-[50vh] overflow-y-auto p-3 scrollbar-thin">
           {!query ? (
             <div className="text-center py-8 text-[#5A6078] text-sm">
               Escribe para buscar en tu universo creativo

@@ -3,6 +3,7 @@ import { useWorldEditFromUrl } from '@/hooks/useWorldEditFromUrl';
 import { useSectionCardMenuDeps, entityCardMenuProps } from '@/hooks/useEntityCardMenu';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Sparkles, Heart, Search } from 'lucide-react';
+import { FantasticCategoryIcon } from '@/lib/fantasticCategoryIcon';
 import { useAppStore } from '@/store';
 import type { FantasticElement, FantasticElementCategory } from '@/types';
 import { FANTASTIC_CATEGORY_LABELS } from '@/lib/fantasticElementLabels';
@@ -12,6 +13,7 @@ import { EntityCardMenu } from '@/components/common/EntityCardMenu';
 import { StoryRichTextDisplay } from '@/components/common/StoryRichTextDisplay';
 import { toast } from 'sonner';
 import { storyEntityDataAttrs } from '@/lib/storyEntityContext';
+import { RichTextSnippet } from '@/components/common/RichTextSnippet';
 
 const CATEGORY_COLORS: Record<FantasticElementCategory, string> = {
   power: '#8B5CF6',
@@ -23,6 +25,27 @@ const CATEGORY_COLORS: Record<FantasticElementCategory, string> = {
 
 interface Props {
   worldId: string;
+}
+
+function fantasticMetaLines(el: FantasticElement): string[] {
+  const lines: string[] = [];
+  if (el.potency) lines.push(el.potency);
+  if (el.elementAffinity) lines.push(el.elementAffinity);
+  if (el.category === 'animal') {
+    if (el.species) lines.push(el.species);
+    if (el.habitat) lines.push(el.habitat);
+  } else if (el.category === 'spell' || el.category === 'technique') {
+    if (el.range) lines.push(`Alcance: ${el.range}`);
+    if (el.cost) lines.push(`Coste: ${el.cost}`);
+  } else {
+    if (el.range) lines.push(el.range);
+    if (el.requirements) lines.push(el.requirements);
+  }
+  if (el.linkedCharacterIds?.length) {
+    lines.push(`${el.linkedCharacterIds.length} personaje(s)`);
+  }
+  if (el.tags.length) lines.push(el.tags.slice(0, 3).join(' · '));
+  return lines;
 }
 
 export function FantasticElementsSection({ worldId }: Props) {
@@ -143,23 +166,26 @@ export function FantasticElementsSection({ worldId }: Props) {
           transition={{ duration: 0.22 }}
           className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
         >
-          {filtered.map((el, i) => (
+          {filtered.map((el, i) => {
+            const meta = fantasticMetaLines(el);
+            return (
             <motion.article
               key={el.id}
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.03 }}
-              className="story-card group relative cursor-pointer overflow-hidden p-4"
+              className="story-card group relative cursor-pointer overflow-hidden p-0"
               onClick={() => setDetail(el)}
               {...storyEntityDataAttrs('fantastic', el.id, worldId, el.name)}
             >
               <div
-                className="absolute left-0 top-0 h-full w-1"
+                className="absolute left-0 top-0 z-[1] h-full w-1"
                 style={{ backgroundColor: CATEGORY_COLORS[el.category] }}
               />
-              <div className="absolute right-2 top-2 flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
-                <button type="button" className="rounded-lg p-1.5" onClick={() => toggleFav(el.id)} aria-label="Favorito">
-                  <Heart size={14} className={el.isFavorite ? 'fill-[#D61E2B] text-[#D61E2B]' : 'text-[#5A6078]'} />
+              <div className="relative flex gap-2.5 p-2.5 pl-3">
+              <div className="absolute right-1.5 top-1.5 z-[2] flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
+                <button type="button" className="rounded-lg p-1" onClick={() => toggleFav(el.id)} aria-label="Favorito">
+                  <Heart size={13} className={el.isFavorite ? 'fill-[#D61E2B] text-[#D61E2B]' : 'text-[#5A6078]'} />
                 </button>
                 <EntityCardMenu
                   {...entityCardMenuProps(worldId, 'fantastic', el.id, el.name, {
@@ -169,24 +195,38 @@ export function FantasticElementsSection({ worldId }: Props) {
                   onDelete={() => setDeleteId(el.id)}
                 />
               </div>
-              <div className="flex gap-3 pl-2">
-                {el.imageUrl ? (
-                  <img src={el.imageUrl} alt="" className="h-14 w-14 shrink-0 rounded-lg object-cover" />
-                ) : (
-                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-[#1E2230]">
-                    <Sparkles size={20} style={{ color: CATEGORY_COLORS[el.category] }} />
-                  </div>
-                )}
-                <div className="min-w-0 flex-1">
-                  <h3 className="truncate font-semibold text-[#E8E9EB]">{el.name}</h3>
-                  <p className="text-[10px] uppercase tracking-wider" style={{ color: CATEGORY_COLORS[el.category] }}>
+              {el.imageUrl ? (
+                <img src={el.imageUrl} alt="" className="h-11 w-11 shrink-0 rounded-lg border border-[#2A3045] object-cover" />
+              ) : (
+                <div
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-[#2A3045] bg-[#1E2230]"
+                  style={{ boxShadow: `inset 0 0 12px ${CATEGORY_COLORS[el.category]}18` }}
+                >
+                  <FantasticCategoryIcon category={el.category} size={18} color={CATEGORY_COLORS[el.category]} />
+                </div>
+              )}
+                <div className="min-w-0 flex-1 pr-5">
+                  <span
+                    className="mb-0.5 inline-block rounded px-1.5 py-px text-[9px] font-medium uppercase tracking-wider"
+                    style={{
+                      color: CATEGORY_COLORS[el.category],
+                      backgroundColor: `${CATEGORY_COLORS[el.category]}18`,
+                    }}
+                  >
                     {FANTASTIC_CATEGORY_LABELS[el.category]}
-                  </p>
-                  {el.potency && <p className="mt-1 text-xs text-[#5A6078]">{el.potency}</p>}
+                  </span>
+                  <h3 className="truncate text-sm font-semibold text-[#E8E9EB]">{el.name}</h3>
+                  {meta.length > 0 && (
+                    <p className="mt-0.5 line-clamp-1 text-[11px] text-[#8B91A7]">{meta.join(' · ')}</p>
+                  )}
+                  {el.description?.trim() && (
+                    <RichTextSnippet text={el.description} worldId={worldId} lines={2} className="mt-1 text-[11px]" />
+                  )}
                 </div>
               </div>
             </motion.article>
-          ))}
+          );
+          })}
         </motion.div>
       )}
       </AnimatePresence>
@@ -206,17 +246,34 @@ export function FantasticElementsSection({ worldId }: Props) {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 8, scale: 0.98 }}
             transition={{ duration: 0.22, ease: 'easeOut' }}
-            className="story-card max-h-[85vh] w-full max-w-lg overflow-y-auto p-6"
+            className="story-card max-h-[85vh] w-full max-w-lg overflow-y-auto p-5 scrollbar-thin"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="mb-4 flex items-start justify-between gap-3">
-              <div>
+            <div className="mb-3 flex items-start gap-3">
+              {detail.imageUrl ? (
+                <img
+                  src={detail.imageUrl}
+                  alt=""
+                  className="h-16 w-16 shrink-0 rounded-xl border border-[#2A3045] object-cover"
+                />
+              ) : (
+                <div
+                  className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl border border-[#2A3045] bg-[#1E2230]"
+                  style={{ boxShadow: `inset 0 0 16px ${CATEGORY_COLORS[detail.category]}22` }}
+                >
+                  <FantasticCategoryIcon category={detail.category} size={28} color={CATEGORY_COLORS[detail.category]} />
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
                 <p className="text-[10px] font-mono uppercase" style={{ color: CATEGORY_COLORS[detail.category] }}>
                   {FANTASTIC_CATEGORY_LABELS[detail.category]}
                 </p>
-                <h2 className="text-xl font-bold text-[#E8E9EB]">{detail.name}</h2>
+                <h2 className="text-lg font-bold text-[#E8E9EB]">{detail.name}</h2>
+                {fantasticMetaLines(detail).length > 0 && (
+                  <p className="mt-0.5 text-xs text-[#8B91A7]">{fantasticMetaLines(detail).join(' · ')}</p>
+                )}
               </div>
-              <button type="button" className="story-btn-secondary text-xs" onClick={() => setDetail(null)}>
+              <button type="button" className="story-btn-secondary shrink-0 text-xs" onClick={() => setDetail(null)}>
                 Cerrar
               </button>
             </div>

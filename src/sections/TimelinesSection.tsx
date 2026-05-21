@@ -3,7 +3,7 @@ import { useWorldEditFromUrl } from '@/hooks/useWorldEditFromUrl';
 import { useNavigateWithReturn } from '@/hooks/useNavigationReturn';
 import { useAppStore } from '@/store';
 import { motion } from 'framer-motion';
-import { Plus, Clock, ChevronRight, Pencil, Trash2, MoreVertical } from 'lucide-react';
+import { Plus, Clock, ChevronRight, Pencil, Trash2, MoreVertical, Star } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,6 +25,8 @@ interface Props {
 
 export function TimelinesSection({ worldId }: Props) {
   const navigateWithReturn = useNavigateWithReturn();
+  const world = useAppStore((s) => s.worlds.find((w) => w.id === worldId));
+  const updateWorld = useAppStore((s) => s.updateWorld);
   const timelines = useAppStore((s) => s.getTimelinesByWorld(worldId));
   const addTimeline = useAppStore((s) => s.addTimeline);
   const updateTimeline = useAppStore((s) => s.updateTimeline);
@@ -42,8 +44,14 @@ export function TimelinesSection({ worldId }: Props) {
   const [pickedSceneIds, setPickedSceneIds] = useState<string[]>([]);
   const [pickedFactIds, setPickedFactIds] = useState<string[]>([]);
 
-  const activeId = activeTimeline || timelines[0]?.id;
+  const mainTimelineId = world?.mainTimelineId;
+  const activeId = activeTimeline || mainTimelineId || timelines[0]?.id;
   const active = timelines.find((t) => t.id === activeId);
+
+  const setMainTimeline = (timelineId: string) => {
+    updateWorld(worldId, { mainTimelineId: timelineId });
+    toast.success('Línea principal actualizada');
+  };
   const lineColor = active?.color ?? '#D61E2B';
   const timelineScenes = scenes.filter((s) => s.timelineId === activeId);
   const timelineFacts = facts.filter((f) => f.timelineId === activeId);
@@ -145,16 +153,29 @@ export function TimelinesSection({ worldId }: Props) {
               key={tl.id}
               type="button"
               onClick={() => setActiveTimeline(tl.id)}
-              className={`rounded-lg px-4 py-2 text-sm font-medium transition-all ${
+              className={`flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-all ${
                 activeId === tl.id ? 'text-white' : 'bg-[#1E2230] text-[#8B91A7] hover:text-[#E8E9EB]'
               }`}
               style={activeId === tl.id ? { backgroundColor: tl.color } : {}}
             >
+              {mainTimelineId === tl.id && (
+                <Star size={12} className="fill-current opacity-90" aria-hidden />
+              )}
               {tl.name}
             </button>
           ))}
         </div>
         <motion.div className="flex items-center gap-2" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }}>
+          {activeId && mainTimelineId !== activeId && (
+            <button
+              type="button"
+              onClick={() => setMainTimeline(activeId)}
+              className="story-btn-secondary flex items-center gap-1 px-2 py-1 text-xs"
+              title="Marcar como línea principal"
+            >
+              <Star size={14} /> Principal
+            </button>
+          )}
           <button
             type="button"
             onClick={() => {

@@ -78,6 +78,7 @@ export function GenealogySection({ worldId, houseId, houseName, members }: Props
       <div className={`grid gap-4 ${showEditor ? 'lg:grid-cols-5' : ''}`}>
         <div className={showEditor ? 'lg:col-span-3' : ''}>
           <GenealogyTree
+            worldId={worldId}
             characters={treeCharacters}
             rootCharacterId={rootId}
             houseName={houseName}

@@ -1,30 +1,34 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Maximize2, Minimize2, Minus, Plus, RotateCcw, UserPlus, X } from 'lucide-react';
+import { GenealogyTimelinePicker } from '@/components/houses/GenealogyTimelinePicker';
 import { AnimatePresence, motion } from 'framer-motion';
 import type { Character } from '@/types';
 import { buildGenealogyTree, pickGenealogyRoot, type GenealogyUnit } from '@/lib/characterGenealogy';
 import { CHARACTER_ROLE_LABELS } from '@/lib/characterRoles';
-
-const statusDot: Record<string, string> = {
-  alive: '#22C55E',
-  dead: '#6B7280',
-  missing: '#EAB308',
-  unknown: '#5A6078',
-};
+import { useAppStore } from '@/store';
+import { characterStatusForTimeline, CHARACTER_STATUS_LABELS } from '@/lib/characterTimelineAge';
+import {
+  genealogyNodeStatusClasses,
+  genealogyPortraitClasses,
+  STATUS_DOT,
+} from '@/lib/genealogyStatusStyle';
 
 function PersonNode({
   character,
   houseName,
   selected,
+  displayStatus,
   onSelect,
 }: {
   character: Character;
   houseName?: string;
   selected: boolean;
+  displayStatus: Character['status'];
   onSelect: () => void;
 }) {
   const role = CHARACTER_ROLE_LABELS[character.role]?.label;
   const external = houseName && character.house && character.house !== houseName;
+  const statusLabel = CHARACTER_STATUS_LABELS[displayStatus];
 
   return (
     <button
@@ -35,17 +39,21 @@ function PersonNode({
         e.stopPropagation();
         onSelect();
       }}
+      title={`${character.name} · ${statusLabel}`}
       className={`relative flex w-[92px] flex-col items-center rounded-xl border p-2 text-center transition-all ${
         selected
           ? 'border-[#D61E2B] bg-[#D61E2B]/15 shadow-[0_0_12px_rgba(214,30,43,0.25)]'
-          : 'border-[#2A3045] bg-gradient-to-b from-[#161922] to-[#111318] hover:border-[#D61E2B]/50'
+          : `border-[#2A3045] bg-gradient-to-b from-[#161922] to-[#111318] hover:border-[#D61E2B]/50 ${genealogyNodeStatusClasses(displayStatus, false)}`
       }`}
     >
       <span
         className="absolute left-1.5 top-1.5 z-10 h-2 w-2 rounded-full ring-2 ring-[#111318]"
-        style={{ backgroundColor: statusDot[character.status] ?? statusDot.unknown }}
+        style={{ backgroundColor: STATUS_DOT[displayStatus] ?? STATUS_DOT.unknown }}
+        aria-label={statusLabel}
       />
-      <div className="relative mb-1.5 h-11 w-11 overflow-hidden rounded-full ring-2 ring-[#2A3045]">
+      <div
+        className={`relative mb-1.5 h-11 w-11 overflow-hidden rounded-full ring-2 ring-[#2A3045] ${genealogyPortraitClasses(displayStatus)}`}
+      >
         {character.images[0] ? (
           <img src={character.images[0]} alt="" className="h-full w-full object-cover" draggable={false} />
         ) : (
@@ -67,11 +75,13 @@ function CoupleRow({
   unit,
   houseName,
   selectedId,
+  viewTimelineId,
   onSelect,
 }: {
   unit: GenealogyUnit;
   houseName?: string;
   selectedId: string | null;
+  viewTimelineId: string | null;
   onSelect: (id: string) => void;
 }) {
   return (
@@ -83,6 +93,7 @@ function CoupleRow({
             character={p}
             houseName={houseName}
             selected={selectedId === p.id}
+            displayStatus={characterStatusForTimeline(p, viewTimelineId)}
             onSelect={() => onSelect(p.id)}
           />
         </div>
@@ -95,18 +106,26 @@ function TreeBranch({
   unit,
   houseName,
   selectedId,
+  viewTimelineId,
   onSelect,
   depth = 0,
 }: {
   unit: GenealogyUnit;
   houseName?: string;
   selectedId: string | null;
+  viewTimelineId: string | null;
   onSelect: (id: string) => void;
   depth?: number;
 }) {
   return (
     <div className="flex flex-col items-center">
-      <CoupleRow unit={unit} houseName={houseName} selectedId={selectedId} onSelect={onSelect} />
+      <CoupleRow
+        unit={unit}
+        houseName={houseName}
+        selectedId={selectedId}
+        viewTimelineId={viewTimelineId}
+        onSelect={onSelect}
+      />
       {unit.children.length > 0 && (
         <>
           <div className="my-2 h-6 w-px bg-[#2A3045]" aria-hidden />
@@ -119,6 +138,7 @@ function TreeBranch({
                   unit={child}
                   houseName={houseName}
                   selectedId={selectedId}
+                  viewTimelineId={viewTimelineId}
                   onSelect={onSelect}
                   depth={depth + 1}
                 />
@@ -136,6 +156,7 @@ function BranchConnectorLine() {
 }
 
 type Props = {
+  worldId: string;
   characters: Character[];
   rootCharacterId: string;
   houseName?: string;
@@ -147,6 +168,7 @@ type Props = {
 };
 
 export function GenealogyTree({
+  worldId,
   characters,
   rootCharacterId,
   houseName,
@@ -155,6 +177,9 @@ export function GenealogyTree({
   selectedId = null,
   scrollToCharacterId = null,
 }: Props) {
+  const world = useAppStore((s) => s.worlds.find((w) => w.id === worldId));
+  const timelines = useAppStore((s) => s.getTimelinesByWorld(worldId));
+  const [viewTimelineId, setViewTimelineId] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [scale, setScale] = useState(1);
@@ -168,6 +193,20 @@ export function GenealogyTree({
     [characters, effectiveRoot]
   );
 
+  useEffect(() => {
+    if (timelines.length === 0) {
+      setViewTimelineId('');
+      return;
+    }
+    const preferred =
+      world?.mainTimelineId && timelines.some((t) => t.id === world.mainTimelineId)
+        ? world.mainTimelineId
+        : timelines[0].id;
+    setViewTimelineId((prev) => (prev && timelines.some((t) => t.id === prev) ? prev : preferred));
+  }, [worldId, world?.mainTimelineId, timelines.length, timelines[0]?.id]);
+
+  const activeTimelineId = timelines.length > 0 ? viewTimelineId || timelines[0]?.id : null;
+
   const resetView = useCallback(() => {
     setPan({ x: 0, y: 0 });
     setScale(1);
@@ -176,6 +215,18 @@ export function GenealogyTree({
   useEffect(() => {
     resetView();
   }, [effectiveRoot, resetView]);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -0.08 : 0.08;
+      setScale((s) => Math.min(1.6, Math.max(0.4, s + delta)));
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [fullscreen]);
 
   useEffect(() => {
     const id = scrollToCharacterId;
@@ -220,8 +271,39 @@ export function GenealogyTree({
       onMouseLeave={handleMouseUp}
     >
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,#1a1f2a_0%,transparent_65%)] opacity-40" />
+      {timelines.length > 0 && activeTimelineId && (
+        <div className="absolute left-2 top-2 z-20">
+          <GenealogyTimelinePicker
+            timelines={timelines}
+            value={activeTimelineId}
+            mainTimelineId={world?.mainTimelineId}
+            onChange={setViewTimelineId}
+          />
+        </div>
+      )}
+      {timelines.length > 0 && (
+        <div
+          className="pointer-events-none absolute right-2 top-2 z-20 flex items-center gap-1.5 rounded-md border border-[#2A3045]/70 bg-[#111318]/90 px-1.5 py-1 backdrop-blur-sm"
+          title="Estado en la línea seleccionada"
+        >
+          {(['alive', 'dead', 'missing', 'unknown'] as const).map((st) => (
+            <span
+              key={st}
+              className="flex items-center gap-0.5 text-[8px] text-[#5A6078]"
+              title={CHARACTER_STATUS_LABELS[st]}
+            >
+              <span
+                className="h-1.5 w-1.5 rounded-full"
+                style={{ backgroundColor: STATUS_DOT[st] }}
+                aria-hidden
+              />
+              <span className="hidden min-[400px]:inline">{CHARACTER_STATUS_LABELS[st].charAt(0)}</span>
+            </span>
+          ))}
+        </div>
+      )}
       <p className="pointer-events-none absolute bottom-2 left-3 z-10 text-[10px] text-[#5A6078]">
-        Arrastra para mover · Usa +/− para zoom
+        Arrastra para mover · Rueda o +/− para zoom
       </p>
 
       <div
@@ -237,6 +319,7 @@ export function GenealogyTree({
             unit={tree}
             houseName={houseName}
             selectedId={selectedId}
+            viewTimelineId={activeTimelineId}
             onSelect={onSelectCharacter}
           />
         ) : (

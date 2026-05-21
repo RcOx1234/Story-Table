@@ -12,6 +12,7 @@ import { EntityCardMenu } from '@/components/common/EntityCardMenu';
 import { toast } from 'sonner';
 import { storyEntityDataAttrs } from '@/lib/storyEntityContext';
 import { RichTextSnippet } from '@/components/common/RichTextSnippet';
+import { StoryRichTextDisplay } from '@/components/common/StoryRichTextDisplay';
 
 const datumTypeLabels: Record<WorldDatumType, string> = {
   geography: 'Geografía',
@@ -186,8 +187,24 @@ export function DatosSection({ worldId }: Props) {
         }
       >
         {viewing && (
-          <div className="space-y-3 text-sm leading-relaxed text-[#8B91A7]">
-            <p>{viewing.content || '—'}</p>
+          <div className="space-y-4 text-sm leading-relaxed text-[#8B91A7]">
+            {viewing.images.length > 0 && (
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {viewing.images.map((url, i) => (
+                  <img
+                    key={`${url}-${i}`}
+                    src={url}
+                    alt=""
+                    className="max-h-56 w-full rounded-xl border border-[#2A3045] object-cover"
+                  />
+                ))}
+              </div>
+            )}
+            {viewing.content ? (
+              <StoryRichTextDisplay text={viewing.content} worldId={worldId} className="text-[#E8E9EB]" />
+            ) : (
+              <p>—</p>
+            )}
           </div>
         )}
       </BaseModal>

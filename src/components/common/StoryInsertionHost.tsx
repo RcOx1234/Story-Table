@@ -196,7 +196,11 @@ export function StoryInsertionHost() {
   }
 
   if (payload.type === 'fact' && 'fact' in payload) {
-    const { fact, worldId } = payload as { type: 'fact'; worldId: string; fact: { title: string; description: string } };
+    const { fact, worldId } = payload as {
+      type: 'fact';
+      worldId: string;
+      fact: { title: string; description: string; images?: string[] };
+    };
     return (
       <BaseModal
         open
@@ -209,13 +213,26 @@ export function StoryInsertionHost() {
           </button>
         }
       >
-        <StoryRichTextDisplay text={fact.description} worldId={worldId} className="text-[#E8E9EB]" />
+        <div className="space-y-4">
+          {fact.images?.[0] && (
+            <img
+              src={fact.images[0]}
+              alt=""
+              className="max-h-56 w-full rounded-xl border border-[#2A3045] object-cover"
+            />
+          )}
+          <StoryRichTextDisplay text={fact.description} worldId={worldId} className="text-[#E8E9EB]" />
+        </div>
       </BaseModal>
     );
   }
 
   if (payload.type === 'datum' && 'datum' in payload) {
-    const { datum, worldId } = payload as { type: 'datum'; worldId: string; datum: { title: string; content: string } };
+    const { datum, worldId } = payload as {
+      type: 'datum';
+      worldId: string;
+      datum: { title: string; content: string; images?: string[] };
+    };
     return (
       <BaseModal
         open
@@ -228,7 +245,21 @@ export function StoryInsertionHost() {
           </button>
         }
       >
-        <StoryRichTextDisplay text={datum.content} worldId={worldId} className="text-[#E8E9EB]" />
+        <div className="space-y-4">
+          {datum.images && datum.images.length > 0 && (
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {datum.images.map((url, i) => (
+                <img
+                  key={`${url}-${i}`}
+                  src={url}
+                  alt=""
+                  className="max-h-56 w-full rounded-xl border border-[#2A3045] object-cover"
+                />
+              ))}
+            </div>
+          )}
+          <StoryRichTextDisplay text={datum.content} worldId={worldId} className="text-[#E8E9EB]" />
+        </div>
       </BaseModal>
     );
   }

@@ -1,5 +1,5 @@
 import { X } from 'lucide-react';
-import { relationshipTypeLabel } from '@/lib/relationshipTypes';
+import { relationshipDisplayLabel } from '@/lib/relationshipDisplay';
 import type { Character } from '@/types';
 
 type Props = {
@@ -34,7 +34,9 @@ export function RelationshipChip({
         )}
         <span className="min-w-0">
           <span className="block truncate text-sm font-medium text-[#E8E9EB]">{character.name}</span>
-          <span className="block truncate text-[10px] text-[#5A6078]">{relationshipTypeLabel(relationType)}</span>
+          <span className="block truncate text-[10px] text-[#5A6078]">
+            {relationshipDisplayLabel(relationType, character)}
+          </span>
         </span>
       </button>
       {!readOnly && onRemove && (

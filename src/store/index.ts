@@ -697,7 +697,10 @@ export const useStore = create<AppState>()(
         })),
       deleteTimeline: (id) =>
         set((state) => ({ timelines: state.timelines.filter((t) => t.id !== id) })),
-      getTimelinesByWorld: (worldId) => get().timelines.filter((t) => t.worldId === worldId),
+      getTimelinesByWorld: (worldId) =>
+        get()
+          .timelines.filter((t) => t.worldId === worldId)
+          .sort((a, b) => a.order - b.order),
 
       fantasticElements: [],
       addFantasticElement: (el) => {

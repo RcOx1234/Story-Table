@@ -23,6 +23,8 @@ export interface World {
   enabledSections?: SectionType[];
   /** Orden de pestañas en la barra del mundo. */
   sectionOrder?: SectionType[];
+  /** Línea temporal principal del mundo (referencia para edades y estado). */
+  mainTimelineId?: string;
   protected: boolean;
   /** @deprecated Usar passwordHash; se mantiene por compatibilidad con datos demo. */
   password?: string;
@@ -66,7 +68,11 @@ export interface Character {
   /** Casa vinculada del catálogo de casas del mundo. */
   houseId?: string;
   age: number;
+  /** Año de nacimiento (opcional); sirve para calcular edad por línea temporal. */
+  birthYear?: number;
   ageByTimeline: Record<string, number>;
+  /** Estado del personaje por línea temporal (solo si hay líneas definidas). */
+  statusByTimeline?: Record<string, Character['status']>;
   appearance: string;
   personality: string;
   backstory: string;
