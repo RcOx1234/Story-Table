@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useWorldEditFromUrl } from '@/hooks/useWorldEditFromUrl';
 import { useSectionCardMenuDeps, entityCardMenuProps } from '@/hooks/useEntityCardMenu';
-import { useAppStore } from '@/store';
-import { motion } from 'framer-motion';
+import { useAppStore, useStore } from '@/store';
 import { Plus, Lightbulb, Heart, Pencil, UserCircle } from 'lucide-react';
+import { EntityReference } from '@/components/common/EntityReference';
 import { IdeaFormModal } from '@/components/modals/crud/IdeaFormModal';
 import { BaseModal } from '@/components/modals/crud/BaseModal';
 import { ConfirmDeleteModal } from '@/components/modals/crud/ConfirmDeleteModal';
@@ -30,12 +30,13 @@ const typeLabels: Record<string, { label: string; color: string }> = {
 
 export function WorldIdeasSection({ worldId }: Props) {
   const cardMenu = useSectionCardMenuDeps();
-  const ideas = useAppStore((s) => s.ideas.filter((i) => i.worldId === worldId && !i.isDeleted));
+  const ideas = useAppStore((s) => s.getIdeasByWorld(worldId));
   const addIdea = useAppStore((s) => s.addIdea);
   const deleteIdea = useAppStore((s) => s.deleteIdea);
   const updateIdea = useAppStore((s) => s.updateIdea);
   const toggleFav = useAppStore((s) => s.toggleFavoriteIdea);
   const getCharactersByWorld = useAppStore((s) => s.getCharactersByWorld);
+  const getCharacterById = useAppStore((s) => s.getCharacterById);
   const [filter, setFilter] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [detail, setDetail] = useState<Idea | null>(null);
@@ -49,12 +50,14 @@ export function WorldIdeasSection({ worldId }: Props) {
     toast.success('Idea guardada');
   };
 
-  const openEdit = (idea: Idea) => {
+  const openEdit = useCallback((idea: Idea) => {
     setEditFromDetail(idea);
     setFormOpen(true);
-  };
+  }, []);
 
-  useWorldEditFromUrl(openEdit, (id) => ideas.find((i) => i.id === id));
+  const findIdeaById = useCallback((id: string) => useStore.getState().getIdeasByWorld(worldId).find((i) => i.id === id), [worldId]);
+
+  useWorldEditFromUrl(openEdit, findIdeaById);
 
   return (
     <div>
@@ -92,12 +95,9 @@ export function WorldIdeasSection({ worldId }: Props) {
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-3">
-          {filtered.map((idea, i) => (
-            <motion.div
+          {filtered.map((idea) => (
+            <div
               key={idea.id}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.05 }}
               role="button"
               tabIndex={0}
               onKeyDown={(e) => e.key === 'Enter' && setDetail(idea)}
@@ -141,35 +141,38 @@ export function WorldIdeasSection({ worldId }: Props) {
                 })}
                 onDelete={() => setDeleteId(idea.id)}
               />
-            </motion.div>
+            </div>
           ))}
         </div>
       )}
-      <IdeaFormModal
-        open={formOpen}
-        onClose={() => {
-          setFormOpen(false);
-          setEditFromDetail(null);
-        }}
-        worldId={worldId}
-        initial={editFromDetail}
-        onSubmit={(data) => {
-          if (editFromDetail) {
-            updateIdea(editFromDetail.id, data);
-            toast.success('Idea actualizada');
+      {formOpen && (
+        <IdeaFormModal
+          key={editFromDetail?.id ?? 'new'}
+          open
+          onClose={() => {
+            setFormOpen(false);
             setEditFromDetail(null);
-          } else {
-            onSubmit(data);
-          }
-        }}
-      />
+          }}
+          worldId={worldId}
+          initial={editFromDetail}
+          onSubmit={(data) => {
+            if (editFromDetail) {
+              updateIdea(editFromDetail.id, data);
+              toast.success('Idea actualizada');
+              setEditFromDetail(null);
+            } else {
+              onSubmit(data);
+            }
+          }}
+        />
+      )}
 
       <BaseModal
         open={!!detail}
         onClose={() => setDetail(null)}
         title="Detalle de la idea"
         description={detail ? new Date(detail.createdAt).toLocaleString() : undefined}
-        maxWidthClass="max-w-lg"
+        maxWidthClass="max-w-xl"
         footer={
           <>
             <button type="button" className="story-btn-secondary text-sm" onClick={() => setDetail(null)}>
@@ -217,10 +220,80 @@ export function WorldIdeasSection({ worldId }: Props) {
                 </span>
               ))}
             </div>
+            {(detail.relatedCharacterIds?.length ||
+              detail.relatedPlaceIds?.length ||
+              detail.relatedSceneIds?.length ||
+              detail.relatedHouseIds?.length ||
+              detail.relatedOrganizationIds?.length ||
+              detail.linkedCharacterId) && (
+              <div className="space-y-3 rounded-xl border border-[#2A3045]/60 bg-[#111318]/60 p-3">
+                <p className="text-[10px] font-mono uppercase tracking-wider text-[#5A6078]">Vínculos</p>
+                {detail.linkedCharacterId && (
+                  <div>
+                    <p className="mb-1 flex items-center gap-1 text-[10px] text-[#5A6078]">
+                      <UserCircle size={11} /> Foco principal
+                    </p>
+                    {(() => {
+                      const ch = getCharacterById(detail.linkedCharacterId!);
+                      return ch ? (
+                        <EntityReference type="character" id={ch.id} worldId={worldId} label={ch.name} />
+                      ) : null;
+                    })()}
+                  </div>
+                )}
+                {detail.relatedCharacterIds && detail.relatedCharacterIds.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {detail.relatedCharacterIds.map((id) => {
+                      const ch = getCharacterById(id);
+                      if (!ch) return null;
+                      return <EntityReference key={id} type="character" id={ch.id} worldId={worldId} label={ch.name} />;
+                    })}
+                  </div>
+                )}
+                {detail.relatedPlaceIds && detail.relatedPlaceIds.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {detail.relatedPlaceIds.map((id) => {
+                      const pl = useStore.getState().getPlacesByWorld(worldId).find((p) => p.id === id);
+                      if (!pl) return null;
+                      return <EntityReference key={id} type="place" id={pl.id} worldId={worldId} label={pl.name} />;
+                    })}
+                  </div>
+                )}
+                {detail.relatedSceneIds && detail.relatedSceneIds.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {detail.relatedSceneIds.map((id) => {
+                      const sc = useStore.getState().scenes.find((s) => s.id === id);
+                      if (!sc) return null;
+                      return <EntityReference key={id} type="scene" id={sc.id} worldId={worldId} label={sc.title} />;
+                    })}
+                  </div>
+                )}
+                {detail.relatedHouseIds && detail.relatedHouseIds.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {detail.relatedHouseIds.map((id) => {
+                      const h = useStore.getState().getHousesByWorld(worldId).find((x) => x.id === id);
+                      if (!h) return null;
+                      return <EntityReference key={id} type="house" id={h.id} worldId={worldId} label={h.name} />;
+                    })}
+                  </div>
+                )}
+                {detail.relatedOrganizationIds && detail.relatedOrganizationIds.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {detail.relatedOrganizationIds.map((id) => {
+                      const o = useStore.getState().organizations.find((x) => x.id === id);
+                      if (!o) return null;
+                      return (
+                        <EntityReference key={id} type="organization" id={o.id} worldId={worldId} label={o.name} />
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
             {getCharactersByWorld(worldId).length > 0 && (
               <div>
                 <label className="mb-1 flex items-center gap-2 text-xs text-[#5A6078]">
-                  <UserCircle size={12} className="text-[#3B82F6]" /> Personaje vinculado
+                  <UserCircle size={12} className="text-[#3B82F6]" /> Cambiar foco principal
                 </label>
                 <select
                   className="story-input w-full text-sm"

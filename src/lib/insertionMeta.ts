@@ -13,12 +13,15 @@ import {
   Database,
   Lightbulb,
   Sparkles,
+  Layers,
 } from 'lucide-react';
 
 export type InsertionEntityType =
   | 'character'
   | 'scene'
   | 'place'
+  | 'placeCollection'
+  | 'mapCollection'
   | 'house'
   | 'map'
   | 'component'
@@ -37,6 +40,8 @@ export const INSERTION_META: Record<
   character: { label: 'Personaje', icon: Users, color: '#3B82F6', bg: 'rgba(59,130,246,0.15)' },
   scene: { label: 'Escena', icon: FileText, color: '#22C55E', bg: 'rgba(34,197,94,0.12)' },
   place: { label: 'Lugar', icon: MapPin, color: '#EAB308', bg: 'rgba(234,179,8,0.12)' },
+  placeCollection: { label: 'Colección de lugares', icon: Layers, color: '#CA8A04', bg: 'rgba(202,138,4,0.12)' },
+  mapCollection: { label: 'Colección de mapas', icon: Layers, color: '#0891B2', bg: 'rgba(8,145,178,0.12)' },
   house: { label: 'Casa', icon: Castle, color: '#F59E0B', bg: 'rgba(245,158,11,0.12)' },
   map: { label: 'Mapa', icon: Globe, color: '#06B6D4', bg: 'rgba(6,182,212,0.12)' },
   component: { label: 'Componente', icon: Box, color: '#A855F7', bg: 'rgba(168,85,247,0.12)' },

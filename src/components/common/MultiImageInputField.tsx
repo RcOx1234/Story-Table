@@ -1,6 +1,8 @@
 import { useRef, useCallback, useState } from 'react';
-import { ImageIcon, Link2, Plus, X } from 'lucide-react';
+import { ImageIcon, Link2, Plus, Upload, X } from 'lucide-react';
 import { toast } from 'sonner';
+
+type Mode = 'url' | 'file';
 
 type Props = {
   label?: string;
@@ -27,6 +29,7 @@ function isLikelyImageUrl(url: string): boolean {
 
 export function MultiImageInputField({ label = 'Imágenes', value, onChange, max = 12 }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
+  const [mode, setMode] = useState<Mode>('file');
   const [urlDraft, setUrlDraft] = useState('');
 
   const applyFiles = useCallback(
@@ -75,7 +78,29 @@ export function MultiImageInputField({ label = 'Imágenes', value, onChange, max
 
   return (
     <div className="space-y-2">
-      <label className="block text-xs font-mono uppercase tracking-wider text-[#5A6078]">{label}</label>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <label className="text-xs font-mono uppercase tracking-wider text-[#5A6078]">{label}</label>
+        <div className="flex rounded-lg border border-[#2A3045] p-0.5">
+          <button
+            type="button"
+            onClick={() => setMode('file')}
+            className={`flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium uppercase transition-all ${
+              mode === 'file' ? 'bg-[#D61E2B] text-white' : 'text-[#5A6078] hover:text-[#E8E9EB]'
+            }`}
+          >
+            <Upload size={10} /> Archivo
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode('url')}
+            className={`flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium uppercase transition-all ${
+              mode === 'url' ? 'bg-[#D61E2B] text-white' : 'text-[#5A6078] hover:text-[#E8E9EB]'
+            }`}
+          >
+            <Link2 size={10} /> URL
+          </button>
+        </div>
+      </div>
       <input
         ref={fileRef}
         type="file"
@@ -87,52 +112,59 @@ export function MultiImageInputField({ label = 'Imágenes', value, onChange, max
           e.target.value = '';
         }}
       />
-      <div className="flex gap-2">
-        <input
-          value={urlDraft}
-          onChange={(e) => setUrlDraft(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addUrl())}
-          className="story-input min-w-0 flex-1 text-sm"
-          placeholder="https://… (URL de imagen)"
-        />
-        <button type="button" className="story-btn-secondary shrink-0 px-2 py-1 text-xs" onClick={addUrl}>
-          <Link2 size={12} className="inline" /> URL
-        </button>
-      </div>
-      <div className="flex flex-wrap gap-2">
-        {value.map((url, i) => (
-          <div key={`${url.slice(0, 24)}-${i}`} className="group relative">
-            <img src={url} alt="" className="h-16 w-16 rounded-lg border border-[#2A3045] object-cover" />
-            <button
-              type="button"
-              aria-label="Quitar imagen"
-              onClick={() => onChange(value.filter((_, j) => j !== i))}
-              className="absolute -right-1 -top-1 rounded-full bg-[#D61E2B] p-0.5 opacity-0 transition-opacity group-hover:opacity-100"
-            >
-              <X size={12} className="text-white" />
-            </button>
-          </div>
-        ))}
-        {value.length < max && (
-          <button
-            type="button"
-            onClick={() => fileRef.current?.click()}
-            className="flex h-16 w-16 flex-col items-center justify-center gap-0.5 rounded-lg border-2 border-dashed border-[#2A3045] bg-[#111318] text-[#5A6078] transition-all hover:border-[#D61E2B]"
-          >
-            <Plus size={14} />
-            <span className="text-[8px] uppercase">Archivo</span>
+      {mode === 'url' ? (
+        <div className="flex gap-2">
+          <input
+            value={urlDraft}
+            onChange={(e) => setUrlDraft(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addUrl())}
+            className="story-input min-w-0 flex-1 text-sm"
+            placeholder="https://…"
+          />
+          <button type="button" className="story-btn-secondary shrink-0 px-3 text-xs" onClick={addUrl}>
+            Añadir
           </button>
-        )}
-      </div>
-      {value.length === 0 && (
+        </div>
+      ) : (
         <button
           type="button"
           onClick={() => fileRef.current?.click()}
-          className="flex w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-[#2A3045] bg-[#111318] px-4 py-4 transition-all hover:border-[#5A6078]"
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => {
+            e.preventDefault();
+            if (e.dataTransfer.files?.length) void applyFiles(e.dataTransfer.files);
+          }}
+          className="flex w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-[#2A3045] bg-[#111318] px-4 py-4 transition-all hover:border-[#D61E2B]/50"
         >
           <ImageIcon size={20} className="text-[#5A6078]" />
-          <p className="text-center text-xs text-[#8B91A7]">Archivo, URL arriba, o arrastra imágenes</p>
+          <p className="text-center text-xs text-[#8B91A7]">Haz clic o arrastra imágenes</p>
         </button>
+      )}
+      {value.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {value.map((url, i) => (
+            <div key={`${url.slice(0, 24)}-${i}`} className="group relative">
+              <img src={url} alt="" className="h-16 w-16 rounded-lg border border-[#2A3045] object-cover" />
+              <button
+                type="button"
+                aria-label="Quitar imagen"
+                onClick={() => onChange(value.filter((_, j) => j !== i))}
+                className="absolute -right-1 -top-1 rounded-full bg-[#D61E2B] p-0.5 opacity-0 transition-opacity group-hover:opacity-100"
+              >
+                <X size={12} className="text-white" />
+              </button>
+            </div>
+          ))}
+          {value.length < max && mode === 'file' && (
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              className="flex h-16 w-16 flex-col items-center justify-center gap-0.5 rounded-lg border-2 border-dashed border-[#2A3045] bg-[#111318] text-[#5A6078] hover:border-[#D61E2B]"
+            >
+              <Plus size={14} />
+            </button>
+          )}
+        </div>
       )}
     </div>
   );

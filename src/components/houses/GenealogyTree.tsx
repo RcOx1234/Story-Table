@@ -2,44 +2,63 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Maximize2, Minimize2, Minus, Plus, RotateCcw, UserPlus, X } from 'lucide-react';
 import { GenealogyTimelinePicker } from '@/components/houses/GenealogyTimelinePicker';
 import { AnimatePresence, motion } from 'framer-motion';
-import type { Character } from '@/types';
+import type { Character, Timeline } from '@/types';
 import { buildGenealogyTree, pickGenealogyRoot, type GenealogyUnit } from '@/lib/characterGenealogy';
 import { CHARACTER_ROLE_LABELS } from '@/lib/characterRoles';
 import { useAppStore } from '@/store';
 import { characterStatusForTimeline, CHARACTER_STATUS_LABELS } from '@/lib/characterTimelineAge';
 import {
+  genealogyDeathOverlay,
   genealogyNodeStatusClasses,
   genealogyPortraitClasses,
   STATUS_DOT,
 } from '@/lib/genealogyStatusStyle';
+import { GenealogyPersonContextMenu } from '@/components/houses/GenealogyPersonContextMenu';
+import { deathCauseLabel } from '@/lib/deathCause';
 
 function PersonNode({
   character,
   houseName,
   selected,
   displayStatus,
+  viewTimelineId,
+  timelines,
   onSelect,
+  onFocusTree,
+  onEditCharacter,
 }: {
   character: Character;
   houseName?: string;
   selected: boolean;
   displayStatus: Character['status'];
+  viewTimelineId: string | null;
+  timelines: Timeline[];
   onSelect: () => void;
+  onFocusTree?: (id: string) => void;
+  onEditCharacter?: (id: string) => void;
 }) {
   const role = CHARACTER_ROLE_LABELS[character.role]?.label;
   const external = houseName && character.house && character.house !== houseName;
   const statusLabel = CHARACTER_STATUS_LABELS[displayStatus];
+  const death = viewTimelineId ? character.deathByTimeline?.[viewTimelineId] : undefined;
+  const deathOverlay = displayStatus === 'dead' ? genealogyDeathOverlay(death) : null;
+  const deathHint =
+    displayStatus === 'dead' && death
+      ? ` · ${deathCauseLabel(death.causeType, death.customCause)}${death.dateLabel ? ` (${death.dateLabel})` : ''}`
+      : '';
 
-  return (
+  const node = (
     <button
       type="button"
       data-character-id={character.id}
+      data-genealogy-person
       onPointerDown={(e) => e.stopPropagation()}
+      onContextMenu={(e) => e.stopPropagation()}
       onClick={(e) => {
         e.stopPropagation();
         onSelect();
       }}
-      title={`${character.name} · ${statusLabel}`}
+      title={`${character.name} · ${statusLabel}${deathHint}`}
       className={`relative flex w-[92px] flex-col items-center rounded-xl border p-2 text-center transition-all ${
         selected
           ? 'border-[#D61E2B] bg-[#D61E2B]/15 shadow-[0_0_12px_rgba(214,30,43,0.25)]'
@@ -57,9 +76,17 @@ function PersonNode({
         {character.images[0] ? (
           <img src={character.images[0]} alt="" className="h-full w-full object-cover" draggable={false} />
         ) : (
-                  <div className="flex h-full w-full items-center justify-center text-sm font-semibold text-[#8B91A7]">
+          <div className="flex h-full w-full items-center justify-center text-sm font-semibold text-[#8B91A7]">
             {character.name.charAt(0)}
           </div>
+        )}
+        {deathOverlay?.show && (
+          <span
+            className={`absolute inset-0 flex items-center justify-center text-lg font-bold ${deathOverlay.className}`}
+            aria-hidden
+          >
+            {deathOverlay.symbol}
+          </span>
         )}
       </div>
       <span className="line-clamp-2 text-[11px] font-medium leading-tight text-[#E8E9EB]">{character.name}</span>
@@ -69,6 +96,18 @@ function PersonNode({
       )}
     </button>
   );
+
+  return (
+    <GenealogyPersonContextMenu
+      character={character}
+      viewTimelineId={viewTimelineId}
+      timelines={timelines}
+      onFocusTree={onFocusTree}
+      onEditCharacter={onEditCharacter}
+    >
+      {node}
+    </GenealogyPersonContextMenu>
+  );
 }
 
 function CoupleRow({
@@ -76,13 +115,19 @@ function CoupleRow({
   houseName,
   selectedId,
   viewTimelineId,
+  timelines,
   onSelect,
+  onFocusTree,
+  onEditCharacter,
 }: {
   unit: GenealogyUnit;
   houseName?: string;
   selectedId: string | null;
   viewTimelineId: string | null;
+  timelines: Timeline[];
   onSelect: (id: string) => void;
+  onFocusTree?: (id: string) => void;
+  onEditCharacter?: (id: string) => void;
 }) {
   return (
     <div className="flex flex-wrap items-center justify-center gap-2">
@@ -94,7 +139,11 @@ function CoupleRow({
             houseName={houseName}
             selected={selectedId === p.id}
             displayStatus={characterStatusForTimeline(p, viewTimelineId)}
+            viewTimelineId={viewTimelineId}
+            timelines={timelines}
             onSelect={() => onSelect(p.id)}
+            onFocusTree={onFocusTree}
+            onEditCharacter={onEditCharacter}
           />
         </div>
       ))}
@@ -108,13 +157,19 @@ function TreeBranch({
   selectedId,
   viewTimelineId,
   onSelect,
+  timelines,
+  onFocusTree,
+  onEditCharacter,
   depth = 0,
 }: {
   unit: GenealogyUnit;
   houseName?: string;
   selectedId: string | null;
   viewTimelineId: string | null;
+  timelines: Timeline[];
   onSelect: (id: string) => void;
+  onFocusTree?: (id: string) => void;
+  onEditCharacter?: (id: string) => void;
   depth?: number;
 }) {
   return (
@@ -124,7 +179,10 @@ function TreeBranch({
         houseName={houseName}
         selectedId={selectedId}
         viewTimelineId={viewTimelineId}
+        timelines={timelines}
         onSelect={onSelect}
+        onFocusTree={onFocusTree}
+        onEditCharacter={onEditCharacter}
       />
       {unit.children.length > 0 && (
         <>
@@ -139,7 +197,10 @@ function TreeBranch({
                   houseName={houseName}
                   selectedId={selectedId}
                   viewTimelineId={viewTimelineId}
+                  timelines={timelines}
                   onSelect={onSelect}
+                  onFocusTree={onFocusTree}
+                  onEditCharacter={onEditCharacter}
                   depth={depth + 1}
                 />
               </div>
@@ -161,9 +222,11 @@ type Props = {
   rootCharacterId: string;
   houseName?: string;
   onSelectCharacter: (characterId: string) => void;
+  onFocusTree?: (characterId: string) => void;
+  onEditCharacter?: (characterId: string) => void;
   onAddCharacter?: () => void;
   selectedId?: string | null;
-  /** Centra el árbol en este personaje (p. ej. desde avisos del editor). */
+  /** Centra el árbol en este personaje (solo al elegir «Enfocar» en el menú). */
   scrollToCharacterId?: string | null;
 };
 
@@ -173,6 +236,8 @@ export function GenealogyTree({
   rootCharacterId,
   houseName,
   onSelectCharacter,
+  onFocusTree,
+  onEditCharacter,
   onAddCharacter,
   selectedId = null,
   scrollToCharacterId = null,
@@ -186,6 +251,8 @@ export function GenealogyTree({
   const [dragging, setDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [fullscreen, setFullscreen] = useState(false);
+  const panRafRef = useRef<number | null>(null);
+  const pendingPanRef = useRef({ x: 0, y: 0 });
 
   const effectiveRoot = rootCharacterId || pickGenealogyRoot(characters) || '';
   const tree = useMemo(
@@ -252,10 +319,21 @@ export function GenealogyTree({
 
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!dragging) return;
-    setPan({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
+    pendingPanRef.current = { x: e.clientX - dragStart.x, y: e.clientY - dragStart.y };
+    if (panRafRef.current != null) return;
+    panRafRef.current = requestAnimationFrame(() => {
+      setPan(pendingPanRef.current);
+      panRafRef.current = null;
+    });
   };
 
-  const handleMouseUp = () => setDragging(false);
+  const handleMouseUp = () => {
+    setDragging(false);
+    if (panRafRef.current != null) {
+      cancelAnimationFrame(panRafRef.current);
+      panRafRef.current = null;
+    }
+  };
 
   const canvasHeight = fullscreen ? 'h-full min-h-[70vh]' : 'h-[420px] lg:h-[480px]';
 
@@ -309,9 +387,9 @@ export function GenealogyTree({
       <div
         className="absolute left-1/2 top-6 min-w-max -translate-x-1/2 lg:top-4"
         style={{
-          transform: `translate(calc(-50% + ${pan.x}px), ${pan.y}px) scale(${scale})`,
+          transform: `translate3d(calc(-50% + ${pan.x}px), ${pan.y}px, 0) scale(${scale})`,
           transformOrigin: 'top center',
-          transition: dragging ? 'none' : 'transform 0.15s ease-out',
+          willChange: dragging ? 'transform' : 'auto',
         }}
       >
         {tree ? (
@@ -320,7 +398,10 @@ export function GenealogyTree({
             houseName={houseName}
             selectedId={selectedId}
             viewTimelineId={activeTimelineId}
+            timelines={timelines}
             onSelect={onSelectCharacter}
+            onFocusTree={onFocusTree}
+            onEditCharacter={onEditCharacter}
           />
         ) : (
           <p className="px-8 py-16 text-center text-sm text-[#5A6078]">

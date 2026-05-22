@@ -31,7 +31,7 @@ export function GenealogyTimelinePicker({ timelines, value, mainTimelineId, onCh
       <PopoverContent
         align="start"
         sideOffset={4}
-        className="z-[60] w-[min(14rem,var(--radix-popover-trigger-width))] border-[#2A3045] bg-[#111318] p-1 shadow-xl"
+        className="z-[60] min-w-[12rem] w-max max-w-[min(20rem,90vw)] border-[#2A3045] bg-[#111318] p-1 shadow-xl"
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
         <p className="px-2 py-1 text-[9px] font-mono uppercase tracking-wider text-[#5A6078]">Línea temporal</p>
@@ -56,7 +56,7 @@ export function GenealogyTimelinePicker({ timelines, value, mainTimelineId, onCh
                     style={{ backgroundColor: tl.color || '#D61E2B' }}
                     aria-hidden
                   />
-                  <span className="min-w-0 flex-1 truncate">{tl.name}</span>
+                  <span className="min-w-0 flex-1 whitespace-nowrap">{tl.name}</span>
                   {isMain && <Star size={10} className="shrink-0 fill-[#EAB308] text-[#EAB308]" />}
                   {selected && <Check size={12} className="shrink-0 text-[#D61E2B]" />}
                 </button>

@@ -1,5 +1,4 @@
-import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { useState, useEffect, useRef } from 'react';
 import { GripVertical, Plus } from 'lucide-react';
 import { BaseModal } from './BaseModal';
 import { ALL_WORLD_SECTIONS } from '@/lib/worldSections';
@@ -31,6 +30,8 @@ type Props = {
 export function WorldSectionsEditorModal({ open, onClose, world, onSave }: Props) {
   const [enabled, setEnabled] = useState<SectionType[]>([]);
   const [order, setOrder] = useState<SectionType[]>([]);
+  const dragIdRef = useRef<SectionType | null>(null);
+  const [dragOverId, setDragOverId] = useState<SectionType | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -41,6 +42,8 @@ export function WorldSectionsEditorModal({ open, onClose, world, onSave }: Props
     const missing = en.filter((s) => !ord.includes(s));
     setEnabled(en);
     setOrder([...ord, ...missing]);
+    setDragOverId(null);
+    dragIdRef.current = null;
   }, [open, world.id, world.updatedAt]);
 
   const toggle = (id: SectionType) => {
@@ -54,24 +57,52 @@ export function WorldSectionsEditorModal({ open, onClose, world, onSave }: Props
     }
   };
 
-  const move = (id: SectionType, dir: -1 | 1) => {
-    const idx = order.indexOf(id);
-    if (idx < 0) return;
-    const next = idx + dir;
-    if (next < 0 || next >= order.length) return;
-    const copy = [...order];
-    [copy[idx], copy[next]] = [copy[next], copy[idx]];
-    setOrder(copy);
+  const visibleOrder = order.filter((s) => enabled.includes(s));
+  const disabled = ALL_WORLD_SECTIONS.filter((s) => !enabled.includes(s));
+
+  const reorder = (dragId: SectionType, overId: SectionType) => {
+    if (dragId === overId) return;
+    const from = visibleOrder.indexOf(dragId);
+    const to = visibleOrder.indexOf(overId);
+    if (from < 0 || to < 0) return;
+    const next = [...visibleOrder];
+    next.splice(from, 1);
+    next.splice(to, 0, dragId);
+    const hidden = order.filter((s) => !enabled.includes(s));
+    setOrder([...next, ...hidden]);
   };
 
-  const disabled = ALL_WORLD_SECTIONS.filter((s) => !enabled.includes(s));
+  const onDragStart = (id: SectionType) => {
+    dragIdRef.current = id;
+    setDragOverId(id);
+  };
+
+  const lastOverRef = useRef<SectionType | null>(null);
+
+  const onDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const onDragEnter = (overId: SectionType) => {
+    const dragId = dragIdRef.current;
+    if (!dragId || dragId === overId || lastOverRef.current === overId) return;
+    lastOverRef.current = overId;
+    setDragOverId(overId);
+    reorder(dragId, overId);
+  };
+
+  const onDragEnd = () => {
+    dragIdRef.current = null;
+    lastOverRef.current = null;
+    setDragOverId(null);
+  };
 
   return (
     <BaseModal
       open={open}
       onClose={onClose}
       title="Editar secciones del mundo"
-      description="Ocultar una sección no borra sus datos; solo la quita del menú."
+      description="Arrastra para reordenar. Ocultar una sección no borra sus datos."
       maxWidthClass="max-w-md"
       footer={
         <>
@@ -82,7 +113,7 @@ export function WorldSectionsEditorModal({ open, onClose, world, onSave }: Props
             type="button"
             className="story-btn-primary text-sm"
             onClick={() => {
-              onSave(enabled, order.filter((s) => enabled.includes(s)));
+              onSave(enabled, visibleOrder);
               onClose();
             }}
           >
@@ -93,31 +124,32 @@ export function WorldSectionsEditorModal({ open, onClose, world, onSave }: Props
     >
       <p className="mb-3 text-xs uppercase tracking-wider text-[#5A6078]">Visibles (orden)</p>
       <ul className="mb-4 space-y-1">
-        {order
-          .filter((s) => enabled.includes(s))
-          .map((id) => (
-            <li
-              key={id}
-              className="flex items-center gap-2 rounded-lg border border-[#2A3045] bg-[#111318] px-3 py-2 text-sm text-[#E8E9EB]"
-            >
-              <GripVertical size={14} className="text-[#5A6078]" />
-              <span className="flex-1">{SECTION_LABELS[id]}</span>
-              <button type="button" className="text-xs text-[#5A6078] hover:text-[#E8E9EB]" onClick={() => move(id, -1)}>
-                ↑
-              </button>
-              <button type="button" className="text-xs text-[#5A6078] hover:text-[#E8E9EB]" onClick={() => move(id, 1)}>
-                ↓
-              </button>
-              <button type="button" className="text-xs text-[#D61E2B]" onClick={() => toggle(id)}>
-                Quitar
-              </button>
-            </li>
-          ))}
+        {visibleOrder.map((id) => (
+          <li
+            key={id}
+            draggable
+            onDragStart={() => onDragStart(id)}
+            onDragOver={onDragOver}
+            onDragEnter={() => onDragEnter(id)}
+            onDragEnd={onDragEnd}
+            className={`flex cursor-grab items-center gap-2 rounded-lg border bg-[#111318] px-3 py-2 text-sm text-[#E8E9EB] transition-colors active:cursor-grabbing ${
+              dragOverId === id
+                ? 'border-[#D61E2B]/50 bg-[#1a1f2a]'
+                : 'border-[#2A3045] hover:border-[#3A4460]'
+            }`}
+          >
+            <GripVertical size={14} className="text-[#5A6078]" />
+            <span className="flex-1">{SECTION_LABELS[id]}</span>
+            <button type="button" className="text-xs text-[#D61E2B]" onClick={() => toggle(id)}>
+              Quitar
+            </button>
+          </li>
+        ))}
       </ul>
       {disabled.length > 0 && (
         <>
           <p className="mb-2 text-xs uppercase tracking-wider text-[#5A6078]">Añadir sección</p>
-          <motion.div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2">
             {disabled.map((id) => (
               <button
                 key={id}
@@ -128,7 +160,7 @@ export function WorldSectionsEditorModal({ open, onClose, world, onSave }: Props
                 <Plus size={12} /> {SECTION_LABELS[id]}
               </button>
             ))}
-          </motion.div>
+          </div>
         </>
       )}
     </BaseModal>

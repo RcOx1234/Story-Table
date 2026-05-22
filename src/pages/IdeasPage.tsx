@@ -22,7 +22,7 @@ const typeLabels: Record<string, { label: string; color: string }> = {
 
 export function IdeasPage() {
   const goBack = useNavigationReturn('/');
-  const ideas = useAppStore((s) => s.ideas.filter((i) => !i.isDeleted));
+  const ideas = useAppStore((s) => s.getIdeasByWorld(null));
   const addIdea = useAppStore((s) => s.addIdea);
   const updateIdea = useAppStore((s) => s.updateIdea);
   const toggleFav = useAppStore((s) => s.toggleFavoriteIdea);
@@ -192,23 +192,26 @@ export function IdeasPage() {
         </div>
       )}
 
-      <IdeaFormModal
-        open={formOpen}
-        onClose={() => {
-          setFormOpen(false);
-          setEditingIdea(null);
-        }}
-        worldId={null}
-        initial={editingIdea}
-        onSubmit={(data) => {
-          if (editingIdea) {
-            updateIdea(editingIdea.id, data);
-            toast.success('Idea actualizada');
-          } else {
-            onCreateSubmit(data);
-          }
-        }}
-      />
+      {formOpen && (
+        <IdeaFormModal
+          key={editingIdea?.id ?? 'new'}
+          open
+          onClose={() => {
+            setFormOpen(false);
+            setEditingIdea(null);
+          }}
+          worldId={null}
+          initial={editingIdea}
+          onSubmit={(data) => {
+            if (editingIdea) {
+              updateIdea(editingIdea.id, data);
+              toast.success('Idea actualizada');
+            } else {
+              onCreateSubmit(data);
+            }
+          }}
+        />
+      )}
 
       <BaseModal
         open={!!previewIdea}

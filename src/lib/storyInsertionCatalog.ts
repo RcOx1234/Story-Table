@@ -10,6 +10,8 @@ export function buildInsertionCatalog(worldId: string, state: AppState): Inserti
   const chars = state.characters.filter((c) => c.worldId === worldId && !c.isDeleted);
   const scenes = state.scenes.filter((s) => s.worldId === worldId && !s.isDeleted);
   const places = state.places.filter((p) => p.worldId === worldId && !p.isDeleted);
+  const placeCollections = state.placeCollections.filter((c) => c.worldId === worldId && !c.isDeleted);
+  const mapCollections = (state.mapCollections ?? []).filter((c) => c.worldId === worldId);
   const houses = state.houses.filter((h) => h.worldId === worldId && !h.isDeleted);
   const maps = state.maps.filter((m) => m.worldId === worldId);
   const components = state.components.filter((c) => c.worldId === worldId && !c.isDeleted);
@@ -32,8 +34,10 @@ export function buildInsertionCatalog(worldId: string, state: AppState): Inserti
     { id: 'characters', label: 'Personajes', items: map('character', chars) },
     { id: 'scenes', label: 'Escenas', items: map('scene', scenes) },
     { id: 'places', label: 'Lugares', items: map('place', places) },
+    { id: 'placeCollections', label: 'Colecciones / reinos', items: map('placeCollection', placeCollections) },
     { id: 'houses', label: 'Casas', items: map('house', houses) },
     { id: 'maps', label: 'Mapas', items: map('map', maps) },
+    { id: 'mapCollections', label: 'Colecciones de mapas', items: map('mapCollection', mapCollections) },
     { id: 'components', label: 'Componentes', items: map('component', components) },
     { id: 'organizations', label: 'Organizaciones', items: map('organization', orgs) },
     { id: 'plots', label: 'Tramas', items: map('plot', plots) },
@@ -53,6 +57,10 @@ export function storyRefPath(worldId: string, type: string, id: string): string 
       return `/world/${worldId}/scene/${id}`;
     case 'place':
       return `/world/${worldId}/place/${id}`;
+    case 'placeCollection':
+      return `/world/${worldId}?tab=places&collection=${id}`;
+    case 'mapCollection':
+      return `/world/${worldId}?tab=maps&collection=${id}`;
     case 'house':
       return `/world/${worldId}/house/${id}`;
     case 'map':

@@ -102,7 +102,7 @@ export function FactsSection({ worldId }: Props) {
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3">
           {filtered.map((fact, i) => (
             <motion.div
               key={fact.id}
@@ -113,7 +113,7 @@ export function FactsSection({ worldId }: Props) {
               tabIndex={0}
               onKeyDown={(e) => e.key === 'Enter' && setViewing(fact)}
               onClick={() => setViewing(fact)}
-              className="story-card group relative cursor-pointer overflow-hidden p-5"
+              className="story-card group relative cursor-pointer overflow-hidden p-3.5"
               {...storyEntityDataAttrs('fact', fact.id, worldId, fact.title)}
             >
               <div className="absolute right-3 top-3 flex items-center gap-0.5">
@@ -137,11 +137,11 @@ export function FactsSection({ worldId }: Props) {
                 />
               </div>
               {fact.images[0] && (
-                <div className="mb-3 -mx-5 -mt-5 h-28 overflow-hidden">
+                <div className="mb-2 -mx-3.5 -mt-3.5 h-20 overflow-hidden rounded-t-xl">
                   <img src={fact.images[0]} alt="" className="h-full w-full object-cover opacity-80" />
                 </div>
               )}
-              <div className="mb-2 flex flex-wrap items-center gap-2">
+              <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
                 <ScrollText size={14} className="text-[#EAB308]" />
                 <span className="rounded-full bg-[#1E2230] px-2 py-0.5 text-[10px] uppercase tracking-wider text-[#5A6078]">
                   {factTypeLabels[fact.factType]}
@@ -152,9 +152,9 @@ export function FactsSection({ worldId }: Props) {
                   </span>
                 )}
               </div>
-              <h3 className="mb-2 font-semibold text-[#E8E9EB]">{fact.title}</h3>
-              {fact.description && <RichTextSnippet text={fact.description} worldId={worldId} lines={3} className="text-sm" />}
-              <div className="mt-3 border-t border-[#1E2230] pt-3 text-xs text-[#5A6078]">
+              <h3 className="mb-1 line-clamp-2 text-sm font-semibold text-[#E8E9EB]">{fact.title}</h3>
+              {fact.description && <RichTextSnippet text={fact.description} worldId={worldId} lines={2} className="text-xs" />}
+              <div className="mt-2 border-t border-[#1E2230] pt-2 text-[10px] text-[#5A6078]">
                 {fact.relatedCharacterIds.length} personajes · {fact.relatedPlaceIds.length} lugares
                 {timelineName(fact.timelineId) && ` · ${timelineName(fact.timelineId)}`}
               </div>

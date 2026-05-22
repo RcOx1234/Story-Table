@@ -32,7 +32,7 @@ type MenuState = {
 };
 
 const SKIP_SELECTOR =
-  '[data-story-rich-text], [data-story-rich-menu], [data-story-rich-submenu], textarea, input, select, [contenteditable="true"], [role="dialog"], [data-radix-popper-content-wrapper]';
+  '[data-story-rich-text], [data-story-rich-menu], [data-story-rich-submenu], [data-genealogy-person], [data-slot="context-menu-trigger"], textarea, input, select, [contenteditable="true"], [role="dialog"], [data-radix-popper-content-wrapper]';
 
 const NAV_LINKS = [
   { icon: Home, label: 'Inicio', path: '/' },

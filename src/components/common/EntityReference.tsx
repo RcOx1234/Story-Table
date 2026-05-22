@@ -8,6 +8,7 @@ import {
   Building2,
   Lightbulb,
   Globe,
+  Castle,
 } from 'lucide-react';
 
 export type EntityRefType =
@@ -18,7 +19,8 @@ export type EntityRefType =
   | 'component'
   | 'organization'
   | 'idea'
-  | 'map';
+  | 'map'
+  | 'house';
 
 export type EntityReferenceProps = {
   type: EntityRefType;
@@ -44,6 +46,9 @@ const iconFor = (t: EntityRefType) => {
     case 'idea':
       return Lightbulb;
     case 'map':
+      return Globe;
+    case 'house':
+      return Castle;
     default:
       return Globe;
   }
@@ -78,6 +83,9 @@ export function EntityReference({ type, id, worldId, label }: EntityReferencePro
         break;
       case 'idea':
         navigateWithReturn('/ideas');
+        break;
+      case 'house':
+        navigateWithReturn(`/world/${worldId}/house/${id}`);
         break;
       default:
         navigateWithReturn(`/world/${worldId}`);

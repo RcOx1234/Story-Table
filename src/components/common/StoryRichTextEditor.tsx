@@ -5,6 +5,7 @@ import { insertionMeta } from '@/lib/insertionMeta';
 
 export type StoryRichTextEditorHandle = {
   focus: () => void;
+  saveSelection: () => void;
   applyFormat: (cmd: 'bold' | 'italic' | 'underline') => void;
   insertRef: (type: string, id: string, label: string) => void;
   getSelectionOffsets: () => { start: number; end: number } | null;
@@ -26,15 +27,35 @@ export const StoryRichTextEditor = forwardRef<StoryRichTextEditorHandle, Props>(
   const editorRef = useRef<HTMLDivElement>(null);
   const syncingRef = useRef(false);
   const lastValueRef = useRef(value);
+  const savedRangeRef = useRef<Range | null>(null);
+
+  const saveSelection = useCallback(() => {
+    const el = editorRef.current;
+    const sel = window.getSelection();
+    if (!el || !sel || sel.rangeCount === 0) return;
+    const range = sel.getRangeAt(0);
+    if (el.contains(range.commonAncestorContainer)) {
+      savedRangeRef.current = range.cloneRange();
+    }
+  }, []);
+
+  const restoreSelection = useCallback(() => {
+    const range = savedRangeRef.current;
+    if (!range) return false;
+    const sel = window.getSelection();
+    if (!sel) return false;
+    sel.removeAllRanges();
+    sel.addRange(range);
+    return true;
+  }, []);
 
   const syncToParent = useCallback(() => {
     const el = editorRef.current;
     if (!el || syncingRef.current) return;
     const md = editorHtmlToMarkdown(el);
-    if (md !== lastValueRef.current) {
-      lastValueRef.current = md;
-      onChange(md);
-    }
+    if (md === lastValueRef.current) return;
+    lastValueRef.current = md;
+    onChange(md);
   }, [onChange]);
 
   const syncFromValue = useCallback((text: string) => {
@@ -45,24 +66,30 @@ export const StoryRichTextEditor = forwardRef<StoryRichTextEditorHandle, Props>(
     if (el.innerHTML !== html) {
       el.innerHTML = html || '';
     }
-    syncingRef.current = false;
     lastValueRef.current = text;
+    queueMicrotask(() => {
+      syncingRef.current = false;
+    });
   }, []);
 
   useEffect(() => {
     syncFromValue(value);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- solo al montar
   }, []);
 
   useEffect(() => {
-    if (value !== lastValueRef.current) syncFromValue(value);
+    if (value === lastValueRef.current) return;
+    syncFromValue(value);
   }, [value, syncFromValue]);
 
   useImperativeHandle(ref, () => ({
     focus: () => {
       editorRef.current?.focus();
     },
+    saveSelection,
     applyFormat: (cmd) => {
       editorRef.current?.focus();
+      restoreSelection();
       document.execCommand(cmd, false);
       syncToParent();
     },
@@ -70,6 +97,7 @@ export const StoryRichTextEditor = forwardRef<StoryRichTextEditorHandle, Props>(
       const el = editorRef.current;
       if (!el) return;
       el.focus();
+      restoreSelection();
       const meta = insertionMeta(type);
       const chip = document.createElement('span');
       chip.contentEditable = 'false';
@@ -149,8 +177,14 @@ export const StoryRichTextEditor = forwardRef<StoryRichTextEditorHandle, Props>(
       onInput={onInput}
       onPaste={onPaste}
       onClick={onClick}
-      onContextMenu={onContextMenu}
-      onBlur={syncToParent}
+      onContextMenu={(e) => {
+        saveSelection();
+        onContextMenu?.(e);
+      }}
+      onBlur={() => {
+        saveSelection();
+        syncToParent();
+      }}
     />
   );
 });

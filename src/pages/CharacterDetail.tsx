@@ -6,7 +6,9 @@ import { SplashLoader } from '@/components/auth/SplashLoader';
 import { validateRelationshipAdd } from '@/lib/relationshipLimits';
 import { useAppStore, useStore } from '@/store';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Heart, Edit2, Users, Sparkles, Trash2, Plus, Castle } from 'lucide-react';
+import { ArrowLeft, Heart, Edit2, Users, Sparkles, Trash2, Plus, Castle, Calendar, Skull } from 'lucide-react';
+import { deathCauseLabel } from '@/lib/deathCause';
+import { characterStatusForTimeline } from '@/lib/characterTimelineAge';
 import { RELATIONSHIP_TYPE_OPTIONS } from '@/lib/relationshipTypes';
 import { groupRelationships, RELATIONSHIP_GROUP_LABELS, type RelationshipGroupId } from '@/lib/relationshipGroups';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -23,6 +25,7 @@ import { useNavigate } from 'react-router-dom';
 import { ConfirmDeleteModal } from '@/components/modals/crud/ConfirmDeleteModal';
 import { toast } from 'sonner';
 import { CharacterFormModal } from '@/components/modals/crud/CharacterFormModal';
+import { CharacterTimelineDetailModal } from '@/components/characters/CharacterTimelineDetailModal';
 import { StoryRichTextDisplay } from '@/components/common/StoryRichTextDisplay';
 import { storyEntityDataAttrs } from '@/lib/storyEntityContext';
 
@@ -113,6 +116,8 @@ export function CharacterDetail() {
     worldId ? s.getCharactersByWorld(worldId).filter((ch) => !ch.isDeleted) : []
   );
   const houses = useAppStore((s) => (worldId ? s.getHousesByWorld(worldId) : []));
+  const world = useAppStore((s) => s.worlds.find((w) => w.id === worldId));
+  const timelines = useAppStore((s) => (worldId ? s.getTimelinesByWorld(worldId) : []));
 
   const [activeTab, setActiveTab] = useState<TabType>('info');
   const [infoSub, setInfoSub] = useState<InfoSub>('physical');
@@ -123,6 +128,7 @@ export function CharacterDetail() {
   const [addRelType, setAddRelType] = useState('');
   const [addRelDesc, setAddRelDesc] = useState('');
   const [searchParams, setSearchParams] = useSearchParams();
+  const [identityModalOpen, setIdentityModalOpen] = useState(false);
 
   useEffect(() => {
     if (searchParams.get('edit') === '1') {
@@ -165,6 +171,16 @@ export function CharacterDetail() {
   ];
 
   const groupedRels = groupRelationships(character.relationships);
+
+  const mainTimelineId =
+    world?.mainTimelineId && timelines.some((t) => t.id === world.mainTimelineId)
+      ? world.mainTimelineId
+      : timelines[0]?.id;
+  const timelineStatus = mainTimelineId
+    ? characterStatusForTimeline(character, mainTimelineId)
+    : character.status;
+  const deathInfo = mainTimelineId ? character.deathByTimeline?.[mainTimelineId] : undefined;
+  const mainTimeline = timelines.find((t) => t.id === mainTimelineId);
 
   return (
     <motion.div
@@ -246,10 +262,46 @@ export function CharacterDetail() {
               )}
             </div>
             <div className="mb-2 flex items-center justify-center gap-2">
-              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: statusLabels[character.status].color }} />
-              <span className="text-sm text-[#8B91A7]">{statusLabels[character.status].label}</span>
+              <span
+                className="h-2.5 w-2.5 rounded-full"
+                style={{ backgroundColor: statusLabels[timelineStatus ?? character.status].color }}
+              />
+              <span className="text-sm text-[#8B91A7]">
+                {statusLabels[timelineStatus ?? character.status].label}
+              </span>
             </div>
-            <p className="text-sm text-[#5A6078]">{character.age} años</p>
+            <p className="text-sm text-[#5A6078]">
+              {mainTimelineId && character.ageByTimeline?.[mainTimelineId] != null
+                ? `${character.ageByTimeline[mainTimelineId]} años`
+                : character.age > 0
+                  ? `${character.age} años`
+                  : 'Edad sin definir'}
+            </p>
+            {(character.birthDateLabel || character.birthYear) && (
+              <p className="mt-1 flex items-center justify-center gap-1 text-xs text-[#8B91A7]">
+                <Calendar size={11} className="shrink-0" />
+                {character.birthDateLabel ||
+                  (character.birthYear != null ? `Nac. año ${character.birthYear}` : null)}
+              </p>
+            )}
+            {timelineStatus === 'dead' && (
+              <div className="mt-3 rounded-lg border border-[#D61E2B]/25 bg-[#D61E2B]/8 px-3 py-2 text-left text-xs">
+                <p className="flex items-center gap-1 font-medium text-[#E8E9EB]">
+                  <Skull size={12} className="text-[#D61E2B]" />
+                  {deathInfo
+                    ? deathCauseLabel(deathInfo.causeType, deathInfo.customCause)
+                    : 'Muerto'}
+                </p>
+                {deathInfo?.dateLabel && (
+                  <p className="mt-0.5 text-[10px] text-[#8B91A7]">{deathInfo.dateLabel}</p>
+                )}
+                {deathInfo?.notes && (
+                  <div className="mt-1.5 border-t border-[#2A3045]/50 pt-1.5">
+                    <StoryRichTextDisplay text={deathInfo.notes} worldId={worldId} className="text-[10px]" />
+                  </div>
+                )}
+              </div>
+            )}
             {linkedHouse && (
               <p className="mt-2 flex items-center justify-center gap-1.5 text-xs text-[#8B91A7]">
                 <Castle size={12} className="text-[#EAB308]" />
@@ -302,6 +354,38 @@ export function CharacterDetail() {
 
           {activeTab === 'info' && (
             <div className="space-y-4">
+              <div className="story-card flex flex-wrap items-center justify-between gap-3 p-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-[10px] font-mono uppercase tracking-wider text-[#5A6078]">
+                    Línea principal
+                    {mainTimeline ? ` · ${mainTimeline.name}` : ''}
+                  </p>
+                  <p className="mt-0.5 text-sm text-[#E8E9EB]">
+                    {statusLabels[timelineStatus ?? character.status].label}
+                    {mainTimelineId && character.ageByTimeline?.[mainTimelineId] != null
+                      ? ` · ${character.ageByTimeline[mainTimelineId]} años`
+                      : character.age > 0
+                        ? ` · ${character.age} años`
+                        : ''}
+                  </p>
+                  {timelineStatus === 'dead' && (
+                    <p className="mt-0.5 flex items-center gap-1 text-xs text-[#8B91A7]">
+                      <Skull size={11} className="text-[#D61E2B]" />
+                      {deathInfo
+                        ? deathCauseLabel(deathInfo.causeType, deathInfo.customCause)
+                        : 'Muerto'}
+                    </p>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  className="story-btn-secondary shrink-0 px-3 py-1.5 text-xs"
+                  onClick={() => setIdentityModalOpen(true)}
+                >
+                  Ver más
+                </button>
+              </div>
+
               <div className="flex flex-wrap gap-1 border-b border-[#1E2230]/80 pb-2">
                 {infoSubTabs.map((t) => (
                   <button
@@ -338,6 +422,17 @@ export function CharacterDetail() {
                 <div className="space-y-3">
                   <InfoBlock title="Trasfondo" text={character.backstory} worldId={worldId} />
                   <InfoBlock title="Arco narrativo" text={character.arc} worldId={worldId} />
+                  {(character.extraFields?.length ?? 0) > 0 && (
+                    <div className="space-y-2">
+                      <h3 className="text-xs font-mono uppercase tracking-wider text-[#5A6078]">Datos extra</h3>
+                      {character.extraFields!.map((field) => (
+                        <div key={field.id} className="story-card p-4">
+                          <h4 className="mb-2 text-sm font-medium text-[#E8E9EB]">{field.label || 'Sin nombre'}</h4>
+                          <StoryRichTextDisplay text={field.value} worldId={worldId} />
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -564,7 +659,7 @@ export function CharacterDetail() {
                     transition={{ delay: i * 0.05 }}
                     className="border-l-2 border-[#D61E2B] py-2 pl-4"
                   >
-                    <p className="text-sm italic text-[#E8E9EB]">"{quote}"</p>
+                    <StoryRichTextDisplay text={quote} worldId={worldId} className="italic text-[#E8E9EB]" />
                   </motion.div>
                 ))
               )}
@@ -572,6 +667,16 @@ export function CharacterDetail() {
           )}
         </div>
       </div>
+
+      <CharacterTimelineDetailModal
+        open={identityModalOpen}
+        onClose={() => setIdentityModalOpen(false)}
+        character={character}
+        worldId={worldId}
+        timelines={timelines}
+        mainTimelineId={mainTimelineId}
+        worldCharacters={worldCharacters}
+      />
 
       <CharacterFormModal
         open={formOpen}

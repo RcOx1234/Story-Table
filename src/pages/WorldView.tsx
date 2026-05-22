@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useNavigationReturn } from '@/hooks/useNavigationReturn';
 import { useAppStore } from '@/store';
@@ -76,15 +76,29 @@ export function WorldView() {
   );
   const [sectionsEditorOpen, setSectionsEditorOpen] = useState(false);
 
-  const visibleTabs = world ? getWorldSectionOrder(world).map((id) => tabs.find((t) => t.id === id)!).filter(Boolean) : tabs;
+  const sectionConfigKey = useMemo(
+    () => JSON.stringify({ e: world?.enabledSections ?? null, o: world?.sectionOrder ?? null }),
+    [world?.enabledSections, world?.sectionOrder]
+  );
+
+  const visibleTabs = useMemo(
+    () => (world ? getWorldSectionOrder(world).map((id) => tabs.find((t) => t.id === id)!).filter(Boolean) : tabs),
+    [world?.id, sectionConfigKey]
+  );
+
+  const tabParam = searchParams.get('tab') as SectionType | null;
+  const visibleTabIds = useMemo(() => visibleTabs.map((t) => t.id).join(','), [visibleTabs]);
 
   useEffect(() => {
-    const t = searchParams.get('tab') as SectionType | null;
-    if (t && visibleTabs.some((x) => x.id === t)) setActiveTab(t);
-    else if (visibleTabs.length && !visibleTabs.some((x) => x.id === activeTab)) {
-      setActiveTab(visibleTabs[0].id);
+    const ids = visibleTabIds.split(',').filter(Boolean) as SectionType[];
+    if (tabParam && ids.includes(tabParam)) {
+      setActiveTab((prev) => (prev === tabParam ? prev : tabParam));
+      return;
     }
-  }, [searchParams, world?.id, world?.enabledSections, world?.sectionOrder]);
+    if (ids.length > 0) {
+      setActiveTab((prev) => (ids.includes(prev) ? prev : ids[0]));
+    }
+  }, [tabParam, visibleTabIds]);
 
   useEffect(() => {
     if (!world || world.isDeleted) return;
@@ -141,7 +155,12 @@ export function WorldView() {
 
   const selectTab = (id: SectionType) => {
     setActiveTab(id);
-    setSearchParams({ tab: id });
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('tab', id);
+      next.delete('edit');
+      return next;
+    });
   };
 
   return (

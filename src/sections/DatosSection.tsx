@@ -99,7 +99,7 @@ export function DatosSection({ worldId }: Props) {
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3">
           {filtered.map((datum, i) => (
             <motion.div
               key={datum.id}
@@ -110,7 +110,7 @@ export function DatosSection({ worldId }: Props) {
               tabIndex={0}
               onKeyDown={(e) => e.key === 'Enter' && setViewing(datum)}
               onClick={() => setViewing(datum)}
-              className="story-card group relative cursor-pointer p-5"
+              className="story-card group relative cursor-pointer p-3.5"
               {...storyEntityDataAttrs('datum', datum.id, worldId, datum.title)}
             >
               <div className="absolute right-3 top-3 flex items-center gap-0.5">
@@ -134,11 +134,11 @@ export function DatosSection({ worldId }: Props) {
                 />
               </div>
               {datum.images[0] && (
-                <div className="mb-3 h-24 overflow-hidden rounded-lg">
+                <div className="mb-2 h-20 overflow-hidden rounded-lg">
                   <img src={datum.images[0]} alt="" className="h-full w-full object-cover opacity-90" />
                 </div>
               )}
-              <div className="mb-2 flex items-center gap-2">
+              <div className="mb-1.5 flex items-center gap-1.5">
                 <BookOpen size={14} className="text-[#3B82F6]" />
                 <span className="rounded-full bg-[#1E2230] px-2 py-0.5 text-[10px] uppercase tracking-wider text-[#5A6078]">
                   {datumTypeLabels[datum.datumType]}

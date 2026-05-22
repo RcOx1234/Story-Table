@@ -18,6 +18,7 @@ import { EntityMultiPicker } from '@/components/common/EntityMultiPicker';
 import { toast } from 'sonner';
 import { RichTextSnippet } from '@/components/common/RichTextSnippet';
 import { StoryRichTextDisplay } from '@/components/common/StoryRichTextDisplay';
+import { sortByTimelineOrder } from '@/lib/timelineSort';
 
 interface Props {
   worldId: string;
@@ -53,8 +54,8 @@ export function TimelinesSection({ worldId }: Props) {
     toast.success('Línea principal actualizada');
   };
   const lineColor = active?.color ?? '#D61E2B';
-  const timelineScenes = scenes.filter((s) => s.timelineId === activeId);
-  const timelineFacts = facts.filter((f) => f.timelineId === activeId);
+  const timelineScenes = sortByTimelineOrder(scenes.filter((s) => s.timelineId === activeId));
+  const timelineFacts = sortByTimelineOrder(facts.filter((f) => f.timelineId === activeId));
 
   const scenePickerItems = useMemo(
     () =>

@@ -260,7 +260,7 @@ export function SceneDetail() {
                       ) : (
                         <p className="text-sm font-medium text-[#D61E2B]">{dialogue.characterName}</p>
                       )}
-                      <p className="mt-2 text-sm text-[#E8E9EB]">{dialogue.text}</p>
+                      <StoryRichTextDisplay text={dialogue.text} worldId={worldId} className="mt-2 text-[#E8E9EB]" />
                     </div>
                   </div>
                 </motion.div>
@@ -283,7 +283,7 @@ export function SceneDetail() {
                 transition={{ delay: i * 0.05 }}
                 className="story-card border-l-2 border-[#8B5CF6] p-4"
               >
-                <p className="text-sm text-[#E8E9EB]">{reveal}</p>
+                <StoryRichTextDisplay text={reveal} worldId={worldId} className="text-[#E8E9EB]" />
               </motion.div>
             ))
           )}

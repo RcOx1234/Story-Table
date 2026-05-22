@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
-import { User, BookOpen, Link2 } from 'lucide-react';
+import { Plus, Trash2, User, BookOpen, Link2 } from 'lucide-react';
+import { v4 as uuidv4 } from 'uuid';
 import { BaseModal } from './BaseModal';
 import { ImageInputField } from '@/components/common/ImageInputField';
 import { StoryRichTextField } from '@/components/common/StoryRichTextField';
 import { useAppStore, useStore } from '@/store';
-import type { Character, CharacterGender, CharacterRole, Relationship } from '@/types';
+import type { Character, CharacterDeathInfo, CharacterExtraField, CharacterGender, CharacterRole, DeathCauseType, Relationship } from '@/types';
+import { DEATH_CAUSE_OPTIONS } from '@/lib/deathCause';
 import { GENDER_OPTIONS } from '@/lib/characterGender';
 import { RELATIONSHIP_TYPE_OPTIONS, relationshipTypeLabel } from '@/lib/relationshipTypes';
 import { CHARACTER_ROLE_OPTIONS } from '@/lib/characterRoles';
@@ -40,8 +42,11 @@ function emptyCharacter(worldId: string): Omit<Character, 'id' | 'createdAt' | '
     house: '',
     age: 0,
     birthYear: undefined,
+    birthDateLabel: '',
     ageByTimeline: {},
     statusByTimeline: {},
+    deathByTimeline: {},
+    extraFields: [],
     appearance: '',
     personality: '',
     backstory: '',
@@ -101,6 +106,8 @@ export function CharacterFormModal({
   const worldTags = useAppStore((s) => s.getWorldTagsByWorld(effectiveWorldId));
   const [ageTimelineDraft, setAgeTimelineDraft] = useState<Record<string, string>>({});
   const [statusTimelineDraft, setStatusTimelineDraft] = useState<Record<string, Character['status']>>({});
+  const [deathTimelineDraft, setDeathTimelineDraft] = useState<Record<string, CharacterDeathInfo>>({});
+  const [extraFields, setExtraFields] = useState<CharacterExtraField[]>([]);
   const [useTimelineStatus, setUseTimelineStatus] = useState(false);
   const [err, setErr] = useState('');
   const [relCharId, setRelCharId] = useState('');
@@ -135,6 +142,8 @@ export function CharacterFormModal({
       statusDraft[tl.id] = base.statusByTimeline?.[tl.id] ?? base.status;
     }
     setStatusTimelineDraft(statusDraft);
+    setDeathTimelineDraft({ ...(base.deathByTimeline ?? {}) });
+    setExtraFields(base.extraFields ?? []);
     setUseTimelineStatus(
       Boolean(initial?.statusByTimeline && Object.keys(initial.statusByTimeline).length > 0)
     );
@@ -167,6 +176,14 @@ export function CharacterFormModal({
     const statusByTimeline: Record<string, Character['status']> | undefined = useTimelineStatus
       ? Object.fromEntries(timelines.map((tl) => [tl.id, statusTimelineDraft[tl.id] ?? form.status]))
       : undefined;
+    const deathByTimeline: Record<string, CharacterDeathInfo> = {};
+    for (const tl of timelines) {
+      const st = statusByTimeline?.[tl.id] ?? form.status;
+      const d = deathTimelineDraft[tl.id];
+      if (st === 'dead' && d?.causeType) {
+        deathByTimeline[tl.id] = { ...d, timelineId: tl.id };
+      }
+    }
     const quotes = quotesRaw
       .split('\n')
       .map((q) => q.trim())
@@ -182,8 +199,11 @@ export function CharacterFormModal({
       worldId: effectiveWorldId,
       name: form.name.trim(),
       birthYear,
+      birthDateLabel: form.birthDateLabel?.trim() || undefined,
       ageByTimeline,
       statusByTimeline,
+      deathByTimeline: Object.keys(deathByTimeline).length ? deathByTimeline : undefined,
+      extraFields: extraFields.filter((f) => f.label.trim()),
       quotes,
       tags,
       tagIds,
@@ -359,6 +379,15 @@ export function CharacterFormModal({
                   />
                 </div>
                 <div>
+                  <label className="mb-1 block text-xs uppercase tracking-wider text-[#5A6078]">Fecha de nacimiento</label>
+                  <input
+                    className="story-input w-full"
+                    value={form.birthDateLabel ?? ''}
+                    onChange={(e) => patch({ birthDateLabel: e.target.value })}
+                    placeholder="ej. 12 de marzo, año 402"
+                  />
+                </div>
+                <div>
                   <label className="mb-1 block text-xs uppercase tracking-wider text-[#5A6078]">Edad</label>
                   <input type="number" className="story-input w-full" value={form.age || ''} onChange={(e) => patch({ age: Number(e.target.value) || 0 })} />
                 </div>
@@ -416,6 +445,97 @@ export function CharacterFormModal({
                             </div>
                           )}
                         </div>
+                        {(useTimelineStatus ? statusTimelineDraft[tl.id] : form.status) === 'dead' && (
+                          <div className="mt-3 grid gap-2 border-t border-[#2A3045]/50 pt-3 sm:grid-cols-2">
+                            <div>
+                              <label className="mb-1 block text-xs uppercase text-[#5A6078]">Tipo de muerte</label>
+                              <select
+                                className="story-input w-full text-sm"
+                                value={deathTimelineDraft[tl.id]?.causeType ?? 'unknown'}
+                                onChange={(e) =>
+                                  setDeathTimelineDraft((d) => ({
+                                    ...d,
+                                    [tl.id]: {
+                                      timelineId: tl.id,
+                                      causeType: e.target.value as DeathCauseType,
+                                      customCause: d[tl.id]?.customCause,
+                                      dateLabel: d[tl.id]?.dateLabel,
+                                      notes: d[tl.id]?.notes,
+                                    },
+                                  }))
+                                }
+                              >
+                                {DEATH_CAUSE_OPTIONS.map((o) => (
+                                  <option key={o.value} value={o.value}>
+                                    {o.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="mb-1 block text-xs uppercase text-[#5A6078]">Fecha / momento</label>
+                              <input
+                                className="story-input w-full text-sm"
+                                value={deathTimelineDraft[tl.id]?.dateLabel ?? ''}
+                                onChange={(e) =>
+                                  setDeathTimelineDraft((d) => ({
+                                    ...d,
+                                    [tl.id]: {
+                                      ...d[tl.id],
+                                      timelineId: tl.id,
+                                      causeType: d[tl.id]?.causeType ?? 'unknown',
+                                      dateLabel: e.target.value,
+                                    },
+                                  }))
+                                }
+                                placeholder="opcional"
+                              />
+                            </div>
+                            {(deathTimelineDraft[tl.id]?.causeType ?? 'unknown') === 'other' && (
+                              <div className="sm:col-span-2">
+                                <label className="mb-1 block text-xs uppercase text-[#5A6078]">Causa (texto)</label>
+                                <input
+                                  className="story-input w-full text-sm"
+                                  value={deathTimelineDraft[tl.id]?.customCause ?? ''}
+                                  onChange={(e) =>
+                                    setDeathTimelineDraft((d) => ({
+                                      ...d,
+                                      [tl.id]: {
+                                        timelineId: tl.id,
+                                        causeType: 'other',
+                                        customCause: e.target.value,
+                                        dateLabel: d[tl.id]?.dateLabel,
+                                        notes: d[tl.id]?.notes,
+                                      },
+                                    }))
+                                  }
+                                />
+                              </div>
+                            )}
+                            <div className="sm:col-span-2">
+                              <label className="mb-1 block text-xs uppercase text-[#5A6078]">Cómo murió</label>
+                              <StoryRichTextField
+                                worldId={effectiveWorldId}
+                                value={deathTimelineDraft[tl.id]?.notes ?? ''}
+                                onChange={(notes) =>
+                                  setDeathTimelineDraft((d) => ({
+                                    ...d,
+                                    [tl.id]: {
+                                      timelineId: tl.id,
+                                      causeType: d[tl.id]?.causeType ?? 'unknown',
+                                      dateLabel: d[tl.id]?.dateLabel,
+                                      customCause: d[tl.id]?.customCause,
+                                      notes,
+                                    },
+                                  }))
+                                }
+                                minHeight="5.5rem"
+                                placeholder="Detalle narrativo de la muerte…"
+                                hideHint
+                              />
+                            </div>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -445,6 +565,61 @@ export function CharacterFormModal({
                   />
                 </div>
               ))}
+              <div className="rounded-xl border border-[#2A3045]/50 bg-[#111318]/60 p-3">
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <label className="text-xs font-medium uppercase tracking-wider text-[#8B91A7]">Datos extra</label>
+                  <button
+                    type="button"
+                    className="story-btn-secondary flex items-center gap-1 px-2 py-1 text-xs"
+                    onClick={() =>
+                      setExtraFields((f) => [...f, { id: uuidv4(), label: '', value: '', section: 'extra' }])
+                    }
+                  >
+                    <Plus size={12} /> Campo
+                  </button>
+                </div>
+                {extraFields.length === 0 ? (
+                  <p className="text-xs text-[#5A6078]">Añade campos como «Traumas», «Debilidad», etc. con el nombre que quieras.</p>
+                ) : (
+                  <ul className="space-y-2">
+                    {extraFields.map((field, i) => (
+                      <li key={field.id} className="flex flex-col gap-2 rounded-lg border border-[#2A3045] p-2 sm:flex-row">
+                        <input
+                          className="story-input w-full text-sm sm:max-w-[8rem]"
+                          value={field.label}
+                          onChange={(e) =>
+                            setExtraFields((list) =>
+                              list.map((x, j) => (j === i ? { ...x, label: e.target.value } : x))
+                            )
+                          }
+                          placeholder="Nombre"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <StoryRichTextField
+                            worldId={effectiveWorldId}
+                            value={field.value}
+                            onChange={(value) =>
+                              setExtraFields((list) =>
+                                list.map((x, j) => (j === i ? { ...x, value } : x))
+                              )
+                            }
+                            minHeight="4.5rem"
+                            placeholder="Contenido"
+                            hideHint
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          className="self-end rounded-lg p-2 text-[#5A6078] hover:text-[#D61E2B] sm:self-center"
+                          onClick={() => setExtraFields((list) => list.filter((_, j) => j !== i))}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
               <div className="rounded-xl border border-[#2A3045]/50 bg-[#111318]/60 p-3">
                 <label className="mb-2 block text-xs font-medium uppercase tracking-wider text-[#8B91A7]">Frases memorables</label>
                 <StoryRichTextField

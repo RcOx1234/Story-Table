@@ -56,6 +56,30 @@ export type CharacterRole =
 
 export type CharacterGender = 'male' | 'female' | 'unspecified';
 
+export type DeathCauseType =
+  | 'natural'
+  | 'murder'
+  | 'suicide'
+  | 'accident'
+  | 'execution'
+  | 'unknown'
+  | 'other';
+
+export interface CharacterDeathInfo {
+  timelineId: string;
+  causeType: DeathCauseType;
+  customCause?: string;
+  dateLabel?: string;
+  notes?: string;
+}
+
+export interface CharacterExtraField {
+  id: string;
+  label: string;
+  value: string;
+  section?: 'identity' | 'story' | 'extra';
+}
+
 export interface Character {
   id: string;
   worldId: string;
@@ -70,7 +94,13 @@ export interface Character {
   age: number;
   /** Año de nacimiento (opcional); sirve para calcular edad por línea temporal. */
   birthYear?: number;
+  /** Fecha de nacimiento legible (opcional). */
+  birthDateLabel?: string;
   ageByTimeline: Record<string, number>;
+  /** Cómo y cuándo murió por línea temporal (si aplica). */
+  deathByTimeline?: Record<string, CharacterDeathInfo>;
+  /** Campos personalizados (traumas, notas, etc.). */
+  extraFields?: CharacterExtraField[];
   /** Estado del personaje por línea temporal (solo si hay líneas definidas). */
   statusByTimeline?: Record<string, Character['status']>;
   appearance: string;
@@ -121,6 +151,8 @@ export interface Scene {
   importance?: SceneImportance;
   /** Borrador: aún sin ubicar en la historia. */
   draft?: boolean;
+  /** Orden dentro de la línea temporal (menor = más arriba). */
+  timelineSortOrder?: number;
   music: string;
   dialogues: Dialogue[];
   reveals: string[];
@@ -451,6 +483,8 @@ export interface WorldFact {
   consequence: string;
   factType: WorldFactType;
   timelineId?: string;
+  /** Orden dentro de la línea temporal (menor = más arriba). */
+  timelineSortOrder?: number;
   relatedCharacterIds: string[];
   relatedPlaceIds: string[];
   images: string[];
@@ -499,6 +533,11 @@ export interface Idea {
   worldId: string | null;
   /** Personaje vinculado (p. ej. quién protagoniza la idea). */
   linkedCharacterId?: string | null;
+  relatedCharacterIds?: string[];
+  relatedPlaceIds?: string[];
+  relatedSceneIds?: string[];
+  relatedHouseIds?: string[];
+  relatedOrganizationIds?: string[];
   description: string;
   type: 'scene' | 'character' | 'plot' | 'world' | 'dialogue' | 'lore' | 'other';
   references: string[];

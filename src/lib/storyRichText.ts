@@ -1,8 +1,8 @@
 import { chipIconHtml } from '@/lib/chipIconHtml';
 import { insertionMeta } from '@/lib/insertionMeta';
 
-/** Referencia embebida: [[tipo:id|etiqueta]] */
-export const STORY_REF_RE = /\[\[([a-z_]+):([^|\]]+)\|([^\]]+)\]\]/g;
+/** Referencia embebida: [[tipo:id|etiqueta]] (tipo en camelCase, p. ej. placeCollection) */
+export const STORY_REF_RE = /\[\[([a-z][a-zA-Z0-9_]*):([^|\]]+)\|([^\]]+)\]\]/g;
 
 export function buildStoryRef(type: string, id: string, label: string): string {
   const safeLabel = label.replace(/\|/g, '·').replace(/\[\[/g, '');

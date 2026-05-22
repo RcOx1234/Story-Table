@@ -89,6 +89,7 @@ export function areRelationshipTypesReciprocal(typeA: string, typeB: string): bo
   const a = normalizeKey(typeA);
   const b = normalizeKey(typeB);
   if (a === b && (/^herman[oa]$/.test(a) || a === 'pareja' || a === 'consorte')) return true;
+  if (/^herman[oa]$/.test(a) && /^herman[oa]$/.test(b)) return true;
   if (PARENT_TYPES.test(a) && CHILD_TYPES.test(b)) return true;
   if (CHILD_TYPES.test(a) && PARENT_TYPES.test(b)) return true;
   if (SPOUSE_TYPES.test(a) && SPOUSE_TYPES.test(b)) return true;

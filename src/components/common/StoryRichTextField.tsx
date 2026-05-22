@@ -159,6 +159,7 @@ export function StoryRichTextField({
   const openMenu = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    editorRef.current?.saveSelection();
     setMenuVisible(false);
     setMenu({
       x: e.clientX,
