@@ -46,8 +46,8 @@ const flyoutMotion = {
 export function StoryRichTextField({
   value,
   onChange,
-  worldId = '',
-  insertionWorldId: insertionWorldIdProp,
+  worldId,
+  insertionWorldId,
   onInsertionWorldChange,
   placeholder = 'Escribe aquí…',
   minHeight = '6rem',
@@ -56,13 +56,25 @@ export function StoryRichTextField({
   showInsertionWorldPicker,
 }: Props) {
   const worlds = useAppStore((s) => s.worlds.filter((w) => !w.isDeleted));
-  const [localInsertionWorld, setLocalInsertionWorld] = useState('');
-  const insertionWorldId = insertionWorldIdProp ?? localInsertionWorld;
-  const setInsertionWorldId = onInsertionWorldChange ?? setLocalInsertionWorld;
+  const catalogWorldId = worldId || insertionWorldId || '';
+  const [localInsertionWorld, setLocalInsertionWorld] = useState(catalogWorldId);
 
-  const catalogWorldId = worldId || insertionWorldId;
+  useEffect(() => {
+    if (worldId || insertionWorldId) {
+      setLocalInsertionWorld(worldId || insertionWorldId || '');
+    }
+  }, [worldId, insertionWorldId]);
+
+  const pickerWorldId = catalogWorldId || localInsertionWorld;
+
+  const handleWorldSelect = (id: string) => {
+    if (id === pickerWorldId) return;
+    setLocalInsertionWorld(id);
+    onInsertionWorldChange?.(id);
+  };
+
   const needsWorldPicker =
-    !worldId && showInsertionWorldPicker !== false && worlds.length > 0;
+    !pickerWorldId && showInsertionWorldPicker !== false && worlds.length > 0;
 
   const editorRef = useRef<StoryRichTextEditorHandle>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -78,9 +90,9 @@ export function StoryRichTextField({
   const [itemsPos, setItemsPos] = useState({ left: 0, top: 0 });
 
   const catalog = useMemo(() => {
-    if (!catalogWorldId || !menu) return [];
-    return buildInsertionCatalog(catalogWorldId, useStore.getState());
-  }, [catalogWorldId, menu]);
+    if (!pickerWorldId || !menu) return [];
+    return buildInsertionCatalog(pickerWorldId, useStore.getState());
+  }, [pickerWorldId, menu]);
 
   const closeMenu = useCallback(() => {
     setMenu(null);
@@ -223,7 +235,7 @@ export function StoryRichTextField({
             </span>
             Subrayado
           </button>
-          {catalogWorldId && catalog.length > 0 && (
+          {pickerWorldId && catalog.length > 0 && (
             <>
               <div className="my-1 border-t border-[#2A3045]/80" />
               <button
@@ -359,8 +371,8 @@ export function StoryRichTextField({
           <span className="text-xs text-[#8B91A7]">Inserciones del mundo:</span>
           <select
             className="story-input min-w-[10rem] flex-1 text-xs"
-            value={insertionWorldId}
-            onChange={(e) => setInsertionWorldId(e.target.value)}
+            value={localInsertionWorld}
+            onChange={(e) => handleWorldSelect(e.target.value)}
           >
             <option value="">Selecciona un mundo…</option>
             {worlds.map((w) => (

@@ -127,7 +127,8 @@ export function editorHtmlToMarkdown(root: HTMLElement): string {
   root.childNodes.forEach((child) => {
     result += nodeToMarkdown(child);
   });
-  return result.replace(/\u200B/g, '');
+  const cleaned = result.replace(/\u200B/g, '');
+  return cleaned.trim() === '' ? '' : cleaned;
 }
 
 function chipHtml(type: string, id: string, label: string, color: string, bg: string): string {

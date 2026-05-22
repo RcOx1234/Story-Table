@@ -295,4 +295,28 @@ export async function loadLibraryFromFirestore(
   };
 }
 
+/** Elimina la biblioteca del usuario (todas las subcolecciones y metadatos). */
+export async function deleteEntireUserLibrary(uid: string): Promise<void> {
+  if (!db) return;
+  for (const libId of [LIBRARY_DOC_ID, LEGACY_LIBRARY_DOC_ID]) {
+    for (const coll of LIBRARY_ENTITY_COLLECTIONS) {
+      const snap = await getDocs(entityCollectionRef(uid, libId, coll));
+      if (snap.empty) continue;
+      let batch = writeBatch(db);
+      let n = 0;
+      for (const d of snap.docs) {
+        batch.delete(d.ref);
+        n++;
+        if (n >= BATCH_LIMIT) {
+          await batch.commit();
+          batch = writeBatch(db);
+          n = 0;
+        }
+      }
+      if (n > 0) await batch.commit();
+    }
+    await deleteDoc(libraryRootRef(uid, libId)).catch(() => undefined);
+  }
+}
+
 export { formatFirestoreSaveError };

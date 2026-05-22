@@ -1,12 +1,12 @@
-import { useState, useEffect, useMemo } from 'react';
-import { FileText, Globe, Lightbulb, Tag } from 'lucide-react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { FileText, Lightbulb, Tag } from 'lucide-react';
 import { BaseModal } from './BaseModal';
 import { useAppStore } from '@/store';
 import type { Idea } from '@/types';
 import { ImageInputField } from '@/components/common/ImageInputField';
 import { AudioPlayer } from '@/components/common/AudioPlayer';
 import { StoryRichTextField } from '@/components/common/StoryRichTextField';
-import { EntityMultiPicker } from '@/components/common/EntityMultiPicker';
+import type { EntityPickerItem } from '@/components/common/EntityMultiPicker';
 
 type Props = {
   open: boolean;
@@ -26,22 +26,86 @@ const TYPE_OPTIONS: { value: Idea['type']; label: string; color: string }[] = [
   { value: 'other', label: 'Otro', color: '#5A6078' },
 ];
 
+type LinkState = {
+  linkedCharacterId: string | null;
+  relatedCharacterIds: string[];
+  relatedPlaceIds: string[];
+  relatedSceneIds: string[];
+  relatedHouseIds: string[];
+  relatedOrganizationIds: string[];
+};
+
+function emptyLinks(): LinkState {
+  return {
+    linkedCharacterId: null,
+    relatedCharacterIds: [],
+    relatedPlaceIds: [],
+    relatedSceneIds: [],
+    relatedHouseIds: [],
+    relatedOrganizationIds: [],
+  };
+}
+
+function linksFromIdea(idea: Idea): LinkState {
+  return {
+    linkedCharacterId: idea.linkedCharacterId ?? null,
+    relatedCharacterIds: idea.relatedCharacterIds ?? [],
+    relatedPlaceIds: idea.relatedPlaceIds ?? [],
+    relatedSceneIds: idea.relatedSceneIds ?? [],
+    relatedHouseIds: idea.relatedHouseIds ?? [],
+    relatedOrganizationIds: idea.relatedOrganizationIds ?? [],
+  };
+}
+
+function InlineEntityChecklist({
+  label,
+  items,
+  value,
+  onChange,
+}: {
+  label: string;
+  items: EntityPickerItem[];
+  value: string[];
+  onChange: (ids: string[]) => void;
+}) {
+  const toggle = (id: string) => {
+    onChange(value.includes(id) ? value.filter((x) => x !== id) : [...value, id]);
+  };
+
+  return (
+    <div className="space-y-2">
+      <label className="block text-xs font-mono uppercase tracking-wider text-[#5A6078]">{label}</label>
+      <div className="max-h-40 space-y-1 overflow-y-auto rounded-xl border border-[#2A3045] bg-[#111318] p-2 scrollbar-thin">
+        {items.map((item) => (
+          <label
+            key={item.id}
+            className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-[#E8E9EB] hover:bg-[#1E2230]"
+          >
+            <input
+              type="checkbox"
+              className="story-checkbox shrink-0"
+              checked={value.includes(item.id)}
+              onChange={() => toggle(item.id)}
+            />
+            <span className="min-w-0 truncate">{item.label}</span>
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function IdeaFormModal({ open, onClose, worldId, initial, onSubmit }: Props) {
-  const worlds = useAppStore((s) => s.worlds.filter((w) => !w.isDeleted));
   const [description, setDescription] = useState('');
   const [type, setType] = useState<Idea['type']>('scene');
   const [tagsRaw, setTagsRaw] = useState('');
   const [targetWorld, setTargetWorld] = useState<string | null>(worldId);
-  const [linkedCharacterId, setLinkedCharacterId] = useState<string | null>(null);
-  const [relatedCharacterIds, setRelatedCharacterIds] = useState<string[]>([]);
-  const [relatedPlaceIds, setRelatedPlaceIds] = useState<string[]>([]);
-  const [relatedSceneIds, setRelatedSceneIds] = useState<string[]>([]);
-  const [relatedHouseIds, setRelatedHouseIds] = useState<string[]>([]);
-  const [relatedOrganizationIds, setRelatedOrganizationIds] = useState<string[]>([]);
+  const [links, setLinks] = useState<LinkState>(emptyLinks);
   const [imageUrl, setImageUrl] = useState('');
   const [err, setErr] = useState('');
 
   const effectiveWorldId = worldId ?? targetWorld;
+  const richTextWorldId = effectiveWorldId ?? undefined;
 
   const characterItems = useAppStore((s) =>
     effectiveWorldId
@@ -84,30 +148,26 @@ export function IdeaFormModal({ open, onClose, worldId, initial, onSubmit }: Pro
       setType(initial.type);
       setTagsRaw((initial.tags ?? []).join(', '));
       setTargetWorld(initial.worldId);
-      setLinkedCharacterId(initial.linkedCharacterId ?? null);
-      setRelatedCharacterIds(initial.relatedCharacterIds ?? []);
-      setRelatedPlaceIds(initial.relatedPlaceIds ?? []);
-      setRelatedSceneIds(initial.relatedSceneIds ?? []);
-      setRelatedHouseIds(initial.relatedHouseIds ?? []);
-      setRelatedOrganizationIds(initial.relatedOrganizationIds ?? []);
+      setLinks(linksFromIdea(initial));
       setImageUrl(initial.imageUrl ?? '');
     } else {
       setDescription('');
       setType('scene');
       setTagsRaw('');
       setTargetWorld(worldId);
-      setLinkedCharacterId(null);
-      setRelatedCharacterIds([]);
-      setRelatedPlaceIds([]);
-      setRelatedSceneIds([]);
-      setRelatedHouseIds([]);
-      setRelatedOrganizationIds([]);
+      setLinks(emptyLinks());
       setImageUrl('');
     }
     setErr('');
   }, [open, worldId, initial?.id, initial?.updatedAt]);
 
   const activeType = useMemo(() => TYPE_OPTIONS.find((t) => t.value === type), [type]);
+
+  const handleInsertionWorldChange = useCallback((id: string) => {
+    const next = id || null;
+    setTargetWorld((prev) => (prev === next ? prev : next));
+    setLinks(emptyLinks());
+  }, []);
 
   const save = () => {
     if (!description.trim()) {
@@ -120,12 +180,12 @@ export function IdeaFormModal({ open, onClose, worldId, initial, onSubmit }: Pro
       .filter(Boolean);
     onSubmit({
       worldId: worldId ?? targetWorld,
-      linkedCharacterId: linkedCharacterId || null,
-      relatedCharacterIds,
-      relatedPlaceIds,
-      relatedSceneIds,
-      relatedHouseIds,
-      relatedOrganizationIds,
+      linkedCharacterId: links.linkedCharacterId,
+      relatedCharacterIds: links.relatedCharacterIds,
+      relatedPlaceIds: links.relatedPlaceIds,
+      relatedSceneIds: links.relatedSceneIds,
+      relatedHouseIds: links.relatedHouseIds,
+      relatedOrganizationIds: links.relatedOrganizationIds,
       description: description.trim(),
       type,
       references: initial?.references ?? [],
@@ -172,11 +232,9 @@ export function IdeaFormModal({ open, onClose, worldId, initial, onSubmit }: Pro
             <div className="mb-3 flex items-start gap-3">
               <Lightbulb size={22} className="shrink-0 text-[#EAB308]" />
               <StoryRichTextField
-                worldId={worldId ?? undefined}
-                insertionWorldId={effectiveWorldId ?? ''}
-                onInsertionWorldChange={(id) => {
-                  if (worldId === null) setTargetWorld(id || null);
-                }}
+                key={`idea-richtext-${initial?.id ?? 'new'}-${worldId ?? 'global'}`}
+                worldId={richTextWorldId}
+                onInsertionWorldChange={worldId === null ? handleInsertionWorldChange : undefined}
                 value={description}
                 onChange={setDescription}
                 minHeight="8rem"
@@ -216,34 +274,6 @@ export function IdeaFormModal({ open, onClose, worldId, initial, onSubmit }: Pro
           ))}
         </div>
 
-        {worldId === null && (
-          <div>
-            <label className="mb-1 flex items-center gap-2 text-xs uppercase text-[#5A6078]">
-              <Globe size={12} /> Mundo
-            </label>
-            <select
-              className="story-input w-full max-w-sm text-sm"
-              value={targetWorld ?? ''}
-              onChange={(e) => {
-                setTargetWorld(e.target.value || null);
-                setLinkedCharacterId(null);
-                setRelatedCharacterIds([]);
-                setRelatedPlaceIds([]);
-                setRelatedSceneIds([]);
-                setRelatedHouseIds([]);
-                setRelatedOrganizationIds([]);
-              }}
-            >
-              <option value="">Bandeja global</option>
-              {worlds.map((w) => (
-                <option key={w.id} value={w.id}>
-                  {w.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-
         {effectiveWorldId && (
           <section className="rounded-xl border border-[#2A3045]/70 bg-[#111318]/80 p-4">
             <p className="mb-3 flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-[#D61E2B]">
@@ -251,48 +281,43 @@ export function IdeaFormModal({ open, onClose, worldId, initial, onSubmit }: Pro
             </p>
             <div className="grid gap-4 sm:grid-cols-2">
               {characterItems.length > 0 && (
-                <EntityMultiPicker
+                <InlineEntityChecklist
                   label="Personajes"
                   items={characterItems}
-                  value={relatedCharacterIds}
-                  onChange={setRelatedCharacterIds}
-                  placeholder="Elegir…"
+                  value={links.relatedCharacterIds}
+                  onChange={(ids) => setLinks((l) => ({ ...l, relatedCharacterIds: ids }))}
                 />
               )}
               {placeItems.length > 0 && (
-                <EntityMultiPicker
+                <InlineEntityChecklist
                   label="Lugares"
                   items={placeItems}
-                  value={relatedPlaceIds}
-                  onChange={setRelatedPlaceIds}
-                  placeholder="Elegir…"
+                  value={links.relatedPlaceIds}
+                  onChange={(ids) => setLinks((l) => ({ ...l, relatedPlaceIds: ids }))}
                 />
               )}
               {sceneItems.length > 0 && (
-                <EntityMultiPicker
+                <InlineEntityChecklist
                   label="Escenas"
                   items={sceneItems}
-                  value={relatedSceneIds}
-                  onChange={setRelatedSceneIds}
-                  placeholder="Elegir…"
+                  value={links.relatedSceneIds}
+                  onChange={(ids) => setLinks((l) => ({ ...l, relatedSceneIds: ids }))}
                 />
               )}
               {houseItems.length > 0 && (
-                <EntityMultiPicker
+                <InlineEntityChecklist
                   label="Casas"
                   items={houseItems}
-                  value={relatedHouseIds}
-                  onChange={setRelatedHouseIds}
-                  placeholder="Elegir…"
+                  value={links.relatedHouseIds}
+                  onChange={(ids) => setLinks((l) => ({ ...l, relatedHouseIds: ids }))}
                 />
               )}
               {orgItems.length > 0 && (
-                <EntityMultiPicker
+                <InlineEntityChecklist
                   label="Organizaciones"
                   items={orgItems}
-                  value={relatedOrganizationIds}
-                  onChange={setRelatedOrganizationIds}
-                  placeholder="Elegir…"
+                  value={links.relatedOrganizationIds}
+                  onChange={(ids) => setLinks((l) => ({ ...l, relatedOrganizationIds: ids }))}
                 />
               )}
             </div>
@@ -301,8 +326,10 @@ export function IdeaFormModal({ open, onClose, worldId, initial, onSubmit }: Pro
                 <label className="mb-1 block text-xs uppercase text-[#5A6078]">Protagonista principal (opc.)</label>
                 <select
                   className="story-input w-full max-w-md text-sm"
-                  value={linkedCharacterId ?? ''}
-                  onChange={(e) => setLinkedCharacterId(e.target.value || null)}
+                  value={links.linkedCharacterId ?? ''}
+                  onChange={(e) =>
+                    setLinks((l) => ({ ...l, linkedCharacterId: e.target.value || null }))
+                  }
                 >
                   <option value="">Sin foco único</option>
                   {characterItems.map((c) => (

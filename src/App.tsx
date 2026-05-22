@@ -14,6 +14,9 @@ import { SceneDetail } from '@/pages/SceneDetail';
 import { IdeasPage } from '@/pages/IdeasPage';
 import { FavoritesPage } from '@/pages/FavoritesPage';
 import { TrashPage } from '@/pages/TrashPage';
+import { MediaLibraryPage } from '@/pages/MediaLibraryPage';
+import { ProfilePage } from '@/pages/ProfilePage';
+import { SettingsPage } from '@/pages/SettingsPage';
 import { GlobalCharactersPage } from '@/pages/GlobalCharactersPage';
 import { PlaceDetail } from '@/pages/PlaceDetail';
 import { MapView } from '@/pages/MapView';
@@ -69,6 +72,9 @@ function AppContent() {
             <Route path="ideas" element={<IdeasPage />} />
             <Route path="favorites" element={<FavoritesPage />} />
             <Route path="trash" element={<TrashPage />} />
+            <Route path="archivos" element={<MediaLibraryPage />} />
+            <Route path="perfil" element={<ProfilePage />} />
+            <Route path="ajustes" element={<SettingsPage />} />
           </Route>
         </Route>
         <Route path="*" element={<NotFoundPage />} />

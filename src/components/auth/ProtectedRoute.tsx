@@ -19,11 +19,12 @@ export function ProtectedRoute() {
     return subscribeToAuth((u) => {
       setUser(u);
       if (u) {
+        const prev = useStore.getState().user;
         useStore.getState().login({
           id: u.uid,
           email: u.email ?? '',
-          displayName: u.displayName ?? u.email?.split('@')[0] ?? 'Usuario',
-          photoURL: u.photoURL ?? '',
+          displayName: u.displayName ?? prev?.displayName ?? u.email?.split('@')[0] ?? 'Usuario',
+          photoURL: u.photoURL ?? prev?.photoURL ?? '',
           isAuthenticated: true,
         });
       } else {

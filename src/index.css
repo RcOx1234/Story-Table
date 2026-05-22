@@ -218,6 +218,33 @@
     color: #d61e2b;
     background-color: rgba(214, 30, 43, 0.15);
   }
+  /* Checkboxes redondos globales (añade class="story-checkbox" o usa StoryToggle) */
+  input[type='checkbox'].story-checkbox {
+    appearance: none;
+    width: 1.25rem;
+    height: 1.25rem;
+    flex-shrink: 0;
+    border-radius: 9999px;
+    border: 2px solid #3a4460;
+    background: #111318;
+    cursor: pointer;
+    transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
+  }
+  input[type='checkbox'].story-checkbox:hover {
+    border-color: #5a6078;
+  }
+  input[type='checkbox'].story-checkbox:checked {
+    border-color: #d61e2b;
+    background: #d61e2b;
+    box-shadow: 0 0 10px rgba(214, 30, 43, 0.35);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' d='M2 6l3 3 5-5'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 0.65rem;
+  }
+  input[type='checkbox'].story-checkbox:active {
+    transform: scale(0.92);
+  }
 }
 
 @layer utilities {

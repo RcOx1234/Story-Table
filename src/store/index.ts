@@ -34,12 +34,15 @@ import {
 } from '@/lib/relationshipSync';
 import { resolveTagNames } from '@/lib/worldTags';
 import { worldInitialSectionConfig } from '@/lib/worldSections';
+import { buildStateWithReplacedUrl } from '@/lib/storeUrlReferences';
 
 export interface AppState {
   // Auth
   user: User | null;
   login: (user: User) => void;
   logout: () => void;
+  updateUser: (data: Partial<User>) => void;
+  replaceStorageUrlInStore: (oldUrl: string, newUrl: string) => void;
 
   // Worlds
   worlds: World[];
@@ -278,6 +281,14 @@ export const useStore = create<AppState>()(
         applyEmptyStorySlice();
         set({ user: null });
       },
+      updateUser: (data) =>
+        set((state) => ({
+          user: state.user ? { ...state.user, ...data } : null,
+        })),
+      replaceStorageUrlInStore: (oldUrl, newUrl) =>
+        set((state) => ({
+          ...buildStateWithReplacedUrl(state, oldUrl, newUrl),
+        })),
 
       // Worlds
       worlds: [],

@@ -1,5 +1,6 @@
 import {
   createUserWithEmailAndPassword,
+  deleteUser,
   EmailAuthProvider,
   onAuthStateChanged,
   reauthenticateWithCredential,
@@ -10,6 +11,8 @@ import {
   updateProfile,
   type User,
 } from 'firebase/auth';
+import { deleteStoragePrefix } from '@/services/storageService';
+import { deleteEntireUserLibrary } from '@/services/libraryFirestoreService';
 import { auth, isFirebaseConfigured } from '@/lib/firebase';
 
 export type AuthUser = User;
@@ -104,5 +107,29 @@ export async function verifyAccountPassword(password: string): Promise<boolean> 
     return true;
   } catch {
     return false;
+  }
+}
+
+export async function updateAccountProfile(updates: { displayName?: string; photoURL?: string | null }): Promise<void> {
+  if (!auth?.currentUser) throw new Error('Debes iniciar sesión');
+  try {
+    await updateProfile(auth.currentUser, updates);
+  } catch (err: unknown) {
+    throw wrapAuthError(err);
+  }
+}
+
+/** Elimina biblioteca, archivos y cuenta (requiere contraseña reciente). */
+export async function deleteAccountWithPassword(password: string): Promise<void> {
+  const user = auth?.currentUser;
+  if (!user?.email) throw new Error('Debes iniciar sesión');
+  try {
+    const cred = EmailAuthProvider.credential(user.email, password);
+    await reauthenticateWithCredential(user, cred);
+    await deleteEntireUserLibrary(user.uid);
+    await deleteStoragePrefix(user.uid, '');
+    await deleteUser(user);
+  } catch (err: unknown) {
+    throw wrapAuthError(err);
   }
 }

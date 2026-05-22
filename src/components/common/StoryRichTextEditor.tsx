@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useImperativeHandle, useRef, forwardRef } from 'react';
+import { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, forwardRef } from 'react';
 import { editorHtmlToMarkdown, markdownToEditorHtml } from '@/lib/storyRichText';
 import { chipIconHtml } from '@/lib/chipIconHtml';
 import { insertionMeta } from '@/lib/insertionMeta';
@@ -20,14 +20,23 @@ type Props = {
   className?: string;
 };
 
+function normalizeStoredValue(text: string): string {
+  const t = text.replace(/\u200B/g, '').trim();
+  return t === '' ? '' : text.replace(/\u200B/g, '');
+}
+
 export const StoryRichTextEditor = forwardRef<StoryRichTextEditorHandle, Props>(function StoryRichTextEditor(
   { value, onChange, placeholder = 'Escribe aquí…', minHeight = '6rem', onContextMenu, className = '' },
   ref
 ) {
   const editorRef = useRef<HTMLDivElement>(null);
   const syncingRef = useRef(false);
-  const lastValueRef = useRef(value);
+  const isFocusedRef = useRef(false);
+  const mountedRef = useRef(false);
+  const lastValueRef = useRef(normalizeStoredValue(value));
   const savedRangeRef = useRef<Range | null>(null);
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
 
   const saveSelection = useCallback(() => {
     const el = editorRef.current;
@@ -55,30 +64,43 @@ export const StoryRichTextEditor = forwardRef<StoryRichTextEditorHandle, Props>(
     const md = editorHtmlToMarkdown(el);
     if (md === lastValueRef.current) return;
     lastValueRef.current = md;
-    onChange(md);
-  }, [onChange]);
+    onChangeRef.current(md);
+  }, []);
+
+  const isBlurInsideField = (e: React.FocusEvent<HTMLDivElement>) => {
+    const related = e.relatedTarget as Node | null;
+    if (!related) return false;
+    const field = e.currentTarget.closest('[data-story-rich-text]');
+    return Boolean(field?.contains(related));
+  };
 
   const syncFromValue = useCallback((text: string) => {
     const el = editorRef.current;
     if (!el) return;
+    const normalized = normalizeStoredValue(text);
     syncingRef.current = true;
-    const html = markdownToEditorHtml(text);
+    const html = normalized ? markdownToEditorHtml(normalized) : '<br>';
     if (el.innerHTML !== html) {
-      el.innerHTML = html || '';
+      el.innerHTML = html;
     }
-    lastValueRef.current = text;
+    lastValueRef.current = normalized;
     queueMicrotask(() => {
       syncingRef.current = false;
     });
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     syncFromValue(value);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- solo al montar
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
   }, []);
 
   useEffect(() => {
-    if (value === lastValueRef.current) return;
+    if (!mountedRef.current || isFocusedRef.current) return;
+    const normalized = normalizeStoredValue(value);
+    if (normalized === lastValueRef.current) return;
     syncFromValue(value);
   }, [value, syncFromValue]);
 
@@ -177,12 +199,17 @@ export const StoryRichTextEditor = forwardRef<StoryRichTextEditorHandle, Props>(
       onInput={onInput}
       onPaste={onPaste}
       onClick={onClick}
+      onFocus={() => {
+        isFocusedRef.current = true;
+      }}
       onContextMenu={(e) => {
         saveSelection();
         onContextMenu?.(e);
       }}
-      onBlur={() => {
+      onBlur={(e) => {
+        isFocusedRef.current = false;
         saveSelection();
+        if (isBlurInsideField(e) || syncingRef.current) return;
         syncToParent();
       }}
     />

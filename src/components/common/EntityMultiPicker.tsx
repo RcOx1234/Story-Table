@@ -58,7 +58,7 @@ export function EntityMultiPicker({
   return (
     <div className="space-y-2">
       <label className="block text-xs font-mono uppercase tracking-wider text-[#5A6078]">{label}</label>
-      <Popover open={open} onOpenChange={setOpen}>
+      <Popover open={open} onOpenChange={setOpen} modal={false}>
         <PopoverTrigger asChild>
           <button
             type="button"
@@ -70,7 +70,10 @@ export function EntityMultiPicker({
             <ChevronDown size={16} className="shrink-0 text-[#5A6078]" />
           </button>
         </PopoverTrigger>
-        <PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] border-[#2A3045] bg-[#111318] p-0">
+        <PopoverContent
+          align="start"
+          className="z-[60] w-[var(--radix-popover-trigger-width)] border-[#2A3045] bg-[#111318] p-0"
+        >
           <div className="relative border-b border-[#2A3045] p-2">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5A6078]" />
             <input

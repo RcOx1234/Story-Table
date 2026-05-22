@@ -1,4 +1,12 @@
-import { ref, uploadBytes, getDownloadURL, deleteObject, listAll, type StorageReference } from 'firebase/storage';
+import {
+  ref,
+  uploadBytes,
+  getDownloadURL,
+  deleteObject,
+  listAll,
+  getMetadata,
+  type StorageReference,
+} from 'firebase/storage';
 import { storage, isFirebaseConfigured } from '@/lib/firebase';
 
 export async function uploadFileToUserPath(
@@ -65,4 +73,52 @@ export async function deleteStoragePrefix(uid: string, relativePrefix: string): 
   } catch {
     /* carpeta vacía o inexistente */
   }
+}
+
+export type ListedStorageFile = {
+  relativePath: string;
+  downloadUrl: string;
+  name: string;
+  sizeBytes?: number;
+  contentType?: string;
+  updatedAt?: string;
+};
+
+async function listFolderRecursive(
+  folderRef: StorageReference,
+  uid: string,
+  prefix: string,
+  out: ListedStorageFile[]
+): Promise<void> {
+  const listing = await listAll(folderRef);
+  for (const item of listing.items) {
+    const relativePath = prefix ? `${prefix}/${item.name}` : item.name;
+    try {
+      const downloadUrl = await getDownloadURL(item);
+      const meta = await getMetadata(item).catch(() => null);
+      out.push({
+        relativePath,
+        downloadUrl,
+        name: item.name,
+        sizeBytes: meta?.size,
+        contentType: meta?.contentType,
+        updatedAt: meta?.updated,
+      });
+    } catch {
+      /* omitir archivos inaccesibles */
+    }
+  }
+  for (const sub of listing.prefixes) {
+    const subPrefix = prefix ? `${prefix}/${sub.name}` : sub.name;
+    await listFolderRecursive(sub, uid, subPrefix, out);
+  }
+}
+
+/** Lista todos los archivos bajo `users/{uid}/` (recursivo). */
+export async function listUserStorageFiles(uid: string): Promise<ListedStorageFile[]> {
+  if (!storage || !isFirebaseConfigured()) return [];
+  const root = ref(storage, `users/${uid}`);
+  const out: ListedStorageFile[] = [];
+  await listFolderRecursive(root, uid, '', out);
+  return out.sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? ''));
 }
