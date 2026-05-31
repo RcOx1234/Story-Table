@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useNavigateWithReturn } from '@/hooks/useNavigationReturn';
+import { useNavigateWithReturn, useRememberWorldsListPath } from '@/hooks/useNavigationReturn';
 import { useAppStore, useStore } from '@/store';
 import { motion } from 'framer-motion';
 import {
@@ -60,6 +60,7 @@ type Props = {
 export function WorldsGridSection({ variant }: Props) {
   const navigate = useNavigate();
   const navigateWithReturn = useNavigateWithReturn();
+  useRememberWorldsListPath();
   const worldsAll = useAppStore((s) => s.worlds);
   const orderIds = useAppStore((s) => s.dashboardWorldIds);
   const shiftDashboardWorld = useAppStore((s) => s.shiftDashboardWorld);

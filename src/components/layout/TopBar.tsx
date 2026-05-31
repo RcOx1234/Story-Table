@@ -12,7 +12,7 @@ import {
 import { toast } from 'sonner';
 import { isFirebaseConfigured } from '@/lib/firebase';
 import { logout as firebaseLogout } from '@/services/authService';
-import { buildLibraryExport, parseLibraryImport } from '@/lib/storyImportExport';
+import { buildLibraryExport, parseLibraryImport, sanitizeLibraryImport } from '@/lib/storyImportExport';
 import { pushStoryBundle } from '@/services/storyBundleSync';
 import { formatFirestoreSaveError } from '@/lib/firestorePayload';
 import { AccountSettingsModal } from '@/components/modals/AccountSettingsModal';
@@ -48,11 +48,12 @@ export function TopBar() {
     if (!file) return;
     try {
       const text = await file.text();
-      const data = parseLibraryImport(JSON.parse(text));
-      if (!data?.worlds) {
+      const parsed = parseLibraryImport(JSON.parse(text));
+      if (!parsed?.worlds) {
         toast.error('El archivo no tiene el formato de biblioteca Story Table');
         return;
       }
+      const data = sanitizeLibraryImport(parsed);
       if (
         !window.confirm(
           'Esto reemplazará todos tus mundos y entidades en este navegador por los del archivo. ¿Continuar?'
@@ -76,6 +77,9 @@ export function TopBar() {
         worldData: (data.worldData as AppState['worldData']) ?? [],
         placeCollections: (data.placeCollections as AppState['placeCollections']) ?? [],
         mapCollections: (data.mapCollections as AppState['mapCollections']) ?? [],
+        worldTags: (data.worldTags as AppState['worldTags']) ?? [],
+        fantasticElements: (data.fantasticElements as AppState['fantasticElements']) ?? [],
+        entityFolders: (data.entityFolders as AppState['entityFolders']) ?? [],
         characterOrderByWorld: data.characterOrderByWorld ?? {},
         dashboardWorldIds: data.dashboardWorldIds ?? [],
       });

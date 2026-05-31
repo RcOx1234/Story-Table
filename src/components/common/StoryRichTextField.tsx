@@ -8,7 +8,22 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bold, Italic, Underline, Link2, ChevronRight, Globe } from 'lucide-react';
+import {
+  Bold,
+  Italic,
+  Underline,
+  Link2,
+  ChevronRight,
+  Globe,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  AlignJustify,
+  RotateCcw,
+  Copy,
+} from 'lucide-react';
+import { toast } from 'sonner';
+import type { TextAlign } from '@/lib/storyRichText';
 import { useAppStore, useStore } from '@/store';
 import { buildInsertionCatalog, type InsertionCategory } from '@/lib/storyInsertionCatalog';
 import { clampMenuPosition, placeFlyoutMenu } from '@/lib/contextMenuPosition';
@@ -105,6 +120,25 @@ export function StoryRichTextField({
   const applyFormat = (cmd: 'bold' | 'italic' | 'underline') => {
     editorRef.current?.applyFormat(cmd);
     editorRef.current?.focus();
+  };
+
+  const applyAlign = (align: TextAlign) => {
+    editorRef.current?.applyAlign(align);
+    editorRef.current?.focus();
+  };
+
+  const clearFormat = () => {
+    editorRef.current?.clearFormat();
+    editorRef.current?.focus();
+  };
+
+  const copyRichText = () => {
+    editorRef.current?.saveSelection();
+    const copied = editorRef.current?.copyToClipboard();
+    if (copied) toast.success('Texto copiado con formato');
+    else toast.error('No hay texto para copiar');
+    editorRef.current?.focus();
+    closeMenu();
   };
 
   const insertAtCursor = useCallback(
@@ -235,6 +269,51 @@ export function StoryRichTextField({
             </span>
             Subrayado
           </button>
+          <button
+            type="button"
+            className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-[#E8E9EB] transition-colors hover:bg-[#1E2230]"
+            onClick={clearFormat}
+          >
+            <span className="flex h-6 w-6 items-center justify-center rounded-md bg-[#252A3C]">
+              <RotateCcw size={13} className="text-[#E8E9EB]" />
+            </span>
+            Restaurar formato
+          </button>
+          <button
+            type="button"
+            className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-[#E8E9EB] transition-colors hover:bg-[#1E2230]"
+            onClick={copyRichText}
+          >
+            <span className="flex h-6 w-6 items-center justify-center rounded-md bg-[#252A3C]">
+              <Copy size={13} className="text-[#E8E9EB]" />
+            </span>
+            Copiar
+          </button>
+          <div className="my-1 border-t border-[#2A3045]/80" />
+          <p className="border-b border-[#2A3045]/80 px-3 py-1.5 text-[10px] font-mono uppercase tracking-wider text-[#5A6078]">
+            Alineación
+          </p>
+          <div className="flex items-center justify-between gap-1 px-2 py-1.5">
+            {(
+              [
+                { align: 'left' as const, label: 'Izquierda', Icon: AlignLeft },
+                { align: 'center' as const, label: 'Centro', Icon: AlignCenter },
+                { align: 'right' as const, label: 'Derecha', Icon: AlignRight },
+                { align: 'justify' as const, label: 'Justificado', Icon: AlignJustify },
+              ] as const
+            ).map(({ align, label, Icon }) => (
+              <button
+                key={align}
+                type="button"
+                title={label}
+                aria-label={label}
+                className="flex h-8 flex-1 items-center justify-center rounded-md text-[#E8E9EB] transition-colors hover:bg-[#1E2230]"
+                onClick={() => applyAlign(align)}
+              >
+                <Icon size={15} className="text-[#E8E9EB]" />
+              </button>
+            ))}
+          </div>
           {pickerWorldId && catalog.length > 0 && (
             <>
               <div className="my-1 border-t border-[#2A3045]/80" />
@@ -392,6 +471,7 @@ export function StoryRichTextField({
           ref={editorRef}
           value={value}
           onChange={onChange}
+          worldId={pickerWorldId || worldId}
           placeholder={placeholder}
           minHeight={minHeight}
           onContextMenu={openMenu}
@@ -399,7 +479,7 @@ export function StoryRichTextField({
       </div>
       {!hideHint && (
         <p className="text-[10px] text-[#5A6078]">
-          Clic derecho: formato e inserciones · Pasa el cursor sobre un chip para quitarlo
+          Clic derecho: formato, alineación e inserciones · Ctrl+C/V en chips · Doble clic para renombrar
         </p>
       )}
       {contextMenu}

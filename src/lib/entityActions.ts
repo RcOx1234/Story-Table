@@ -1,6 +1,8 @@
 import type { NavigateFunction } from 'react-router-dom';
 import type { DetectedEntity, StoryEntityType } from '@/lib/storyEntityContext';
 import { canEditInPlaceEntity, opensInPlacePreview } from '@/lib/storyInsertionPreview';
+import { captureNavigationReturn, navigateWithReturnState } from '@/lib/storyNavigation';
+import { useStore } from '@/store';
 import { toast } from 'sonner';
 
 const DETAIL_ROUTE =
@@ -33,16 +35,16 @@ export function entityViewPath(entity: DetectedEntity): string | null {
 export function openEntityView(
   entity: DetectedEntity,
   navigate: NavigateFunction,
-  openInsertionPreview: (worldId: string, type: string, id: string) => void,
   openEntityViewModal: (entity: DetectedEntity) => void
 ) {
   const path = entityViewPath(entity);
   if (path) {
-    navigate(path);
+    navigateWithReturnState(navigate, path);
     return;
   }
   if (opensInPlacePreview(entity.type)) {
-    openInsertionPreview(entity.worldId, entity.type, entity.id);
+    const returnTo = captureNavigationReturn();
+    useStore.getState().openInsertionPreview(entity.worldId, entity.type, entity.id, returnTo);
     return;
   }
   openEntityViewModal(entity);
@@ -62,7 +64,6 @@ export function entityCardMenuProps(
   label: string,
   handlers: {
     navigate: NavigateFunction;
-    openInsertionPreview: (worldId: string, type: string, id: string) => void;
     requestEntityView: (worldId: string, type: string, id: string) => void;
     requestEntityEdit: (worldId: string, type: string, id: string) => void;
     onViewDetails?: () => void;
@@ -72,11 +73,8 @@ export function entityCardMenuProps(
     onViewDetails:
       handlers.onViewDetails ??
       (() =>
-        openEntityView(
-          { type, id, worldId, label },
-          handlers.navigate,
-          handlers.openInsertionPreview,
-          (e) => handlers.requestEntityView(e.worldId, e.type, e.id)
+        openEntityView({ type, id, worldId, label }, handlers.navigate, (e) =>
+          handlers.requestEntityView(e.worldId, e.type, e.id)
         )),
     onEdit: () => {
       const path = typeof window !== 'undefined' ? window.location.pathname : '';

@@ -159,6 +159,22 @@
   .story-rich-editor u {
     @apply underline decoration-[#8B91A7] underline-offset-2;
   }
+  .story-rich-editor div[data-story-align] {
+    display: block;
+    width: 100%;
+  }
+
+  .story-rich-editor .story-inline-chip {
+    user-select: text;
+  }
+  .story-rich-editor .story-inline-chip-selected {
+    border-color: color-mix(in srgb, var(--chip-select-color, #ec4899) 60%, transparent) !important;
+    background-color: var(--chip-select-bg, rgba(236, 72, 153, 0.24)) !important;
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--chip-select-color, #ec4899) 35%, transparent);
+  }
+  .story-rich-editor .story-inline-chip-selected .story-inline-chip-label {
+    color: var(--chip-select-color, #ec4899);
+  }
 
   .story-inline-chip {
     display: inline-flex;
@@ -181,6 +197,22 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  .story-inline-chip-label-editing {
+    outline: 1px solid color-mix(in srgb, var(--chip-color, #8b91a7) 55%, transparent);
+    border-radius: 0.25rem;
+    padding: 0 0.125rem;
+    cursor: text;
+    user-select: text;
+  }
+  .story-rich-display strong {
+    @apply font-semibold text-[#F3F1EA];
+  }
+  .story-rich-display em {
+    @apply italic;
+  }
+  .story-rich-display u {
+    @apply underline decoration-[#8B91A7] underline-offset-2;
   }
   .story-inline-chip-icon-slot {
     position: relative;

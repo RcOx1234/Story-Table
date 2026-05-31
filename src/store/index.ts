@@ -24,7 +24,11 @@ import type {
   User,
   SectionType,
   WorldTag,
+  EntityFolder,
+  EntityFolderScope,
 } from '@/types';
+import { migrateLegacyCharacterFolders } from '@/lib/entityFolders';
+import { captureNavigationReturn, pushInsertionPreviewHistory } from '@/lib/storyNavigation';
 import {
   addChildRelationship,
   repairCharacterRelationships,
@@ -204,6 +208,19 @@ export interface AppState {
   characterOrderByWorld: Record<string, string[]>;
   setCharacterOrder: (worldId: string, ids: string[]) => void;
 
+  /** Carpetas manuales por sección y mundo (personajes, escenas, etc.). */
+  entityFolders: EntityFolder[];
+  addEntityFolder: (folder: Omit<EntityFolder, 'id' | 'createdAt' | 'updatedAt'>) => string;
+  updateEntityFolder: (id: string, data: Partial<EntityFolder>) => void;
+  deleteEntityFolder: (id: string) => void;
+  getEntityFoldersByWorld: (worldId: string, scope: EntityFolderScope) => EntityFolder[];
+  addItemToFolder: (folderId: string, itemId: string) => void;
+  removeItemFromFolder: (folderId: string, itemId: string) => void;
+
+  /** Puente temporal para acciones de carpeta desde el menú contextual global. */
+  folderSectionBridge: import('@/lib/folderSectionBridge').FolderSectionBridge | null;
+  setFolderSectionBridge: (bridge: import('@/lib/folderSectionBridge').FolderSectionBridge | null) => void;
+
   /** Auto-guardado en Firebase (persistido). */
   firebaseAutoSaveEnabled: boolean;
   setFirebaseAutoSaveEnabled: (enabled: boolean) => void;
@@ -214,6 +231,9 @@ export interface AppState {
   /** Sincronización inicial de biblioteca desde Firebase. */
   storyDataLoading: boolean;
   setStoryDataLoading: (loading: boolean) => void;
+  /** Huella del último guardado exitoso en Firebase (evita pisar cambios locales al recargar). */
+  lastFirebaseSyncFingerprint: string | null;
+  setLastFirebaseSyncFingerprint: (fp: string | null) => void;
 
   // UI State
   sidebarOpen: boolean;
@@ -222,7 +242,12 @@ export interface AppState {
   setActiveModal: (modal: string | null) => void;
   /** Vista previa de inserción (componente, idea, etc.) sin cambiar de página. */
   insertionPreview: { worldId: string; type: string; id: string } | null;
-  openInsertionPreview: (worldId: string, type: string, id: string) => void;
+  openInsertionPreview: (
+    worldId: string,
+    type: string,
+    id: string,
+    returnTo?: import('@/hooks/useNavigationReturn').NavigationReturnState
+  ) => void;
   closeInsertionPreview: () => void;
   entityEditRequest: { worldId: string; type: string; id: string } | null;
   requestEntityEdit: (worldId: string, type: string, id: string) => void;
@@ -312,25 +337,58 @@ export const useStore = create<AppState>()(
         set((state) => ({
           worlds: state.worlds.map((w) => (w.id === id ? { ...w, ...data, updatedAt: new Date().toISOString() } : w)),
         })),
-      deleteWorld: (id) =>
+      deleteWorld: (id) => {
+        const now = new Date().toISOString();
+        const markDeleted = <T extends { isDeleted?: boolean; deletedAt?: string }>(item: T): T => ({
+          ...item,
+          isDeleted: true,
+          deletedAt: now,
+        });
         set((state) => ({
-          worlds: state.worlds.map((w) =>
-            w.id === id ? { ...w, isDeleted: true, deletedAt: new Date().toISOString() } : w
-          ),
-          characters: state.characters.map((c) => c.worldId === id ? { ...c, isDeleted: true, deletedAt: new Date().toISOString() } : c),
-          scenes: state.scenes.map((s) => s.worldId === id ? { ...s, isDeleted: true, deletedAt: new Date().toISOString() } : s),
-          places: state.places.map((p) => p.worldId === id ? { ...p, isDeleted: true, deletedAt: new Date().toISOString() } : p),
-          plots: state.plots.map((p) => p.worldId === id ? { ...p, isDeleted: true, deletedAt: new Date().toISOString() } : p),
-          components: state.components.map((c) => c.worldId === id ? { ...c, isDeleted: true, deletedAt: new Date().toISOString() } : c),
-          organizations: state.organizations.map((o) => o.worldId === id ? { ...o, isDeleted: true, deletedAt: new Date().toISOString() } : o),
-          ideas: state.ideas.map((i) => i.worldId === id ? { ...i, worldId: null } : i),
-          timelines: state.timelines.filter((t) => t.worldId !== id),
-          maps: state.maps.filter((m) => m.worldId !== id),
-        })),
+          worlds: state.worlds.map((w) => (w.id === id ? markDeleted(w) : w)),
+          characters: state.characters.map((c) => (c.worldId === id ? markDeleted(c) : c)),
+          scenes: state.scenes.map((s) => (s.worldId === id ? markDeleted(s) : s)),
+          places: state.places.map((p) => (p.worldId === id ? markDeleted(p) : p)),
+          plots: state.plots.map((p) => (p.worldId === id ? markDeleted(p) : p)),
+          components: state.components.map((c) => (c.worldId === id ? markDeleted(c) : c)),
+          organizations: state.organizations.map((o) => (o.worldId === id ? markDeleted(o) : o)),
+          ideas: state.ideas.map((i) => (i.worldId === id ? markDeleted(i) : i)),
+          maps: state.maps.map((m) => (m.worldId === id ? markDeleted(m) : m)),
+          timelines: state.timelines.map((t) => (t.worldId === id ? markDeleted(t) : t)),
+          houses: state.houses.map((h) => (h.worldId === id ? markDeleted(h) : h)),
+          worldFacts: state.worldFacts.map((f) => (f.worldId === id ? markDeleted(f) : f)),
+          worldData: state.worldData.map((d) => (d.worldId === id ? markDeleted(d) : d)),
+          placeCollections: state.placeCollections.map((c) => (c.worldId === id ? markDeleted(c) : c)),
+          mapCollections: state.mapCollections.map((c) => (c.worldId === id ? markDeleted(c) : c)),
+          fantasticElements: state.fantasticElements.map((f) => (f.worldId === id ? markDeleted(f) : f)),
+        }));
+      },
       restoreWorld: (id) =>
-        set((state) => ({
-          worlds: state.worlds.map((w) => (w.id === id ? { ...w, isDeleted: false, deletedAt: undefined } : w)),
-        })),
+        set((state) => {
+          const clearDeleted = <T extends { isDeleted?: boolean; deletedAt?: string }>(item: T): T => ({
+            ...item,
+            isDeleted: false,
+            deletedAt: undefined,
+          });
+          return {
+            worlds: state.worlds.map((w) => (w.id === id ? clearDeleted(w) : w)),
+            characters: state.characters.map((c) => (c.worldId === id ? clearDeleted(c) : c)),
+            scenes: state.scenes.map((s) => (s.worldId === id ? clearDeleted(s) : s)),
+            places: state.places.map((p) => (p.worldId === id ? clearDeleted(p) : p)),
+            plots: state.plots.map((p) => (p.worldId === id ? clearDeleted(p) : p)),
+            components: state.components.map((c) => (c.worldId === id ? clearDeleted(c) : c)),
+            organizations: state.organizations.map((o) => (o.worldId === id ? clearDeleted(o) : o)),
+            ideas: state.ideas.map((i) => (i.worldId === id ? clearDeleted(i) : i)),
+            maps: state.maps.map((m) => (m.worldId === id ? clearDeleted(m) : m)),
+            timelines: state.timelines.map((t) => (t.worldId === id ? clearDeleted(t) : t)),
+            houses: state.houses.map((h) => (h.worldId === id ? clearDeleted(h) : h)),
+            worldFacts: state.worldFacts.map((f) => (f.worldId === id ? clearDeleted(f) : f)),
+            worldData: state.worldData.map((d) => (d.worldId === id ? clearDeleted(d) : d)),
+            placeCollections: state.placeCollections.map((c) => (c.worldId === id ? clearDeleted(c) : c)),
+            mapCollections: state.mapCollections.map((c) => (c.worldId === id ? clearDeleted(c) : c)),
+            fantasticElements: state.fantasticElements.map((f) => (f.worldId === id ? clearDeleted(f) : f)),
+          };
+        }),
       duplicateWorld: (id) => {
         const w = get().worlds.find((x) => x.id === id);
         if (!w || w.isDeleted) return null;
@@ -362,6 +420,18 @@ export const useStore = create<AppState>()(
           organizations: [...state.organizations, ...bundle.organizations],
           ideas: [...state.ideas, ...bundle.ideas],
           timelines: [...state.timelines, ...bundle.timelines],
+          houses: [...state.houses, ...(bundle.houses ?? [])],
+          worldFacts: [...state.worldFacts, ...(bundle.worldFacts ?? [])],
+          worldData: [...state.worldData, ...(bundle.worldData ?? [])],
+          placeCollections: [...state.placeCollections, ...(bundle.placeCollections ?? [])],
+          mapCollections: [...state.mapCollections, ...(bundle.mapCollections ?? [])],
+          fantasticElements: [...state.fantasticElements, ...(bundle.fantasticElements ?? [])],
+          worldTags: [...state.worldTags, ...(bundle.worldTags ?? [])],
+          entityFolders: [...state.entityFolders, ...(bundle.entityFolders ?? [])],
+          characterOrderByWorld: {
+            ...state.characterOrderByWorld,
+            [w.id]: bundle.characterOrder ?? [],
+          },
         }));
         return w.id;
       },
@@ -573,7 +643,7 @@ export const useStore = create<AppState>()(
         })),
       deleteMap: (id) =>
         set((state) => ({ maps: state.maps.filter((m) => m.id !== id) })),
-      getMapsByWorld: (worldId) => get().maps.filter((m) => m.worldId === worldId),
+      getMapsByWorld: (worldId) => get().maps.filter((m) => m.worldId === worldId && !m.isDeleted),
 
       // Plots
       plots: [],
@@ -710,7 +780,7 @@ export const useStore = create<AppState>()(
         set((state) => ({ timelines: state.timelines.filter((t) => t.id !== id) })),
       getTimelinesByWorld: (worldId) =>
         get()
-          .timelines.filter((t) => t.worldId === worldId)
+          .timelines.filter((t) => t.worldId === worldId && !t.isDeleted)
           .sort((a, b) => a.order - b.order),
 
       fantasticElements: [],
@@ -839,11 +909,66 @@ export const useStore = create<AppState>()(
           ),
         })),
       deleteMapCollection: (id) => set((state) => ({ mapCollections: state.mapCollections.filter((c) => c.id !== id) })),
-      getMapCollectionsByWorld: (worldId) => get().mapCollections.filter((c) => c.worldId === worldId),
+      getMapCollectionsByWorld: (worldId) => get().mapCollections.filter((c) => c.worldId === worldId && !c.isDeleted),
 
       characterOrderByWorld: {},
       setCharacterOrder: (worldId, ids) =>
         set((state) => ({ characterOrderByWorld: { ...state.characterOrderByWorld, [worldId]: ids } })),
+
+      entityFolders: [],
+      addEntityFolder: (folder) => {
+        const item: EntityFolder = {
+          ...folder,
+          id: crypto.randomUUID(),
+          parentFolderId: folder.parentFolderId ?? null,
+          itemIds: folder.itemIds ?? [],
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        set((state) => ({ entityFolders: [...state.entityFolders, item] }));
+        return item.id;
+      },
+      updateEntityFolder: (id, data) =>
+        set((state) => ({
+          entityFolders: state.entityFolders.map((f) =>
+            f.id === id ? { ...f, ...data, updatedAt: new Date().toISOString() } : f
+          ),
+        })),
+      deleteEntityFolder: (id) =>
+        set((state) => {
+          const collect = (folderId: string, acc: Set<string>) => {
+            acc.add(folderId);
+            state.entityFolders.filter((f) => f.parentFolderId === folderId).forEach((c) => collect(c.id, acc));
+            return acc;
+          };
+          const removeIds = collect(id, new Set<string>());
+          return { entityFolders: state.entityFolders.filter((f) => !removeIds.has(f.id)) };
+        }),
+      getEntityFoldersByWorld: (worldId, scope) =>
+        get().entityFolders.filter((f) => f.worldId === worldId && f.scope === scope),
+      addItemToFolder: (folderId, itemId) =>
+        set((state) => ({
+          entityFolders: state.entityFolders.map((f) =>
+            f.id === folderId && !f.itemIds.includes(itemId)
+              ? { ...f, itemIds: [...f.itemIds, itemId], updatedAt: new Date().toISOString() }
+              : f
+          ),
+        })),
+      removeItemFromFolder: (folderId, itemId) =>
+        set((state) => ({
+          entityFolders: state.entityFolders.map((f) =>
+            f.id === folderId
+              ? {
+                  ...f,
+                  itemIds: f.itemIds.filter((cid) => cid !== itemId),
+                  updatedAt: new Date().toISOString(),
+                }
+              : f
+          ),
+        })),
+
+      folderSectionBridge: null,
+      setFolderSectionBridge: (bridge) => set({ folderSectionBridge: bridge }),
 
       firebaseAutoSaveEnabled: true,
       setFirebaseAutoSaveEnabled: (enabled) => set({ firebaseAutoSaveEnabled: enabled }),
@@ -852,6 +977,8 @@ export const useStore = create<AppState>()(
 
       storyDataLoading: false,
       setStoryDataLoading: (loading) => set({ storyDataLoading: loading }),
+      lastFirebaseSyncFingerprint: null,
+      setLastFirebaseSyncFingerprint: (fp) => set({ lastFirebaseSyncFingerprint: fp }),
 
       // UI State
       sidebarOpen: true,
@@ -859,8 +986,18 @@ export const useStore = create<AppState>()(
       activeModal: null,
       setActiveModal: (modal) => set({ activeModal: modal }),
       insertionPreview: null,
-      openInsertionPreview: (worldId, type, id) => set({ insertionPreview: { worldId, type, id } }),
-      closeInsertionPreview: () => set({ insertionPreview: null }),
+      openInsertionPreview: (worldId, type, id, returnTo) => {
+        const ret = returnTo ?? captureNavigationReturn();
+        pushInsertionPreviewHistory({ worldId, type, id }, ret);
+        set({ insertionPreview: { worldId, type, id } });
+      },
+      closeInsertionPreview: () => {
+        if (window.history.state?.overlay === 'insertion-preview') {
+          window.history.back();
+          return;
+        }
+        set({ insertionPreview: null });
+      },
       entityEditRequest: null,
       requestEntityEdit: (worldId, type, id) => set({ entityEditRequest: { worldId, type, id } }),
       clearEntityEditRequest: () => set({ entityEditRequest: null }),
@@ -932,7 +1069,18 @@ export const useStore = create<AppState>()(
                 organizations: state.organizations.filter((o) => o.worldId !== id),
                 maps: state.maps.filter((m) => m.worldId !== id),
                 timelines: state.timelines.filter((t) => t.worldId !== id),
-                ideas: state.ideas.map((i) => (i.worldId === id ? { ...i, worldId: null } : i)),
+                houses: state.houses.filter((h) => h.worldId !== id),
+                worldFacts: state.worldFacts.filter((f) => f.worldId !== id),
+                worldData: state.worldData.filter((d) => d.worldId !== id),
+                placeCollections: state.placeCollections.filter((c) => c.worldId !== id),
+                mapCollections: state.mapCollections.filter((c) => c.worldId !== id),
+                fantasticElements: state.fantasticElements.filter((f) => f.worldId !== id),
+                worldTags: state.worldTags.filter((t) => t.worldId !== id),
+                entityFolders: state.entityFolders.filter((f) => f.worldId !== id),
+                ideas: state.ideas.filter((i) => i.worldId !== id),
+                characterOrderByWorld: Object.fromEntries(
+                  Object.entries(state.characterOrderByWorld).filter(([wid]) => wid !== id)
+                ),
               };
             case 'character':
               return { characters: remove(state.characters) };
@@ -1002,11 +1150,31 @@ export const useStore = create<AppState>()(
         placeCollections: state.placeCollections,
         mapCollections: state.mapCollections,
         worldTags: state.worldTags,
+        entityFolders: state.entityFolders,
         characterOrderByWorld: state.characterOrderByWorld,
         firebaseAutoSaveEnabled: state.firebaseAutoSaveEnabled,
+        lastFirebaseSyncFingerprint: state.lastFirebaseSyncFingerprint,
         sidebarOpen: state.sidebarOpen,
         dashboardWorldIds: state.dashboardWorldIds,
       }),
+      merge: (persisted, current) => {
+        const p = (persisted ?? {}) as Record<string, unknown>;
+        const cur = current as AppState;
+        let entityFolders = (p.entityFolders as EntityFolder[] | undefined) ?? cur.entityFolders ?? [];
+        if (!entityFolders.length && Array.isArray(p.characterFolders)) {
+          entityFolders = migrateLegacyCharacterFolders(
+            p.characterFolders as Array<{
+              id: string;
+              worldId: string;
+              name: string;
+              characterIds?: string[];
+              createdAt: string;
+              updatedAt: string;
+            }>
+          );
+        }
+        return { ...cur, ...p, entityFolders };
+      },
     }
   )
 );

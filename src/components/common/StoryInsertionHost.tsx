@@ -1,6 +1,8 @@
 import { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useAppStore } from '@/store';
+import { useAppStore, useStore } from '@/store';
+import { resolveStoryRef } from '@/lib/storyRefResolve';
+import { normalizeInsertionType } from '@/lib/storyInsertionCatalog';
 import { ComponentDetailModal } from '@/components/modals/crud/ComponentDetailModal';
 import { BaseModal } from '@/components/modals/crud/BaseModal';
 import { StoryRichTextDisplay } from '@/components/common/StoryRichTextDisplay';
@@ -53,38 +55,41 @@ export function StoryInsertionHost() {
   const payload = useMemo(() => {
     if (!preview) return null;
     const { worldId, type, id } = preview;
-    switch (type) {
+    const resolved = resolveStoryRef(worldId, type, id, '', useStore.getState());
+    const entityType = normalizeInsertionType(resolved?.type ?? type);
+    const entityId = resolved?.id ?? id;
+    switch (entityType) {
       case 'component': {
-        const component = components.find((c) => c.id === id && !c.isDeleted);
-        return component ? { type, worldId, component } : null;
+        const component = components.find((c) => c.id === entityId && !c.isDeleted);
+        return component ? { type: entityType, worldId, component } : null;
       }
       case 'organization': {
-        const org = organizations.find((o) => o.id === id && !o.isDeleted);
-        return org ? { type, worldId, org } : null;
+        const org = organizations.find((o) => o.id === entityId && !o.isDeleted);
+        return org ? { type: entityType, worldId, org } : null;
       }
       case 'idea': {
-        const idea = ideas.find((i) => i.id === id && !i.isDeleted);
-        return idea ? { type, worldId, idea } : null;
+        const idea = ideas.find((i) => i.id === entityId && !i.isDeleted);
+        return idea ? { type: entityType, worldId, idea } : null;
       }
       case 'plot': {
-        const plot = plots.find((p) => p.id === id && !p.isDeleted);
-        return plot ? { type, worldId, plot } : null;
+        const plot = plots.find((p) => p.id === entityId && !p.isDeleted);
+        return plot ? { type: entityType, worldId, plot } : null;
       }
       case 'fantastic': {
-        const el = fantasticElements.find((f) => f.id === id && !f.isDeleted);
-        return el ? { type, worldId, fantastic: el } : null;
+        const el = fantasticElements.find((f) => f.id === entityId && !f.isDeleted);
+        return el ? { type: entityType, worldId, fantastic: el } : null;
       }
       case 'fact': {
-        const fact = worldFacts.find((f) => f.id === id && !f.isDeleted);
-        return fact ? { type, worldId, fact } : null;
+        const fact = worldFacts.find((f) => f.id === entityId && !f.isDeleted);
+        return fact ? { type: entityType, worldId, fact } : null;
       }
       case 'datum': {
-        const datum = worldData.find((d) => d.id === id && !d.isDeleted);
-        return datum ? { type, worldId, datum } : null;
+        const datum = worldData.find((d) => d.id === entityId && !d.isDeleted);
+        return datum ? { type: entityType, worldId, datum } : null;
       }
       case 'timeline': {
-        const timeline = timelines.find((t) => t.id === id);
-        return timeline ? { type, worldId, timeline } : null;
+        const timeline = timelines.find((t) => t.id === entityId);
+        return timeline ? { type: entityType, worldId, timeline } : null;
       }
       default:
         return null;

@@ -159,7 +159,7 @@ export function IdeaFormModal({ open, onClose, worldId, initial, onSubmit }: Pro
       setImageUrl('');
     }
     setErr('');
-  }, [open, worldId, initial?.id, initial?.updatedAt]);
+  }, [open, worldId, initial?.id]);
 
   const activeType = useMemo(() => TYPE_OPTIONS.find((t) => t.value === type), [type]);
 
@@ -167,6 +167,10 @@ export function IdeaFormModal({ open, onClose, worldId, initial, onSubmit }: Pro
     const next = id || null;
     setTargetWorld((prev) => (prev === next ? prev : next));
     setLinks(emptyLinks());
+  }, []);
+
+  const handleDescriptionChange = useCallback((v: string) => {
+    setDescription((prev) => (prev === v ? prev : v));
   }, []);
 
   const save = () => {
@@ -236,7 +240,7 @@ export function IdeaFormModal({ open, onClose, worldId, initial, onSubmit }: Pro
                 worldId={richTextWorldId}
                 onInsertionWorldChange={worldId === null ? handleInsertionWorldChange : undefined}
                 value={description}
-                onChange={setDescription}
+                onChange={handleDescriptionChange}
                 minHeight="8rem"
                 placeholder="Describe tu idea…"
                 hideHint

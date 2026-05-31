@@ -10,6 +10,7 @@ import { BaseModal } from '@/components/modals/crud/BaseModal';
 import { ConfirmDeleteModal } from '@/components/modals/crud/ConfirmDeleteModal';
 import { EntityCardMenu } from '@/components/common/EntityCardMenu';
 import { EntityReference } from '@/components/common/EntityReference';
+import { EntityFoldersSection } from '@/components/common/EntityFoldersSection';
 import { toast } from 'sonner';
 import { storyEntityDataAttrs } from '@/lib/storyEntityContext';
 
@@ -66,96 +67,93 @@ export function OrganizationsSection({ worldId }: Props) {
 
   useWorldEditFromUrl(openEdit, (id) => organizations.find((o) => o.id === id));
 
-  return (
-    <div>
-      <div className="mb-6">
-        <div className="relative">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5A6078]" />
-          <input
-            type="text"
-            placeholder="Buscar organizaciones..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="story-input w-full pl-10"
-          />
-        </div>
+  const renderOrg = (org: Organization, i: number) => (
+    <motion.div
+      key={org.id}
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: i * 0.05 }}
+      className="story-card group relative cursor-pointer overflow-hidden p-0 transition-all hover:border-[#D61E2B]/40"
+      {...storyEntityDataAttrs('organization', org.id, worldId, org.name)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') setViewing(org);
+      }}
+      onClick={() => setViewing(org)}
+    >
+      <div className="absolute right-2 top-2 z-10 flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
+        <button
+          type="button"
+          aria-label="Favorito"
+          onClick={(e) => {
+            e.stopPropagation();
+            toggleFav(org.id);
+          }}
+          className="rounded-lg p-1.5 transition-all hover:bg-[#1E2230]"
+        >
+          <Heart size={14} className={org.isFavorite ? 'fill-[#D61E2B] text-[#D61E2B]' : 'text-[#5A6078]'} />
+        </button>
+        <EntityCardMenu
+          {...entityCardMenuProps(worldId, 'organization', org.id, org.name, {
+            ...cardMenu,
+            onViewDetails: () => setViewing(org),
+          })}
+          onDelete={() => setDeleteId(org.id)}
+        />
       </div>
-
-      {filtered.length === 0 ? (
-        <div className="py-16 text-center">
-          <Building2 size={48} className="mx-auto mb-4 text-[#2A3045]" />
-          <p className="mb-4 text-[#5A6078]">No hay organizaciones</p>
-          <button type="button" onClick={openNew} className="story-btn-primary text-sm">
-            <Plus size={16} /> Crear organización
-          </button>
+      {org.imageUrl ? (
+        <div className="aspect-video bg-[#0B0D10]">
+          <img src={org.imageUrl} alt={org.name} className="h-full w-full object-cover" />
         </div>
       ) : (
-        <>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {filtered.map((org, i) => (
-              <motion.div
-                key={org.id}
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.05 }}
-                className="story-card group relative cursor-pointer overflow-hidden p-0 transition-all hover:border-[#D61E2B]/40"
-                {...storyEntityDataAttrs('organization', org.id, worldId, org.name)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') setViewing(org);
-                }}
-                onClick={() => setViewing(org)}
-              >
-                <div className="absolute right-2 top-2 z-10 flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
-                  <button
-                    type="button"
-                    aria-label="Favorito"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleFav(org.id);
-                    }}
-                    className="rounded-lg p-1.5 transition-all hover:bg-[#1E2230]"
-                  >
-                    <Heart size={14} className={org.isFavorite ? 'fill-[#D61E2B] text-[#D61E2B]' : 'text-[#5A6078]'} />
-                  </button>
-                  <EntityCardMenu
-                    {...entityCardMenuProps(worldId, 'organization', org.id, org.name, {
-                      ...cardMenu,
-                      onViewDetails: () => setViewing(org),
-                    })}
-                    onDelete={() => setDeleteId(org.id)}
-                  />
-                </div>
-                {org.imageUrl ? (
-                  <div className="aspect-video bg-[#0B0D10]">
-                    <img src={org.imageUrl} alt={org.name} className="h-full w-full object-cover" />
-                  </div>
-                ) : (
-                  <div className="flex aspect-video items-center justify-center bg-[#111318]">
-                    <Building2 size={32} className="text-[#3A4460]" />
-                  </div>
-                )}
-                <motion.div className="p-4" whileHover={{ y: -1 }} transition={{ duration: 0.15 }}>
-                  <span className="mb-2 inline-block rounded-full bg-[#1E2230] px-2 py-0.5 text-[10px] uppercase tracking-wider text-[#5A6078]">
-                    {typeLabels[org.type]}
-                  </span>
-                  <h3 className="mb-1 font-semibold text-[#E8E9EB]">{org.name}</h3>
-                  {org.goals && <p className="mb-2 line-clamp-2 text-xs text-[#8B91A7]">{org.goals}</p>}
-                  <span className="flex items-center gap-1 text-xs text-[#5A6078]">
-                    <Crown size={10} /> {org.members.length} miembros
-                  </span>
-                </motion.div>
-              </motion.div>
-            ))}
-          </div>
-          <div className="flex justify-center pt-10">
+        <div className="flex aspect-video items-center justify-center bg-[#111318]">
+          <Building2 size={32} className="text-[#3A4460]" />
+        </div>
+      )}
+      <motion.div className="p-4" whileHover={{ y: -1 }} transition={{ duration: 0.15 }}>
+        <span className="mb-2 inline-block rounded-full bg-[#1E2230] px-2 py-0.5 text-[10px] uppercase tracking-wider text-[#5A6078]">
+          {typeLabels[org.type]}
+        </span>
+        <h3 className="mb-1 font-semibold text-[#E8E9EB]">{org.name}</h3>
+        {org.goals && <p className="mb-2 line-clamp-2 text-xs text-[#8B91A7]">{org.goals}</p>}
+        <span className="flex items-center gap-1 text-xs text-[#5A6078]">
+          <Crown size={10} /> {org.members.length} miembros
+        </span>
+      </motion.div>
+    </motion.div>
+  );
+
+  return (
+    <div>
+      <EntityFoldersSection
+        worldId={worldId}
+        scope="organization"
+        items={organizations}
+        filteredItems={filtered}
+        getItemLabel={(o) => o.name}
+        emptyIcon={<Building2 size={48} className="mx-auto mb-4 text-[#2A3045]" />}
+        emptyMessage="No hay organizaciones"
+        onAddItem={openNew}
+        toolbar={
+          <div className="mb-6 flex flex-col gap-3 sm:flex-row">
+            <div className="relative flex-1">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5A6078]" />
+              <input
+                type="text"
+                placeholder="Buscar organizaciones..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="story-input w-full pl-10"
+              />
+            </div>
             <button type="button" onClick={openNew} className="story-btn-primary text-sm">
-              <Plus size={16} /> Agregar organización
+              <Plus size={16} /> Agregar
             </button>
           </div>
-        </>
-      )}
+        }
+        renderItem={renderOrg}
+      />
 
       <OrganizationFormModal
         open={formOpen}

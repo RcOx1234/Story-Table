@@ -122,7 +122,12 @@ export function DatumFormModal({ open, onClose, worldId, initial, onSubmit }: Pr
         </div>
         <div>
           <label className="mb-1 block text-xs uppercase text-[#5A6078]">Contenido</label>
-          <StoryRichTextField worldId={worldId} value={form.content} onChange={(v) => patch({ content: v })} minHeight="7rem" />
+          <StoryRichTextField
+            worldId={worldId}
+            value={form.content}
+            onChange={(v) => setForm((f) => (f.content === v ? f : { ...f, content: v }))}
+            minHeight="7rem"
+          />
         </div>
         <EntityMultiPicker
           label="Personajes relacionados"

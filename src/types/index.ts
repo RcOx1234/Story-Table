@@ -244,6 +244,8 @@ export interface MapCollection {
   description: string;
   imageUrl: string;
   mapIds: string[];
+  isDeleted?: boolean;
+  deletedAt?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -256,6 +258,8 @@ export interface MapData {
   imageUrl: string;
   markers: MapMarker[];
   isFavorite?: boolean;
+  isDeleted?: boolean;
+  deletedAt?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -561,6 +565,8 @@ export interface Timeline {
   startDate: string;
   endDate: string;
   color: string;
+  isDeleted?: boolean;
+  deletedAt?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -597,6 +603,41 @@ export interface FantasticElement {
   createdAt: string;
   updatedAt: string;
   tags: string[];
+}
+
+/** Ámbito de carpetas manuales (no confundir con colecciones de lugares/mapas). */
+export type EntityFolderScope =
+  | 'character'
+  | 'scene'
+  | 'component'
+  | 'organization'
+  | 'worldFact'
+  | 'worldDatum'
+  | 'fantasticElement';
+
+/** Carpeta manual con soporte de anidación y varios tipos de entidad. */
+export interface EntityFolder {
+  id: string;
+  worldId: string;
+  scope: EntityFolderScope;
+  name: string;
+  /** null = raíz de la sección */
+  parentFolderId: string | null;
+  itemIds: string[];
+  /** Color del icono de carpeta (hex) */
+  color?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** @deprecated Migrado a EntityFolder con scope character */
+export interface CharacterFolder {
+  id: string;
+  worldId: string;
+  name: string;
+  characterIds: string[];
+  createdAt: string;
+  updatedAt: string;
 }
 
 export type SectionType =

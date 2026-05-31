@@ -49,8 +49,29 @@ export function buildInsertionCatalog(worldId: string, state: AppState): Inserti
   ].filter((c) => c.items.length > 0);
 }
 
+const INSERTION_TYPE_ALIASES: Record<string, string> = {
+  data: 'datum',
+  dato: 'datum',
+  hecho: 'fact',
+  fantasticElement: 'fantastic',
+  fantasticelement: 'fantastic',
+  placecollection: 'placeCollection',
+  mapcollection: 'mapCollection',
+  org: 'organization',
+};
+
+/** Normaliza tipos de inserción antiguos o alternativos al tipo canónico. */
+export function normalizeInsertionType(type: string): string {
+  const trimmed = type.trim();
+  if (INSERTION_TYPE_ALIASES[trimmed]) return INSERTION_TYPE_ALIASES[trimmed];
+  const lower = trimmed.toLowerCase();
+  if (INSERTION_TYPE_ALIASES[lower]) return INSERTION_TYPE_ALIASES[lower];
+  return trimmed;
+}
+
 export function storyRefPath(worldId: string, type: string, id: string): string | null {
-  switch (type) {
+  const t = normalizeInsertionType(type);
+  switch (t) {
     case 'character':
       return `/world/${worldId}/character/${id}`;
     case 'scene':

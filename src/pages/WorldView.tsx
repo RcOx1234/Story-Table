@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { useNavigationReturn } from '@/hooks/useNavigationReturn';
+import { useWorldsListReturn } from '@/hooks/useNavigationReturn';
 import { useAppStore } from '@/store';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -63,7 +63,7 @@ const tabs: { id: SectionType; label: string; icon: typeof Users }[] = [
 export function WorldView() {
   const { worldId } = useParams<{ worldId: string }>();
   const navigate = useNavigate();
-  const goBack = useNavigationReturn('/');
+  const goBack = useWorldsListReturn();
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<SectionType>('characters');
   const world = useAppStore((s) => s.getWorldById(worldId ?? ''));

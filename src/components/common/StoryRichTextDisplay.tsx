@@ -1,51 +1,46 @@
-import { Fragment, type ReactNode } from 'react';
+import { Fragment, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { parseStorySegments } from '@/lib/storyRichText';
+import { parseStorySegments, splitDisplayInline, type StorySegment, type TextAlign } from '@/lib/storyRichText';
 import { storyRefPath } from '@/lib/storyInsertionCatalog';
 import { opensInPlacePreview } from '@/lib/storyInsertionPreview';
-import { useAppStore } from '@/store';
+import { captureNavigationReturn, navigateWithReturnState } from '@/lib/storyNavigation';
+import { resolveStoryRef } from '@/lib/storyRefResolve';
+import { useStore } from '@/store';
+import { toast } from 'sonner';
 import { StoryInsertionChip } from '@/components/common/StoryInsertionChip';
 
 type Props = {
   text: string;
   worldId?: string;
   className?: string;
-  /** Chips más legibles sobre fondos claros (cartas). */
   onLightSurface?: boolean;
 };
 
-function formatInline(line: string, keyPrefix: string): ReactNode[] {
-  const nodes: ReactNode[] = [];
-  let rest = line;
-  let i = 0;
+const alignClass: Record<TextAlign, string> = {
+  left: 'text-left',
+  center: 'text-center',
+  right: 'text-right',
+  justify: 'text-justify',
+};
 
-  const take = (re: RegExp, wrap: (inner: string, k: number) => ReactNode) => {
-    const m = re.exec(rest);
-    if (!m || m.index === undefined) return false;
-    if (m.index > 0) nodes.push(rest.slice(0, m.index));
-    nodes.push(wrap(m[1], i++));
-    rest = rest.slice(m.index + m[0].length);
-    return true;
-  };
-
-  while (rest.length > 0) {
-    const before = rest;
-    if (take(/\*\*(.+?)\*\*/, (inner, k) => <strong key={`${keyPrefix}-b${k}`}>{inner}</strong>)) continue;
-    if (take(/__(.+?)__/, (inner, k) => (
-      <u key={`${keyPrefix}-u${k}`} className="decoration-[#8B91A7] underline-offset-2">
-        {inner}
-      </u>
-    ))) continue;
-    if (take(/(?<!\*)\*([^*\n]+?)\*(?!\*)/, (inner, k) => <em key={`${keyPrefix}-i${k}`}>{inner}</em>)) continue;
-    nodes.push(rest);
-    break;
-    if (rest === before) {
-      nodes.push(rest);
-      break;
-    }
-  }
-
-  return nodes;
+function InlineFormatted({ value, keyPrefix }: { value: string; keyPrefix: string }) {
+  const tokens = splitDisplayInline(value);
+  return (
+    <>
+      {tokens.map((t, i) => {
+        const k = `${keyPrefix}-${i}`;
+        if (t.type === 'bold') return <strong key={k} className="font-semibold text-[#F3F1EA]">{t.value}</strong>;
+        if (t.type === 'italic') return <em key={k}>{t.value}</em>;
+        if (t.type === 'underline')
+          return (
+            <u key={k} className="decoration-[#8B91A7] underline-offset-2">
+              {t.value}
+            </u>
+          );
+        return <Fragment key={k}>{t.value}</Fragment>;
+      })}
+    </>
+  );
 }
 
 function FormattedText({ value }: { value: string }) {
@@ -55,16 +50,84 @@ function FormattedText({ value }: { value: string }) {
       {lines.map((line, li) => (
         <Fragment key={li}>
           {li > 0 && <br />}
-          {formatInline(line, `l${li}`)}
+          <InlineFormatted value={line} keyPrefix={`l${li}`} />
         </Fragment>
       ))}
     </>
   );
 }
 
+function SegmentList({
+  segments,
+  worldId,
+  onLightSurface,
+  keyPrefix,
+  openRef,
+}: {
+  segments: StorySegment[];
+  worldId?: string;
+  onLightSurface?: boolean;
+  keyPrefix: string;
+  openRef: (type: string, id: string, label: string) => void;
+}) {
+  return (
+    <>
+      {segments.map((seg, idx) => {
+        const k = `${keyPrefix}-${idx}`;
+        if (seg.kind === 'ref') {
+          return (
+            <StoryInsertionChip
+              key={k}
+              type={seg.type}
+              label={seg.label}
+              className="mx-0.5"
+              onLightSurface={onLightSurface}
+              onClick={worldId ? () => openRef(seg.type, seg.id, seg.label) : undefined}
+            />
+          );
+        }
+        if (seg.kind === 'align') {
+          return (
+            <div key={k} className={`block w-full ${alignClass[seg.align]}`}>
+              <SegmentList
+                segments={parseStorySegments(seg.value)}
+                worldId={worldId}
+                onLightSurface={onLightSurface}
+                keyPrefix={`${k}-a`}
+                openRef={openRef}
+              />
+            </div>
+          );
+        }
+        return <FormattedText key={k} value={seg.value} />;
+      })}
+    </>
+  );
+}
+
 export function StoryRichTextDisplay({ text, worldId, className = '', onLightSurface = false }: Props) {
   const navigate = useNavigate();
-  const openInsertionPreview = useAppStore((s) => s.openInsertionPreview);
+
+  const openRef = useCallback(
+    (type: string, id: string, label: string) => {
+      if (!worldId) return;
+      const resolved = resolveStoryRef(worldId, type, id, label, useStore.getState());
+      if (!resolved) {
+        toast.error('No se encontró la entidad enlazada');
+        return;
+      }
+      const { type: resolvedType, id: resolvedId } = resolved;
+      if (opensInPlacePreview(resolvedType)) {
+        const returnTo = captureNavigationReturn();
+        useStore.getState().openInsertionPreview(worldId, resolvedType, resolvedId, returnTo);
+        return;
+      }
+      const path = storyRefPath(worldId, resolvedType, resolvedId);
+      if (path) navigateWithReturnState(navigate, path);
+    },
+    [navigate, worldId]
+  );
+
   if (!text?.trim()) {
     return <span className="text-[#5A6078]">Sin datos.</span>;
   }
@@ -73,31 +136,13 @@ export function StoryRichTextDisplay({ text, worldId, className = '', onLightSur
 
   return (
     <div className={`story-rich-display text-sm leading-relaxed text-[#8B91A7] ${className}`}>
-      {segments.map((seg, idx) =>
-        seg.kind === 'ref' ? (
-          <StoryInsertionChip
-            key={`ref-${idx}`}
-            type={seg.type}
-            label={seg.label}
-            className="mx-0.5"
-            onLightSurface={onLightSurface}
-            onClick={
-              worldId
-                ? () => {
-                    if (opensInPlacePreview(seg.type)) {
-                      openInsertionPreview(worldId, seg.type, seg.id);
-                      return;
-                    }
-                    const path = storyRefPath(worldId, seg.type, seg.id);
-                    if (path) navigate(path);
-                  }
-                : undefined
-            }
-          />
-        ) : (
-          <FormattedText key={`t-${idx}`} value={seg.value} />
-        )
-      )}
+      <SegmentList
+        segments={segments}
+        worldId={worldId}
+        onLightSurface={onLightSurface}
+        keyPrefix="root"
+        openRef={openRef}
+      />
     </div>
   );
 }

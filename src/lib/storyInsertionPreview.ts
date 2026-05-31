@@ -1,3 +1,5 @@
+import { normalizeInsertionType } from '@/lib/storyInsertionCatalog';
+
 /** Tipos que abren vista previa/modal en el lugar actual (sin navegar a otra sección). */
 export const IN_PLACE_PREVIEW_TYPES = new Set([
   'component',
@@ -22,7 +24,7 @@ const TYPE_WORLD_TAB: Record<string, string> = {
 };
 
 export function opensInPlacePreview(type: string): boolean {
-  return IN_PLACE_PREVIEW_TYPES.has(type);
+  return IN_PLACE_PREVIEW_TYPES.has(normalizeInsertionType(type));
 }
 
 /** Tipos con ficha propia (personaje, escena, lugar, casa, mapa). */

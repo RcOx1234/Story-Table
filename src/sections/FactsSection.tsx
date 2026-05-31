@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { storyEntityDataAttrs } from '@/lib/storyEntityContext';
 import { RichTextSnippet } from '@/components/common/RichTextSnippet';
 import { StoryRichTextDisplay } from '@/components/common/StoryRichTextDisplay';
+import { EntityFoldersSection } from '@/components/common/EntityFoldersSection';
 
 const factTypeLabels: Record<WorldFactType, string> = {
   battle: 'Batalla',
@@ -75,93 +76,95 @@ export function FactsSection({ worldId }: Props) {
 
   useWorldEditFromUrl(openEdit, (id) => facts.find((f) => f.id === id));
 
-  return (
-    <div>
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row">
-        <div className="relative flex-1">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5A6078]" />
-          <input
-            type="text"
-            placeholder="Buscar hechos históricos..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="story-input w-full pl-10"
-          />
-        </div>
-        <button type="button" onClick={openNew} className="story-btn-primary text-sm">
-          <Plus size={16} /> Agregar
+  const renderFact = (fact: WorldFact, i: number) => (
+    <motion.div
+      key={fact.id}
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: i * 0.05 }}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => e.key === 'Enter' && setViewing(fact)}
+      onClick={() => setViewing(fact)}
+      className="story-card group relative cursor-pointer overflow-hidden p-3.5"
+      {...storyEntityDataAttrs('fact', fact.id, worldId, fact.title)}
+    >
+      <div className="absolute right-3 top-3 flex items-center gap-0.5">
+        <button
+          type="button"
+          aria-label="Favorito"
+          onClick={(e) => {
+            e.stopPropagation();
+            updateWorldFact(fact.id, { isFavorite: !fact.isFavorite });
+          }}
+          className="rounded-lg p-1.5 transition-all hover:bg-[#1E2230]"
+        >
+          <Heart size={14} className={fact.isFavorite ? 'fill-[#D61E2B] text-[#D61E2B]' : 'text-[#5A6078]'} />
         </button>
+        <EntityCardMenu
+          {...entityCardMenuProps(worldId, 'fact', fact.id, fact.title, {
+            ...cardMenu,
+            onViewDetails: () => setViewing(fact),
+          })}
+          onDelete={() => setDeleteId(fact.id)}
+        />
       </div>
-
-      {filtered.length === 0 ? (
-        <div className="py-16 text-center">
-          <ScrollText size={48} className="mx-auto mb-4 text-[#2A3045]" />
-          <p className="mb-4 text-[#5A6078]">No hay hechos históricos</p>
-          <button type="button" onClick={openNew} className="story-btn-primary text-sm">
-            <Plus size={16} /> Registrar hecho
-          </button>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3">
-          {filtered.map((fact, i) => (
-            <motion.div
-              key={fact.id}
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.05 }}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => e.key === 'Enter' && setViewing(fact)}
-              onClick={() => setViewing(fact)}
-              className="story-card group relative cursor-pointer overflow-hidden p-3.5"
-              {...storyEntityDataAttrs('fact', fact.id, worldId, fact.title)}
-            >
-              <div className="absolute right-3 top-3 flex items-center gap-0.5">
-                <button
-                  type="button"
-                  aria-label="Favorito"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    updateWorldFact(fact.id, { isFavorite: !fact.isFavorite });
-                  }}
-                  className="rounded-lg p-1.5 transition-all hover:bg-[#1E2230]"
-                >
-                  <Heart size={14} className={fact.isFavorite ? 'fill-[#D61E2B] text-[#D61E2B]' : 'text-[#5A6078]'} />
-                </button>
-                <EntityCardMenu
-                  {...entityCardMenuProps(worldId, 'fact', fact.id, fact.title, {
-                    ...cardMenu,
-                    onViewDetails: () => setViewing(fact),
-                  })}
-                  onDelete={() => setDeleteId(fact.id)}
-                />
-              </div>
-              {fact.images[0] && (
-                <div className="mb-2 -mx-3.5 -mt-3.5 h-20 overflow-hidden rounded-t-xl">
-                  <img src={fact.images[0]} alt="" className="h-full w-full object-cover opacity-80" />
-                </div>
-              )}
-              <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
-                <ScrollText size={14} className="text-[#EAB308]" />
-                <span className="rounded-full bg-[#1E2230] px-2 py-0.5 text-[10px] uppercase tracking-wider text-[#5A6078]">
-                  {factTypeLabels[fact.factType]}
-                </span>
-                {fact.dateLabel && (
-                  <span className="flex items-center gap-1 text-[10px] text-[#5A6078]">
-                    <Calendar size={10} /> {fact.dateLabel}
-                  </span>
-                )}
-              </div>
-              <h3 className="mb-1 line-clamp-2 text-sm font-semibold text-[#E8E9EB]">{fact.title}</h3>
-              {fact.description && <RichTextSnippet text={fact.description} worldId={worldId} lines={2} className="text-xs" />}
-              <div className="mt-2 border-t border-[#1E2230] pt-2 text-[10px] text-[#5A6078]">
-                {fact.relatedCharacterIds.length} personajes · {fact.relatedPlaceIds.length} lugares
-                {timelineName(fact.timelineId) && ` · ${timelineName(fact.timelineId)}`}
-              </div>
-            </motion.div>
-          ))}
+      {fact.images[0] && (
+        <div className="mb-2 -mx-3.5 -mt-3.5 h-20 overflow-hidden rounded-t-xl">
+          <img src={fact.images[0]} alt="" className="h-full w-full object-cover opacity-80" />
         </div>
       )}
+      <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
+        <ScrollText size={14} className="text-[#EAB308]" />
+        <span className="rounded-full bg-[#1E2230] px-2 py-0.5 text-[10px] uppercase tracking-wider text-[#5A6078]">
+          {factTypeLabels[fact.factType]}
+        </span>
+        {fact.dateLabel && (
+          <span className="flex items-center gap-1 text-[10px] text-[#5A6078]">
+            <Calendar size={10} /> {fact.dateLabel}
+          </span>
+        )}
+      </div>
+      <h3 className="mb-1 line-clamp-2 text-sm font-semibold text-[#E8E9EB]">{fact.title}</h3>
+      {fact.description && <RichTextSnippet text={fact.description} worldId={worldId} lines={2} className="text-xs" />}
+      <div className="mt-2 border-t border-[#1E2230] pt-2 text-[10px] text-[#5A6078]">
+        {fact.relatedCharacterIds.length} personajes · {fact.relatedPlaceIds.length} lugares
+        {timelineName(fact.timelineId) && ` · ${timelineName(fact.timelineId)}`}
+      </div>
+    </motion.div>
+  );
+
+  return (
+    <div>
+      <EntityFoldersSection
+        worldId={worldId}
+        scope="worldFact"
+        items={facts}
+        filteredItems={filtered}
+        getItemLabel={(f) => f.title}
+        emptyIcon={<ScrollText size={48} className="mx-auto mb-4 text-[#2A3045]" />}
+        emptyMessage="No hay hechos históricos"
+        onAddItem={openNew}
+        gridClassName="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3"
+        toolbar={
+          <div className="mb-6 flex flex-col gap-3 sm:flex-row">
+            <div className="relative flex-1">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5A6078]" />
+              <input
+                type="text"
+                placeholder="Buscar hechos históricos..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="story-input w-full pl-10"
+              />
+            </div>
+            <button type="button" onClick={openNew} className="story-btn-primary text-sm">
+              <Plus size={16} /> Agregar
+            </button>
+          </div>
+        }
+        renderItem={renderFact}
+      />
 
       <FactFormModal
         open={formOpen}

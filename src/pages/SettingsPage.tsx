@@ -12,7 +12,7 @@ import {
   Moon,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { useAppStore } from '@/store';
+import { useAppStore, useStore } from '@/store';
 import { isFirebaseConfigured } from '@/lib/firebase';
 import {
   changeAccountPassword,
@@ -21,6 +21,7 @@ import {
 } from '@/services/authService';
 import { BaseModal } from '@/components/modals/crud/BaseModal';
 import { StoryToggle } from '@/components/common/StoryToggle';
+import { recoverLocalStoryBackup, pushStoryBundle } from '@/services/storyBundleSync';
 
 export function SettingsPage() {
   const navigate = useNavigate();
@@ -140,7 +141,7 @@ export function SettingsPage() {
             <div>
               <p className="text-sm text-[#E8E9EB]">Auto-guardado en Firebase</p>
               <p className="text-[10px] text-[#5A6078]">
-                Guarda solo tras cambios, al cambiar de página o cada 30 s como máximo
+                Guarda tras cambios, al cambiar de sección, al cerrar la pestaña o cada 8 s como máximo
               </p>
             </div>
             <StoryToggle
@@ -149,6 +150,26 @@ export function SettingsPage() {
               aria-label="Auto-guardado en Firebase"
             />
           </label>
+          <button
+            type="button"
+            className="story-btn-secondary w-fit text-sm"
+            onClick={() => {
+              const result = recoverLocalStoryBackup();
+              if (!result.recovered) {
+                toast.info('No hay una copia local más completa que restaurar');
+                return;
+              }
+              toast.success(`Recuperados ${result.worlds} mundos y ${result.ideas} ideas desde localStorage`);
+              const uid = useStore.getState().user?.id;
+              if (uid) {
+                void pushStoryBundle(uid).catch(() =>
+                  toast.error('Recuperado localmente, pero no se pudo subir a Firebase')
+                );
+              }
+            }}
+          >
+            Recuperar copia local
+          </button>
         </section>
       )}
 

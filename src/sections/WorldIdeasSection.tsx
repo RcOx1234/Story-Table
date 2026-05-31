@@ -50,6 +50,11 @@ export function WorldIdeasSection({ worldId }: Props) {
     toast.success('Idea guardada');
   };
 
+  const openNewIdea = useCallback(() => {
+    setEditFromDetail(null);
+    setFormOpen(true);
+  }, []);
+
   const openEdit = useCallback((idea: Idea) => {
     setEditFromDetail(idea);
     setFormOpen(true);
@@ -81,7 +86,7 @@ export function WorldIdeasSection({ worldId }: Props) {
             </button>
           ))}
         </div>
-        <button type="button" onClick={() => setFormOpen(true)} className="story-btn-primary ml-auto text-sm">
+        <button type="button" onClick={openNewIdea} className="story-btn-primary ml-auto text-sm">
           <Plus size={16} /> Nueva Idea
         </button>
       </div>
@@ -89,7 +94,7 @@ export function WorldIdeasSection({ worldId }: Props) {
         <div className="py-16 text-center">
           <Lightbulb size={48} className="mx-auto mb-4 text-[#2A3045]" />
           <p className="mb-4 text-[#5A6078]">No hay ideas en este mundo</p>
-          <button type="button" onClick={() => setFormOpen(true)} className="story-btn-primary text-sm">
+          <button type="button" onClick={openNewIdea} className="story-btn-primary text-sm">
             <Plus size={16} /> Capturar Idea
           </button>
         </div>

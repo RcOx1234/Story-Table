@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { captureNavigationReturn } from '@/lib/storyNavigation';
 import { useAppStore } from '@/store';
 import { CharacterFormModal } from '@/components/modals/crud/CharacterFormModal';
 import { SceneFormModal } from '@/components/modals/crud/SceneFormModal';
@@ -52,7 +53,7 @@ export function StoryEntityActionHost() {
     if (
       ['component', 'organization', 'plot', 'idea', 'fantastic', 'fact', 'datum', 'timeline'].includes(type)
     ) {
-      openInsertionPreview(worldId, type, id);
+      openInsertionPreview(worldId, type, id, captureNavigationReturn());
       clearView();
       return;
     }

@@ -25,7 +25,7 @@ import { NotFoundPage } from '@/pages/NotFoundPage';
 import { Toaster } from '@/components/ui/sonner';
 import { isFirebaseConfigured } from '@/lib/firebase';
 import { subscribeToAuth } from '@/services/authService';
-import { applyEmptyStorySlice, hydrateStoryBundleFromFirebase } from '@/services/storyBundleSync';
+import { hydrateStoryBundleFromFirebase } from '@/services/storyBundleSync';
 
 function AppContent() {
   const seeded = useRef(false);
@@ -42,10 +42,7 @@ function AppContent() {
     if (!isFirebaseConfigured()) return;
     let cancelled = false;
     const unsub = subscribeToAuth((u) => {
-      if (!u) {
-        if (!cancelled) applyEmptyStorySlice();
-        return;
-      }
+      if (!u) return;
       if (!cancelled) void hydrateStoryBundleFromFirebase(u.uid);
     });
     return () => {

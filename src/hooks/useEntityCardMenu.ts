@@ -9,12 +9,11 @@ import type { StoryEntityType } from '@/lib/storyEntityContext';
 /** Dependencias compartidas para EntityCardMenu en listados. */
 export function useSectionCardMenuDeps() {
   const navigate = useNavigate();
-  const openInsertionPreview = useAppStore((s) => s.openInsertionPreview);
   const requestEntityView = useAppStore((s) => s.requestEntityView);
   const requestEntityEdit = useAppStore((s) => s.requestEntityEdit);
   return useMemo(
-    () => ({ navigate, openInsertionPreview, requestEntityView, requestEntityEdit }),
-    [navigate, openInsertionPreview, requestEntityView, requestEntityEdit]
+    () => ({ navigate, requestEntityView, requestEntityEdit }),
+    [navigate, requestEntityView, requestEntityEdit]
   );
 }
 
@@ -29,7 +28,6 @@ export function useEntityCardMenu(
   onViewDetails?: () => void
 ) {
   const navigate = useNavigate();
-  const openInsertionPreview = useAppStore((s) => s.openInsertionPreview);
   const requestEntityView = useAppStore((s) => s.requestEntityView);
   const requestEntityEdit = useAppStore((s) => s.requestEntityEdit);
 
@@ -38,13 +36,10 @@ export function useEntityCardMenu(
       onViewDetails();
       return;
     }
-    openEntityView(
-      { type, id, worldId, label },
-      navigate,
-      openInsertionPreview,
-      (e) => requestEntityView(e.worldId, e.type, e.id)
+    openEntityView({ type, id, worldId, label }, navigate, (e) =>
+      requestEntityView(e.worldId, e.type, e.id)
     );
-  }, [type, id, worldId, label, onViewDetails, navigate, openInsertionPreview, requestEntityView]);
+  }, [type, id, worldId, label, onViewDetails, navigate, requestEntityView]);
 
   const edit = useCallback(() => {
     const path = typeof window !== 'undefined' ? window.location.pathname : '';

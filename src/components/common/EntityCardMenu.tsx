@@ -11,8 +11,10 @@ type Props = {
   onEdit: () => void;
   onDelete?: () => void;
   onViewDetails?: () => void;
+  onManage?: () => void;
   editLabel?: string;
   viewDetailsLabel?: string;
+  manageLabel?: string;
   className?: string;
 };
 
@@ -20,8 +22,10 @@ export function EntityCardMenu({
   onEdit,
   onDelete,
   onViewDetails,
+  onManage,
   editLabel = 'Editar',
   viewDetailsLabel = 'Ver detalles',
+  manageLabel = 'Gestionar contenido',
   className = '',
 }: Props) {
   const [open, setOpen] = useState(false);
@@ -64,6 +68,17 @@ export function EntityCardMenu({
               }}
             >
               {viewDetailsLabel}
+            </DropdownMenuItem>
+          ) : null}
+          {onManage ? (
+            <DropdownMenuItem
+              className="cursor-pointer focus:bg-[#1E2230]"
+              onSelect={(e) => {
+                e.preventDefault();
+                runAndClose(onManage);
+              }}
+            >
+              {manageLabel}
             </DropdownMenuItem>
           ) : null}
           <DropdownMenuItem

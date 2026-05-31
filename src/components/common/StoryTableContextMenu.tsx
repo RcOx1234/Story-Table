@@ -14,6 +14,9 @@ import {
   Pencil,
   Sparkles,
   Compass,
+  FolderPlus,
+  FolderOpen,
+  Settings2,
 } from 'lucide-react';
 import { useAppStore, useStore } from '@/store';
 import { clampMenuPosition, placeFlyoutMenu } from '@/lib/contextMenuPosition';
@@ -21,6 +24,7 @@ import { detectEntityFromTarget, type DetectedEntity } from '@/lib/storyEntityCo
 import { isEntityDetailPage, openEntityView } from '@/lib/entityActions';
 import { canEditInPlaceEntity } from '@/lib/storyInsertionPreview';
 import { MENU_ANIM, MENU_PANEL, MENU_SCROLL } from '@/lib/menuStyles';
+import { navigateWithReturnState } from '@/lib/storyNavigation';
 import { toast } from 'sonner';
 
 type MenuState = {
@@ -29,10 +33,15 @@ type MenuState = {
   left: number;
   top: number;
   entity: DetectedEntity | null;
+  folderId: string | null;
+  folderSectionEmpty: boolean;
 };
 
 const SKIP_SELECTOR =
   '[data-story-rich-text], [data-story-rich-menu], [data-story-rich-submenu], [data-genealogy-person], [data-slot="context-menu-trigger"], textarea, input, select, [contenteditable="true"], [role="dialog"], [data-radix-popper-content-wrapper]';
+
+const FOLDER_SKIP_SELECTOR =
+  'input, select, textarea, button, a, .story-card, [data-entity-folder-card], [data-story-rich-text], [role="dialog"]';
 
 const NAV_LINKS = [
   { icon: Home, label: 'Inicio', path: '/' },
@@ -50,7 +59,6 @@ export function StoryTableContextMenu() {
   const navigate = useNavigate();
   const location = useLocation();
   const setActiveModal = useAppStore((s) => s.setActiveModal);
-  const openInsertionPreview = useAppStore((s) => s.openInsertionPreview);
   const requestEntityView = useAppStore((s) => s.requestEntityView);
   const requestEntityEdit = useAppStore((s) => s.requestEntityEdit);
   const worlds = useAppStore((s) => s.worlds.filter((w) => !w.isDeleted));
@@ -67,6 +75,8 @@ export function StoryTableContextMenu() {
   const deleteWorldFact = useStore((s) => s.deleteWorldFact);
   const deleteWorldDatum = useStore((s) => s.deleteWorldDatum);
   const deleteFantasticElement = useStore((s) => s.deleteFantasticElement);
+  const folderBridge = useAppStore((s) => s.folderSectionBridge);
+  const entityFolders = useStore((s) => s.entityFolders);
 
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [submenu, setSubmenu] = useState<'nav' | 'worlds' | null>(null);
@@ -83,6 +93,17 @@ export function StoryTableContextMenu() {
 
       e.preventDefault();
       const entity = detectEntityFromTarget(target);
+      const folderEl = target.closest('[data-entity-folder-id]');
+      const folderId = folderEl?.getAttribute('data-entity-folder-id') ?? null;
+      const inFolderSection = target.closest('[data-folder-section]');
+      const folderSectionEmpty = Boolean(
+        folderBridge &&
+          inFolderSection &&
+          !folderId &&
+          !entity &&
+          !target.closest(FOLDER_SKIP_SELECTOR)
+      );
+
       setVisible(false);
       setSubmenu(null);
       setConfirmDelete(null);
@@ -92,12 +113,14 @@ export function StoryTableContextMenu() {
         left: e.clientX,
         top: e.clientY,
         entity,
+        folderId,
+        folderSectionEmpty,
       });
     };
 
     document.addEventListener('contextmenu', onContextMenu, true);
     return () => document.removeEventListener('contextmenu', onContextMenu, true);
-  }, []);
+  }, [folderBridge]);
 
   useLayoutEffect(() => {
     if (!menu || !menuRef.current) return;
@@ -157,14 +180,13 @@ export function StoryTableContextMenu() {
 
   const go = (path: string) => {
     closeAll();
-    if (path !== location.pathname + location.search) navigate(path);
+    const current = location.pathname + location.search;
+    if (path !== current) navigateWithReturnState(navigate, path);
   };
 
   const openEntity = (entity: DetectedEntity) => {
     closeAll();
-    openEntityView(entity, navigate, openInsertionPreview, (e) =>
-      requestEntityView(e.worldId, e.type, e.id)
-    );
+    openEntityView(entity, navigate, (e) => requestEntityView(e.worldId, e.type, e.id));
   };
 
   const editEntity = (entity: DetectedEntity) => {
@@ -238,6 +260,16 @@ export function StoryTableContextMenu() {
     menu.entity &&
     (!menu.entity.worldId ||
       canEditInPlaceEntity(menu.entity.type, location.pathname, location.search));
+
+  const activeFolderId = menu.folderId ?? (menu.folderSectionEmpty ? folderBridge?.openFolderId ?? null : null);
+  const activeFolder = activeFolderId ? entityFolders.find((f) => f.id === activeFolderId) : null;
+  const showFolderActions = Boolean(folderBridge && (menu.folderId || menu.folderSectionEmpty));
+  const configureFolderId = menu.folderId ?? folderBridge?.openFolderId ?? null;
+
+  const runFolderAction = (fn: () => void) => {
+    fn();
+    closeAll();
+  };
 
   const submenuPortal =
     submenu &&
@@ -357,6 +389,76 @@ export function StoryTableContextMenu() {
               </button>
             </div>
           </div>
+        )}
+
+        {!confirmDelete && showFolderActions && (
+          <>
+            <p className="px-3 pt-2 text-[10px] uppercase tracking-wider text-[#5A6078]">Carpetas</p>
+            {menu.folderSectionEmpty && (
+              <button
+                type="button"
+                className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-[#E8E9EB] transition-colors hover:bg-[#1E2230]"
+                onClick={() =>
+                  runFolderAction(() =>
+                    folderBridge!.promptCreateFolder(folderBridge!.openFolderId)
+                  )
+                }
+              >
+                <FolderPlus size={14} className="text-[#3B82F6]" />
+                {folderBridge!.openFolderId ? 'Nueva subcarpeta' : 'Nueva carpeta'}
+              </button>
+            )}
+            {menu.folderId && (
+              <button
+                type="button"
+                className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-[#E8E9EB] transition-colors hover:bg-[#1E2230]"
+                onClick={() =>
+                  runFolderAction(() => folderBridge!.openFolder(menu.folderId!))
+                }
+              >
+                <FolderOpen size={14} className="text-[#3B82F6]" />
+                Abrir carpeta
+              </button>
+            )}
+            {configureFolderId && (
+              <>
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-[#E8E9EB] transition-colors hover:bg-[#1E2230]"
+                  onClick={() =>
+                    runFolderAction(() => folderBridge!.promptRenameFolder(configureFolderId))
+                  }
+                >
+                  <Pencil size={14} className="text-[#8B91A7]" />
+                  Renombrar carpeta
+                </button>
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-[#E8E9EB] transition-colors hover:bg-[#1E2230]"
+                  onClick={() =>
+                    runFolderAction(() => folderBridge!.promptManageFolder(configureFolderId))
+                  }
+                >
+                  <Settings2 size={14} className="text-[#8B91A7]" />
+                  Gestionar carpeta
+                </button>
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-[#D61E2B] transition-colors hover:bg-[#D61E2B]/10"
+                  onClick={() =>
+                    runFolderAction(() => folderBridge!.promptDeleteFolder(configureFolderId))
+                  }
+                >
+                  <Trash2 size={14} />
+                  Eliminar carpeta
+                </button>
+              </>
+            )}
+            {activeFolder && menu.folderId && (
+              <p className="px-3 pb-1 text-[10px] text-[#5A6078] truncate">«{activeFolder.name}»</p>
+            )}
+            <div className="my-1 border-t border-[#2A3045]/80" />
+          </>
         )}
 
         {!confirmDelete && (

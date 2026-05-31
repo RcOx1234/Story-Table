@@ -20,6 +20,7 @@ export function storyContentFingerprint(state: AppState): string {
     placeCollections: state.placeCollections,
     mapCollections: state.mapCollections,
     worldTags: state.worldTags,
+    entityFolders: state.entityFolders,
     characterOrderByWorld: state.characterOrderByWorld,
     dashboardWorldIds: state.dashboardWorldIds,
   });
