@@ -488,6 +488,7 @@ export function remapWorldImport(rawBundle: WorldScopedExport): WorldScopedExpor
     tagIds: (c.tagIds ?? []).map((tid) => rid(tid)),
     ageByTimeline: remapRecordKeys(c.ageByTimeline, rid),
     statusByTimeline: remapRecordKeys(c.statusByTimeline, rid),
+    statusRecoveryByTimeline: remapRecordKeys(c.statusRecoveryByTimeline, rid),
     deathByTimeline: remapRecordKeys(c.deathByTimeline, rid),
     isDeleted: false,
     deletedAt: undefined,

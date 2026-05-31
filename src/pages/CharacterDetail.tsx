@@ -8,7 +8,7 @@ import { useAppStore, useStore } from '@/store';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Heart, Edit2, Users, Sparkles, Trash2, Plus, Castle, Calendar, Skull } from 'lucide-react';
 import { deathCauseLabel } from '@/lib/deathCause';
-import { characterStatusForTimeline } from '@/lib/characterTimelineAge';
+import { characterStatusForTimeline, characterDeathForTimeline } from '@/lib/characterTimelineAge';
 import { RELATIONSHIP_TYPE_OPTIONS } from '@/lib/relationshipTypes';
 import { groupRelationships, RELATIONSHIP_GROUP_LABELS, type RelationshipGroupId } from '@/lib/relationshipGroups';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -177,9 +177,9 @@ export function CharacterDetail() {
       ? world.mainTimelineId
       : timelines[0]?.id;
   const timelineStatus = mainTimelineId
-    ? characterStatusForTimeline(character, mainTimelineId)
+    ? characterStatusForTimeline(character, mainTimelineId, timelines)
     : character.status;
-  const deathInfo = mainTimelineId ? character.deathByTimeline?.[mainTimelineId] : undefined;
+  const deathInfo = mainTimelineId ? characterDeathForTimeline(character, mainTimelineId, timelines) : undefined;
   const mainTimeline = timelines.find((t) => t.id === mainTimelineId);
 
   return (

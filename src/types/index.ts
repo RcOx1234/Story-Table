@@ -103,6 +103,8 @@ export interface Character {
   extraFields?: CharacterExtraField[];
   /** Estado del personaje por línea temporal (solo si hay líneas definidas). */
   statusByTimeline?: Record<string, Character['status']>;
+  /** Revivió o reapareció en esta línea; desde aquí en adelante vuelve a estar vivo hasta otro cambio. */
+  statusRecoveryByTimeline?: Record<string, boolean>;
   appearance: string;
   personality: string;
   backstory: string;

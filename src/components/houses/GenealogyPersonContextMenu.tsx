@@ -14,6 +14,7 @@ import type { Character, Timeline } from '@/types';
 import {
   characterStatusForTimeline,
   CHARACTER_STATUS_LABELS,
+  characterDeathForTimeline,
 } from '@/lib/characterTimelineAge';
 import { deathCauseLabel } from '@/lib/deathCause';
 import { CHARACTER_ROLE_LABELS } from '@/lib/characterRoles';
@@ -98,10 +99,10 @@ export function GenealogyPersonContextMenu({
                     Por línea temporal
                   </p>
                   {timelines.map((tl) => {
-                    const status = characterStatusForTimeline(character, tl.id);
+                    const status = characterStatusForTimeline(character, tl.id, timelines);
                     const statusLabel = CHARACTER_STATUS_LABELS[status];
                     const age = character.ageByTimeline?.[tl.id];
-                    const death = character.deathByTimeline?.[tl.id];
+                    const death = characterDeathForTimeline(character, tl.id, timelines);
                     const isMain = tl.id === mainTimelineId;
                     return (
                       <div

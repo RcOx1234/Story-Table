@@ -6,7 +6,7 @@ import type { Character, Timeline } from '@/types';
 import { buildGenealogyTree, pickGenealogyRoot, type GenealogyUnit } from '@/lib/characterGenealogy';
 import { CHARACTER_ROLE_LABELS } from '@/lib/characterRoles';
 import { useAppStore } from '@/store';
-import { characterStatusForTimeline, CHARACTER_STATUS_LABELS } from '@/lib/characterTimelineAge';
+import { characterStatusForTimeline, CHARACTER_STATUS_LABELS, characterDeathForTimeline } from '@/lib/characterTimelineAge';
 import {
   genealogyDeathOverlay,
   genealogyNodeStatusClasses,
@@ -40,7 +40,7 @@ function PersonNode({
   const role = CHARACTER_ROLE_LABELS[character.role]?.label;
   const external = houseName && character.house && character.house !== houseName;
   const statusLabel = CHARACTER_STATUS_LABELS[displayStatus];
-  const death = viewTimelineId ? character.deathByTimeline?.[viewTimelineId] : undefined;
+  const death = viewTimelineId ? characterDeathForTimeline(character, viewTimelineId, timelines) : undefined;
   const deathOverlay = displayStatus === 'dead' ? genealogyDeathOverlay(death) : null;
   const deathHint =
     displayStatus === 'dead' && death
@@ -138,7 +138,7 @@ function CoupleRow({
             character={p}
             houseName={houseName}
             selected={selectedId === p.id}
-            displayStatus={characterStatusForTimeline(p, viewTimelineId)}
+            displayStatus={characterStatusForTimeline(p, viewTimelineId, timelines)}
             viewTimelineId={viewTimelineId}
             timelines={timelines}
             onSelect={() => onSelect(p.id)}

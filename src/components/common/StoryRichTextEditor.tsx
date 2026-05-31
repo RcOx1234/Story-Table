@@ -3,6 +3,7 @@ import {
   editorHtmlToMarkdown,
   markdownToEditorHtml,
   buildStoryRef,
+  parseStoryRefs,
   STORY_REF_RE,
   type TextAlign,
 } from '@/lib/storyRichText';
@@ -566,7 +567,7 @@ export const StoryRichTextEditor = forwardRef<StoryRichTextEditorHandle, Props>(
     e.preventDefault();
     const text = e.clipboardData.getData('text/plain');
     if (!text) return;
-    if (STORY_REF_RE.test(text)) {
+    if (parseStoryRefs(text).length > 0) {
       pasteRichMarkdownAtSelection(text);
       return;
     }

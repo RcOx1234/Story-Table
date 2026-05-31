@@ -15,7 +15,8 @@ import { resolveTagNames } from '@/lib/worldTags';
 import { StorySelect } from '@/components/common/StorySelect';
 import type { World } from '@/types';
 import { toast } from 'sonner';
-import { computeAgeForTimeline } from '@/lib/characterTimelineAge';
+import { computeAgeForTimeline, resolveCharacterTimelineState } from '@/lib/characterTimelineAge';
+import { StoryToggle } from '@/components/common/StoryToggle';
 
 type Props = {
   open: boolean;
@@ -46,6 +47,7 @@ function emptyCharacter(worldId: string): Omit<Character, 'id' | 'createdAt' | '
     ageByTimeline: {},
     statusByTimeline: {},
     deathByTimeline: {},
+    statusRecoveryByTimeline: {},
     extraFields: [],
     appearance: '',
     personality: '',
@@ -107,6 +109,7 @@ export function CharacterFormModal({
   const [ageTimelineDraft, setAgeTimelineDraft] = useState<Record<string, string>>({});
   const [statusTimelineDraft, setStatusTimelineDraft] = useState<Record<string, Character['status']>>({});
   const [deathTimelineDraft, setDeathTimelineDraft] = useState<Record<string, CharacterDeathInfo>>({});
+  const [recoveryTimelineDraft, setRecoveryTimelineDraft] = useState<Record<string, boolean>>({});
   const [extraFields, setExtraFields] = useState<CharacterExtraField[]>([]);
   const [useTimelineStatus, setUseTimelineStatus] = useState(false);
   const [err, setErr] = useState('');
@@ -139,10 +142,13 @@ export function CharacterFormModal({
     setAgeTimelineDraft(draft);
     const statusDraft: Record<string, Character['status']> = {};
     for (const tl of timelinesSnap) {
-      statusDraft[tl.id] = base.statusByTimeline?.[tl.id] ?? base.status;
+      if (base.statusByTimeline?.[tl.id] !== undefined) {
+        statusDraft[tl.id] = base.statusByTimeline[tl.id];
+      }
     }
     setStatusTimelineDraft(statusDraft);
     setDeathTimelineDraft({ ...(base.deathByTimeline ?? {}) });
+    setRecoveryTimelineDraft({ ...(base.statusRecoveryByTimeline ?? {}) });
     setExtraFields(base.extraFields ?? []);
     setUseTimelineStatus(
       Boolean(initial?.statusByTimeline && Object.keys(initial.statusByTimeline).length > 0)
@@ -174,13 +180,22 @@ export function CharacterFormModal({
       }
     }
     const statusByTimeline: Record<string, Character['status']> | undefined = useTimelineStatus
-      ? Object.fromEntries(timelines.map((tl) => [tl.id, statusTimelineDraft[tl.id] ?? form.status]))
+      ? Object.fromEntries(
+          timelines
+            .filter((tl) => statusTimelineDraft[tl.id] !== undefined)
+            .map((tl) => [tl.id, statusTimelineDraft[tl.id]!])
+        )
+      : undefined;
+    const statusRecoveryByTimeline: Record<string, boolean> | undefined = useTimelineStatus
+      ? Object.fromEntries(
+          Object.entries(recoveryTimelineDraft).filter(([, active]) => active)
+        )
       : undefined;
     const deathByTimeline: Record<string, CharacterDeathInfo> = {};
     for (const tl of timelines) {
-      const st = statusByTimeline?.[tl.id] ?? form.status;
+      if (statusTimelineDraft[tl.id] !== 'dead') continue;
       const d = deathTimelineDraft[tl.id];
-      if (st === 'dead' && d?.causeType) {
+      if (d?.causeType) {
         deathByTimeline[tl.id] = { ...d, timelineId: tl.id };
       }
     }
@@ -201,7 +216,11 @@ export function CharacterFormModal({
       birthYear,
       birthDateLabel: form.birthDateLabel?.trim() || undefined,
       ageByTimeline,
-      statusByTimeline,
+      statusByTimeline: statusByTimeline && Object.keys(statusByTimeline).length ? statusByTimeline : undefined,
+      statusRecoveryByTimeline:
+        statusRecoveryByTimeline && Object.keys(statusRecoveryByTimeline).length
+          ? statusRecoveryByTimeline
+          : undefined,
       deathByTimeline: Object.keys(deathByTimeline).length ? deathByTimeline : undefined,
       extraFields: extraFields.filter((f) => f.label.trim()),
       quotes,
@@ -403,9 +422,43 @@ export function CharacterFormModal({
                     />
                     Estado distinto por línea temporal
                   </label>
-                  {timelines.map((tl) => {
+                  {timelines.map((tl, tlIndex) => {
                     const computed =
                       form.birthYear != null ? computeAgeForTimeline(form.birthYear, tl) : null;
+                    const previewCharacter: Character = {
+                      ...(form as Character),
+                      id: initial?.id ?? 'preview',
+                      createdAt: initial?.createdAt ?? '',
+                      updatedAt: initial?.updatedAt ?? '',
+                      statusByTimeline: useTimelineStatus
+                        ? Object.fromEntries(
+                            timelines
+                              .filter((t) => statusTimelineDraft[t.id] !== undefined)
+                              .map((t) => [t.id, statusTimelineDraft[t.id]!])
+                          )
+                        : undefined,
+                      statusRecoveryByTimeline: useTimelineStatus ? recoveryTimelineDraft : undefined,
+                      deathByTimeline: deathTimelineDraft,
+                    };
+                    const resolved = useTimelineStatus
+                      ? resolveCharacterTimelineState(previewCharacter, tl.id, timelines)
+                      : { status: form.status, death: undefined, recoveredThisTimeline: false };
+                    const displayStatus = statusTimelineDraft[tl.id] ?? resolved.status;
+                    const explicitDead = statusTimelineDraft[tl.id] === 'dead';
+                    const priorTimeline = tlIndex > 0 ? timelines[tlIndex - 1] : null;
+                    const priorResolved =
+                      priorTimeline && useTimelineStatus
+                        ? resolveCharacterTimelineState(previewCharacter, priorTimeline.id, timelines)
+                        : null;
+                    const showRecoveryToggle =
+                      useTimelineStatus &&
+                      tlIndex > 0 &&
+                      (priorResolved?.status === 'dead' ||
+                        priorResolved?.status === 'missing' ||
+                        Boolean(recoveryTimelineDraft[tl.id]));
+                    const recoveryLabel =
+                      priorResolved?.status === 'missing' ? 'Reapareció en esta línea' : 'Revivió en esta línea';
+
                     return (
                       <div key={tl.id} className="rounded-lg border border-[#2A3045]/60 bg-[#111318]/40 p-3">
                         <p className="mb-2 text-xs font-medium text-[#8B91A7]">Línea: {tl.name}</p>
@@ -429,13 +482,19 @@ export function CharacterFormModal({
                               <label className="mb-1 block text-xs uppercase text-[#5A6078]">Estado</label>
                               <select
                                 className="story-input w-full text-sm"
-                                value={statusTimelineDraft[tl.id] ?? form.status}
-                                onChange={(e) =>
-                                  setStatusTimelineDraft((d) => ({
-                                    ...d,
-                                    [tl.id]: e.target.value as Character['status'],
-                                  }))
-                                }
+                                value={displayStatus}
+                                disabled={Boolean(recoveryTimelineDraft[tl.id])}
+                                onChange={(e) => {
+                                  const next = e.target.value as Character['status'];
+                                  setStatusTimelineDraft((d) => ({ ...d, [tl.id]: next }));
+                                  if (next !== 'dead') {
+                                    setDeathTimelineDraft((d) => {
+                                      const copy = { ...d };
+                                      delete copy[tl.id];
+                                      return copy;
+                                    });
+                                  }
+                                }}
                               >
                                 <option value="alive">Vivo</option>
                                 <option value="dead">Muerto</option>
@@ -445,7 +504,36 @@ export function CharacterFormModal({
                             </div>
                           )}
                         </div>
-                        {(useTimelineStatus ? statusTimelineDraft[tl.id] : form.status) === 'dead' && (
+                        {showRecoveryToggle && (
+                          <div className="mt-3 flex items-center gap-3 border-t border-[#2A3045]/50 pt-3">
+                            <StoryToggle
+                              checked={Boolean(recoveryTimelineDraft[tl.id])}
+                              onChange={(checked) => {
+                                setRecoveryTimelineDraft((d) => ({ ...d, [tl.id]: checked }));
+                                if (checked) {
+                                  setStatusTimelineDraft((d) => {
+                                    const copy = { ...d };
+                                    delete copy[tl.id];
+                                    return copy;
+                                  });
+                                  setDeathTimelineDraft((d) => {
+                                    const copy = { ...d };
+                                    delete copy[tl.id];
+                                    return copy;
+                                  });
+                                }
+                              }}
+                              aria-label={recoveryLabel}
+                            />
+                            <span className="text-sm text-[#E8E9EB]">{recoveryLabel}</span>
+                          </div>
+                        )}
+                        {useTimelineStatus && displayStatus === 'dead' && !explicitDead && resolved.death && (
+                          <p className="mt-3 border-t border-[#2A3045]/50 pt-3 text-[10px] text-[#5A6078]">
+                            Muerto desde una línea anterior (se mantiene la causa registrada allí).
+                          </p>
+                        )}
+                        {useTimelineStatus && explicitDead && (
                           <div className="mt-3 grid gap-2 border-t border-[#2A3045]/50 pt-3 sm:grid-cols-2">
                             <div>
                               <label className="mb-1 block text-xs uppercase text-[#5A6078]">Tipo de muerte</label>
