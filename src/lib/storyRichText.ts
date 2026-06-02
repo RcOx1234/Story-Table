@@ -205,11 +205,26 @@ function formatBlockForEditor(chunk: string): string {
   });
 }
 
-/** HTML para contenteditable (chips + formato inline). */
+function wrapPlainEditorLines(html: string): string {
+  if (!html) return '<div data-story-paragraph="true"><br></div>';
+  const lines = html.split(/<br\s*\/?>/i);
+  return lines
+    .map((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) return '<div data-story-paragraph="true"><br></div>';
+      if (/^<div\b/i.test(trimmed) && trimmed.includes('data-story-align')) {
+        return trimmed.replace(/^<div\b/i, '<div data-story-paragraph="true"');
+      }
+      return `<div data-story-paragraph="true">${line}</div>`;
+    })
+    .join('');
+}
+
+/** HTML para contenteditable (chips + párrafos + formato inline). */
 export function markdownToEditorHtml(text: string): string {
-  if (!text) return '';
+  if (!text) return '<div data-story-paragraph="true"><br></div>';
   const body = formatBlockForEditor(text).replace(/\n/g, '<br>');
-  return body || '<br>';
+  return wrapPlainEditorLines(body) || '<div data-story-paragraph="true"><br></div>';
 }
 
 /** Extrae refs del portapapeles o texto pegado. */

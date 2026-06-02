@@ -333,6 +333,7 @@ export function PlacesSection({ worldId }: Props) {
                 imageUrl={col.imageUrl}
                 subtitle={`${collectionTypeLabel(col.collectionType, col.customCollectionType)} · ${placesInCollection(col).length} lugares`}
                 index={i}
+                entityDataAttrs={storyEntityDataAttrs('placeCollection', col.id, worldId, col.name)}
                 isActive={openCollectionId === col.id}
                 onOpen={() => setOpenCollectionId(col.id)}
                 onViewDetails={() => setDetailCollection(col)}

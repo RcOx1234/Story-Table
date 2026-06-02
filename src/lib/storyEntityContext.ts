@@ -13,7 +13,9 @@ export type StoryEntityType =
   | 'fact'
   | 'datum'
   | 'fantastic'
-  | 'timeline';
+  | 'timeline'
+  | 'placeCollection'
+  | 'mapCollection';
 
 export type DetectedEntity = {
   type: StoryEntityType;
@@ -73,6 +75,12 @@ export function enrichEntityLabel(entity: DetectedEntity): DetectedEntity {
       break;
     case 'timeline':
       label = s.timelines.find((x) => x.id === entity.id)?.name ?? '';
+      break;
+    case 'placeCollection':
+      label = s.placeCollections.find((x) => x.id === entity.id)?.name ?? '';
+      break;
+    case 'mapCollection':
+      label = s.mapCollections.find((x) => x.id === entity.id)?.name ?? '';
       break;
     default:
       break;

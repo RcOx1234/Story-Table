@@ -12,11 +12,14 @@ import {
   ChevronRight,
   ExternalLink,
   Pencil,
-  Sparkles,
   Compass,
   FolderPlus,
   FolderOpen,
   Settings2,
+  Copy,
+  Files,
+  FolderInput,
+  ArrowRightLeft,
 } from 'lucide-react';
 import { useAppStore, useStore } from '@/store';
 import { clampMenuPosition, placeFlyoutMenu } from '@/lib/contextMenuPosition';
@@ -26,6 +29,13 @@ import { canEditInPlaceEntity } from '@/lib/storyInsertionPreview';
 import { MENU_ANIM, MENU_PANEL, MENU_SCROLL } from '@/lib/menuStyles';
 import { navigateWithReturnState } from '@/lib/storyNavigation';
 import { toast } from 'sonner';
+import { DUPLICATABLE_ENTITY_TYPES } from '@/lib/duplicateStoryEntity';
+import {
+  entityTypeSupportsFolders,
+  folderScopeForEntity,
+} from '@/lib/entityFolderScopeMap';
+import { collectDescendantFolderIds } from '@/lib/entityFolders';
+import { EntityFolderPickerFlyout } from '@/components/common/EntityFolderPickerFlyout';
 
 type MenuState = {
   x: number;
@@ -77,14 +87,24 @@ export function StoryTableContextMenu() {
   const deleteFantasticElement = useStore((s) => s.deleteFantasticElement);
   const folderBridge = useAppStore((s) => s.folderSectionBridge);
   const entityFolders = useStore((s) => s.entityFolders);
+  const duplicateStoryEntity = useStore((s) => s.duplicateStoryEntity);
+  const moveItemToFolder = useStore((s) => s.moveItemToFolder);
+  const copyItemToFolder = useStore((s) => s.copyItemToFolder);
+  const moveEntityFolderTo = useStore((s) => s.moveEntityFolderTo);
 
   const [menu, setMenu] = useState<MenuState | null>(null);
-  const [submenu, setSubmenu] = useState<'nav' | 'worlds' | null>(null);
+  const [submenu, setSubmenu] = useState<'nav' | 'worlds' | 'folderEntityActions' | null>(null);
+  const [folderPickMode, setFolderPickMode] = useState<'moveItem' | 'copyItem' | 'moveFolder' | null>(
+    null
+  );
   const [visible, setVisible] = useState(false);
   const [subPos, setSubPos] = useState({ left: 0, top: 0 });
+  const [folderPickPos, setFolderPickPos] = useState({ left: 0, top: 0 });
   const [confirmDelete, setConfirmDelete] = useState<DetectedEntity | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const subMenuRef = useRef<HTMLDivElement>(null);
+  const folderActionsMenuRef = useRef<HTMLDivElement>(null);
+  const folderPickMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const onContextMenu = (e: MouseEvent) => {
@@ -106,6 +126,7 @@ export function StoryTableContextMenu() {
 
       setVisible(false);
       setSubmenu(null);
+      setFolderPickMode(null);
       setConfirmDelete(null);
       setMenu({
         x: e.clientX,
@@ -133,18 +154,35 @@ export function StoryTableContextMenu() {
   }, [menu?.x, menu?.y, menu?.entity, submenu, confirmDelete]);
 
   useLayoutEffect(() => {
-    if (!menu || !submenu || !menuRef.current) return;
-    const anchor = menuRef.current.getBoundingClientRect();
-    const subH = subMenuRef.current?.getBoundingClientRect().height ?? SUB_EST_H;
-    const { left, top } = placeFlyoutMenu(anchor, SUB_W, subH);
+    if (!menu || !submenu) return;
+    const anchorRect = menuRef.current?.getBoundingClientRect();
+    if (!anchorRect) return;
+    const pickRef =
+      submenu === 'folderEntityActions' ? folderActionsMenuRef : subMenuRef;
+    const subH = pickRef.current?.getBoundingClientRect().height ?? SUB_EST_H;
+    const { left, top } = placeFlyoutMenu(anchorRect, SUB_W, subH);
     setSubPos({ left, top });
-  }, [menu, submenu, visible, worlds.length]);
+  }, [menu, submenu, visible]);
+
+  useLayoutEffect(() => {
+    if (!menu || !folderPickMode) return;
+    const pickW = 248;
+    const fromActions =
+      folderPickMode === 'moveItem' || folderPickMode === 'copyItem';
+    const anchorEl = fromActions ? folderActionsMenuRef.current : menuRef.current;
+    if (!anchorEl) return;
+    const anchorRect = anchorEl.getBoundingClientRect();
+    const pickH = folderPickMenuRef.current?.getBoundingClientRect().height ?? 300;
+    const { left, top } = placeFlyoutMenu(anchorRect, pickW, pickH);
+    setFolderPickPos({ left, top });
+  }, [menu, folderPickMode, visible, submenu]);
 
   useEffect(() => {
     if (!menu) return;
     const dismiss = () => {
       setMenu(null);
       setSubmenu(null);
+      setFolderPickMode(null);
       setConfirmDelete(null);
       setVisible(false);
     };
@@ -174,8 +212,23 @@ export function StoryTableContextMenu() {
   const closeAll = () => {
     setMenu(null);
     setSubmenu(null);
+    setFolderPickMode(null);
     setConfirmDelete(null);
     setVisible(false);
+  };
+
+  const runDuplicate = (entity: DetectedEntity) => {
+    if (!DUPLICATABLE_ENTITY_TYPES.includes(entity.type)) {
+      toast.error('Este elemento no se puede duplicar');
+      return;
+    }
+    const newId = duplicateStoryEntity(entity.type, entity.id);
+    if (!newId) {
+      toast.error('No se pudo duplicar');
+      return;
+    }
+    toast.success('Elemento duplicado');
+    closeAll();
   };
 
   const go = (path: string) => {
@@ -266,13 +319,87 @@ export function StoryTableContextMenu() {
   const showFolderActions = Boolean(folderBridge && (menu.folderId || menu.folderSectionEmpty));
   const configureFolderId = menu.folderId ?? folderBridge?.openFolderId ?? null;
 
+  const scopeFolders =
+    folderBridge &&
+    entityFolders.filter((f) => f.worldId === folderBridge.worldId && f.scope === folderBridge.scope);
+
+  const entityMatchesFolderSection =
+    menu.entity &&
+    folderBridge &&
+    entityTypeSupportsFolders(menu.entity.type) &&
+    folderScopeForEntity(menu.entity.type) === folderBridge.scope &&
+    menu.entity.worldId === folderBridge.worldId;
+
+  const canDuplicate = menu.entity && DUPLICATABLE_ENTITY_TYPES.includes(menu.entity.type);
+
+  const openFolderPicker = (mode: 'moveItem' | 'copyItem' | 'moveFolder') => {
+    setFolderPickMode(mode);
+    if (mode === 'moveFolder') {
+      setSubmenu(null);
+      return;
+    }
+    if (submenu !== 'folderEntityActions') {
+      setSubmenu('folderEntityActions');
+    }
+  };
+
+  const openEntityFolderActions = () => {
+    setFolderPickMode(null);
+    setSubmenu('folderEntityActions');
+  };
+
+  const handleFolderPick = (targetFolderId: string | null) => {
+    if (!folderBridge || !folderPickMode) return;
+
+    if (folderPickMode === 'moveItem' && menu.entity) {
+      if (!targetFolderId) {
+        toast.info('Elige una carpeta de destino');
+        return;
+      }
+      moveItemToFolder(menu.entity.id, targetFolderId, folderBridge.openFolderId);
+      toast.success('Movido a la carpeta');
+      closeAll();
+      return;
+    }
+
+    if (folderPickMode === 'copyItem' && menu.entity) {
+      if (!targetFolderId) {
+        toast.info('Elige una carpeta de destino');
+        return;
+      }
+      copyItemToFolder(menu.entity.id, targetFolderId);
+      toast.success('Añadido a la carpeta');
+      closeAll();
+      return;
+    }
+
+    if (folderPickMode === 'moveFolder' && menu.folderId) {
+      if (targetFolderId === menu.folderId) {
+        closeAll();
+        return;
+      }
+      const ok = moveEntityFolderTo(menu.folderId, targetFolderId);
+      if (!ok) {
+        toast.error('No se puede mover la carpeta ahí');
+        return;
+      }
+      toast.success(targetFolderId ? 'Carpeta movida' : 'Carpeta en la raíz');
+      closeAll();
+    }
+  };
+
+  const folderPickExclude =
+    folderPickMode === 'moveFolder' && menu.folderId && scopeFolders
+      ? collectDescendantFolderIds(scopeFolders, menu.folderId)
+      : undefined;
+
   const runFolderAction = (fn: () => void) => {
     fn();
     closeAll();
   };
 
   const submenuPortal =
-    submenu &&
+    (submenu === 'nav' || submenu === 'worlds') &&
     createPortal(
       <div
         ref={subMenuRef}
@@ -315,6 +442,73 @@ export function StoryTableContextMenu() {
       document.body
     );
 
+  const folderEntityActionsPortal =
+    submenu === 'folderEntityActions' &&
+    createPortal(
+      <div
+        ref={folderActionsMenuRef}
+        data-story-app-submenu="folder-actions"
+        data-open={visible}
+        className={`fixed z-[241] min-w-[200px] py-1 ${MENU_PANEL} ${MENU_ANIM}`}
+        style={{ left: subPos.left, top: subPos.top, width: SUB_W }}
+        onMouseDown={(e) => e.stopPropagation()}
+        onWheel={(e) => e.stopPropagation()}
+      >
+        <p className="border-b border-[#2A3045]/80 px-3 py-2 text-[10px] font-mono uppercase tracking-wider text-[#5A6078]">
+          Carpeta
+        </p>
+        <button
+          type="button"
+          className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-[#E8E9EB] transition-colors hover:bg-[#1E2230]"
+          onClick={(e) => {
+            e.stopPropagation();
+            openFolderPicker('moveItem');
+          }}
+        >
+          <ArrowRightLeft size={14} className="text-[#3B82F6]" />
+          Mover a carpeta
+        </button>
+        <button
+          type="button"
+          className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-[#E8E9EB] transition-colors hover:bg-[#1E2230]"
+          onClick={(e) => {
+            e.stopPropagation();
+            openFolderPicker('copyItem');
+          }}
+        >
+          <Copy size={14} className="text-[#22C55E]" />
+          Copiar a carpeta
+        </button>
+      </div>,
+      document.body
+    );
+
+  const folderPickPortal =
+    folderPickMode &&
+    scopeFolders &&
+    createPortal(
+      <EntityFolderPickerFlyout
+        open
+        visible={visible}
+        left={folderPickPos.left}
+        top={folderPickPos.top}
+        title={
+          folderPickMode === 'moveItem'
+            ? 'Mover a'
+            : folderPickMode === 'copyItem'
+              ? 'Copiar a'
+              : 'Mover carpeta a'
+        }
+        folders={scopeFolders}
+        excludeIds={folderPickExclude}
+        includeRoot={folderPickMode === 'moveFolder'}
+        rootLabel="Raíz de la sección"
+        onPick={handleFolderPick}
+        menuRef={folderPickMenuRef}
+      />,
+      document.body
+    );
+
   return createPortal(
     <>
       <div
@@ -351,6 +545,34 @@ export function StoryTableContextMenu() {
               >
                 <Pencil size={14} className="text-[#8B91A7]" />
                 Editar
+              </button>
+            )}
+            {canDuplicate && (
+              <button
+                type="button"
+                className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-[#E8E9EB] transition-colors hover:bg-[#1E2230]"
+                onClick={() => runDuplicate(menu.entity!)}
+              >
+                <Files size={14} className="text-[#8B5CF6]" />
+                Duplicar
+              </button>
+            )}
+            {entityMatchesFolderSection && scopeFolders && scopeFolders.length > 0 && (
+              <button
+                type="button"
+                className={`flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-[#1E2230] ${
+                  submenu === 'folderEntityActions' || folderPickMode
+                    ? 'bg-[#D61E2B]/10 text-[#E8E9EB]'
+                    : 'text-[#E8E9EB]'
+                }`}
+                onMouseEnter={openEntityFolderActions}
+                onClick={openEntityFolderActions}
+              >
+                <span className="flex items-center gap-2.5">
+                  <FolderOpen size={14} className="text-[#3B82F6]" />
+                  Acciones
+                </span>
+                <ChevronRight size={14} className="text-[#5A6078]" />
               </button>
             )}
             {allowDelete && (
@@ -409,16 +631,35 @@ export function StoryTableContextMenu() {
               </button>
             )}
             {menu.folderId && (
-              <button
-                type="button"
-                className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-[#E8E9EB] transition-colors hover:bg-[#1E2230]"
-                onClick={() =>
-                  runFolderAction(() => folderBridge!.openFolder(menu.folderId!))
-                }
-              >
-                <FolderOpen size={14} className="text-[#3B82F6]" />
-                Abrir carpeta
-              </button>
+              <>
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-[#E8E9EB] transition-colors hover:bg-[#1E2230]"
+                  onClick={() =>
+                    runFolderAction(() => folderBridge!.openFolder(menu.folderId!))
+                  }
+                >
+                  <FolderOpen size={14} className="text-[#3B82F6]" />
+                  Abrir carpeta
+                </button>
+                {scopeFolders && scopeFolders.length > 0 && (
+                  <button
+                    type="button"
+                    className={`flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-[#1E2230] ${
+                      folderPickMode === 'moveFolder'
+                        ? 'bg-[#D61E2B]/10 text-[#E8E9EB]'
+                        : 'text-[#E8E9EB]'
+                    }`}
+                    onClick={() => openFolderPicker('moveFolder')}
+                  >
+                    <span className="flex items-center gap-2.5">
+                      <FolderInput size={14} className="text-[#3B82F6]" />
+                      Mover carpeta a…
+                    </span>
+                    <ChevronRight size={14} className="text-[#5A6078]" />
+                  </button>
+                )}
+              </>
             )}
             {configureFolderId && (
               <>
@@ -503,23 +744,12 @@ export function StoryTableContextMenu() {
               <Search size={14} className="text-[#8B91A7]" />
               Buscar (Ctrl+K)
             </button>
-            {location.pathname.startsWith('/world/') && (
-              <button
-                type="button"
-                className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-[#E8E9EB] transition-colors hover:bg-[#1E2230]"
-                onClick={() => {
-                  const worldId = location.pathname.split('/')[2];
-                  if (worldId) go(`/world/${worldId}?tab=fantastic`);
-                }}
-              >
-                <Sparkles size={14} className="text-[#8B5CF6]" />
-                Fantásticos
-              </button>
-            )}
           </>
         )}
       </div>
       {submenuPortal}
+      {folderEntityActionsPortal}
+      {folderPickPortal}
     </>,
     document.body
   );

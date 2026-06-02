@@ -9,6 +9,14 @@ import {
 } from '@/lib/storyRichText';
 import { chipIconHtml } from '@/lib/chipIconHtml';
 import { insertionMeta } from '@/lib/insertionMeta';
+import { expandRangeToWord } from '@/lib/spellCheck';
+
+export type RichFormatState = {
+  bold: boolean;
+  italic: boolean;
+  underline: boolean;
+  align: TextAlign | null;
+};
 
 export type StoryRichTextEditorHandle = {
   focus: () => void;
@@ -19,7 +27,10 @@ export type StoryRichTextEditorHandle = {
   insertRef: (type: string, id: string, label: string) => void;
   getMarkdown: () => string;
   copyToClipboard: () => boolean;
+  getFormatState: () => RichFormatState;
   getSelectionOffsets: () => { start: number; end: number } | null;
+  getSpellingTarget: () => { word: string; range: Range } | null;
+  replaceSpellingWord: (range: Range, replacement: string) => void;
 };
 
 type Props = {
@@ -30,6 +41,8 @@ type Props = {
   minHeight?: string;
   onContextMenu?: (e: React.MouseEvent) => void;
   className?: string;
+  /** Evita re-render del HTML mientras el menú contextual de formato está abierto. */
+  richMenuOpen?: boolean;
 };
 
 function normalizeStoredValue(text: string): string {
@@ -55,27 +68,47 @@ function buildChipElement(type: string, id: string, label: string): HTMLSpanElem
   return chip;
 }
 
-function findAlignBlock(node: Node | null, root: HTMLElement): HTMLElement | null {
+/** Párrafo = hijo directo del editor o bloque marcado. */
+function findParagraphBlock(node: Node | null, root: HTMLElement): HTMLElement | null {
   let current: Node | null = node;
   if (current?.nodeType === Node.TEXT_NODE) current = current.parentNode;
   while (current && current !== root) {
-    if (current instanceof HTMLElement && current.dataset.storyAlign) return current;
+    if (current instanceof HTMLElement) {
+      if (current.parentNode === root) return current;
+      if (current.dataset.storyParagraph === 'true' || current.dataset.storyAlign) return current;
+    }
     current = current.parentNode;
   }
   return null;
 }
 
-function findBlockContainer(node: Node | null, root: HTMLElement): HTMLElement | null {
-  let current: Node | null = node;
-  if (current?.nodeType === Node.TEXT_NODE) current = current.parentNode;
-  while (current && current !== root) {
-    if (current instanceof HTMLElement) {
-      const tag = current.tagName.toLowerCase();
-      if (tag === 'div' || tag === 'p') return current;
+function normalizeEditorParagraphs(root: HTMLElement) {
+  const hasParagraphs = root.querySelector('[data-story-paragraph], [data-story-align]');
+  if (hasParagraphs) return;
+
+  const fragment = document.createDocumentFragment();
+  let buffer: Node[] = [];
+
+  const flush = () => {
+    const div = document.createElement('div');
+    div.dataset.storyParagraph = 'true';
+    if (buffer.length === 0) div.appendChild(document.createElement('br'));
+    else buffer.forEach((n) => div.appendChild(n));
+    fragment.appendChild(div);
+    buffer = [];
+  };
+
+  Array.from(root.childNodes).forEach((node) => {
+    if (node.nodeType === Node.ELEMENT_NODE && (node as HTMLElement).tagName === 'BR') {
+      flush();
+    } else {
+      buffer.push(node);
     }
-    current = current.parentNode;
-  }
-  return null;
+  });
+  flush();
+
+  root.innerHTML = '';
+  root.appendChild(fragment);
 }
 
 function unwrapAlignBlock(block: HTMLElement) {
@@ -85,64 +118,155 @@ function unwrapAlignBlock(block: HTMLElement) {
   block.remove();
 }
 
+function paragraphsInRange(range: Range, root: HTMLElement): HTMLElement[] {
+  const paragraphs = new Set<HTMLElement>();
+
+  const consider = (node: Node | null) => {
+    const p = findParagraphBlock(node, root);
+    if (p) paragraphs.add(p);
+  };
+
+  consider(range.startContainer);
+  consider(range.endContainer);
+
+  if (!range.collapsed) {
+    Array.from(root.children).forEach((child) => {
+      if (child instanceof HTMLElement && range.intersectsNode(child)) paragraphs.add(child);
+    });
+  }
+
+  return [...paragraphs];
+}
+
+function setBlockAlignment(block: HTMLElement, align: TextAlign) {
+  block.dataset.storyParagraph = 'true';
+  if (align === 'left') {
+    delete block.dataset.storyAlign;
+    block.style.textAlign = '';
+    return;
+  }
+  block.dataset.storyAlign = align;
+  block.style.textAlign = align;
+}
+
 function applyAlignmentToSelection(el: HTMLElement, align: TextAlign) {
   const sel = window.getSelection();
   if (!sel || sel.rangeCount === 0) return;
   const range = sel.getRangeAt(0);
   if (!el.contains(range.commonAncestorContainer)) return;
 
-  const existing = findAlignBlock(range.commonAncestorContainer, el);
+  normalizeEditorParagraphs(el);
 
-  if (align === 'left') {
-    if (existing) unwrapAlignBlock(existing);
-    else {
-      const block = findBlockContainer(range.commonAncestorContainer, el);
-      if (block && block !== el) {
-        block.style.textAlign = '';
-        delete block.dataset.storyAlign;
+  let paragraphs = paragraphsInRange(range, el);
+  if (paragraphs.length === 0) {
+    const single = findParagraphBlock(range.startContainer, el);
+    if (single) paragraphs = [single];
+  }
+
+  paragraphs.forEach((block) => setBlockAlignment(block, align));
+}
+
+function isFormatActive(
+  node: Node | null,
+  root: HTMLElement,
+  kind: 'bold' | 'italic' | 'underline'
+): boolean {
+  let el: Element | null =
+    node?.nodeType === Node.TEXT_NODE ? (node.parentElement as Element | null) : (node as Element | null);
+  const tags = kind === 'bold' ? ['STRONG', 'B'] : kind === 'italic' ? ['EM', 'I'] : ['U'];
+  while (el && el !== root) {
+    if (tags.includes(el.tagName)) return true;
+    if (el instanceof HTMLElement) {
+      if (kind === 'bold') {
+        const fw = el.style.fontWeight;
+        if (fw === 'bold' || fw === '700' || (Number.parseInt(fw, 10) || 0) >= 600) return true;
       }
+      if (kind === 'italic' && el.style.fontStyle === 'italic') return true;
+      if (kind === 'underline' && el.style.textDecoration.includes('underline')) return true;
     }
-    return;
+    el = el.parentElement;
   }
+  return false;
+}
 
-  if (existing) {
-    existing.dataset.storyAlign = align;
-    existing.style.textAlign = align;
-    return;
-  }
+function readAlignFromParagraph(p: HTMLElement): TextAlign | null {
+  const fromData = p.dataset.storyAlign as TextAlign | undefined;
+  if (fromData && fromData !== 'left') return fromData;
+  const ta = p.style.textAlign;
+  if (ta === 'center' || ta === 'right' || ta === 'justify') return ta;
+  return null;
+}
 
-  const block = findBlockContainer(range.commonAncestorContainer, el);
-  if (block && block !== el && !block.dataset.storyRef) {
-    block.dataset.storyAlign = align;
-    block.style.textAlign = align;
-    return;
-  }
+function rangeStillInEditor(range: Range, root: HTMLElement): boolean {
+  return root.contains(range.startContainer) && root.contains(range.endContainer);
+}
 
-  const wrapper = document.createElement('div');
-  wrapper.dataset.storyAlign = align;
-  wrapper.style.textAlign = align;
-
+/** true si todo el texto del rango tiene el formato (sin foco ni queryCommand). */
+function rangeHasFormat(
+  range: Range,
+  root: HTMLElement,
+  kind: 'bold' | 'italic' | 'underline'
+): boolean {
   if (range.collapsed) {
-    wrapper.appendChild(document.createElement('br'));
-    range.insertNode(wrapper);
-    range.selectNodeContents(wrapper);
-    range.collapse(false);
-    sel.removeAllRanges();
-    sel.addRange(range);
-    return;
+    return isFormatActive(range.startContainer, root, kind);
   }
 
-  try {
-    range.surroundContents(wrapper);
-  } catch {
-    const fragment = range.extractContents();
-    wrapper.appendChild(fragment);
-    range.insertNode(wrapper);
+  const textNodes: Text[] = [];
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  let node: Node | null;
+  while ((node = walker.nextNode())) {
+    try {
+      if (range.intersectsNode(node)) textNodes.push(node as Text);
+    } catch {
+      /* nodo fuera del rango */
+    }
   }
-  range.selectNodeContents(wrapper);
-  range.collapse(false);
-  sel.removeAllRanges();
-  sel.addRange(range);
+
+  if (textNodes.length === 0) {
+    return isFormatActive(range.startContainer, root, kind);
+  }
+
+  return textNodes.every((text) => isFormatActive(text, root, kind));
+}
+
+function readFormatState(el: HTMLElement, fallbackRange: Range | null): RichFormatState {
+  const empty: RichFormatState = { bold: false, italic: false, underline: false, align: null };
+
+  let range: Range | null = null;
+
+  if (fallbackRange && rangeStillInEditor(fallbackRange, el)) {
+    range = fallbackRange.cloneRange();
+  } else {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0 && sel.anchorNode && el.contains(sel.anchorNode)) {
+      range = sel.getRangeAt(0);
+    }
+  }
+  if (!range) return empty;
+
+  const anchor = range.collapsed ? range.startContainer : range.commonAncestorContainer;
+
+  const bold = rangeHasFormat(range, el, 'bold');
+  const italic = rangeHasFormat(range, el, 'italic');
+  const underline = rangeHasFormat(range, el, 'underline');
+
+  const paragraphs = paragraphsInRange(range, el);
+  const alignTargets = paragraphs.length
+    ? paragraphs
+    : [findParagraphBlock(anchor, el)].filter((p): p is HTMLElement => Boolean(p));
+
+  let align: TextAlign | null = null;
+  for (const p of alignTargets) {
+    const a = readAlignFromParagraph(p);
+    if (!a) continue;
+    if (align === null) align = a;
+    else if (align !== a) {
+      align = null;
+      break;
+    }
+  }
+
+  return { bold, italic, underline, align };
 }
 
 function clearFormattingInEditor(el: HTMLElement) {
@@ -174,7 +298,16 @@ const CHIP_SELECT_STYLES: Record<string, { color: string; bg: string }> = {
 const UNDO_LIMIT = 80;
 
 export const StoryRichTextEditor = forwardRef<StoryRichTextEditorHandle, Props>(function StoryRichTextEditor(
-  { value, onChange, worldId: _worldId, placeholder = 'Escribe aquí…', minHeight = '6rem', onContextMenu, className = '' },
+  {
+    value,
+    onChange,
+    worldId: _worldId,
+    placeholder = 'Escribe aquí…',
+    minHeight = '6rem',
+    onContextMenu,
+    className = '',
+    richMenuOpen = false,
+  },
   ref
 ) {
   const editorRef = useRef<HTMLDivElement>(null);
@@ -190,6 +323,8 @@ export const StoryRichTextEditor = forwardRef<StoryRichTextEditorHandle, Props>(
   const redoStackRef = useRef<string[]>([]);
   const isHistoryRef = useRef(false);
   const mountGuardRef = useRef(true);
+  const browserLang =
+    typeof navigator !== 'undefined' ? navigator.language : undefined;
   onChangeRef.current = onChange;
 
   const getInsertionRange = useCallback((): Range | null => {
@@ -267,6 +402,15 @@ export const StoryRichTextEditor = forwardRef<StoryRichTextEditorHandle, Props>(
   const isBlurInsideField = (e: React.FocusEvent<HTMLDivElement>) => {
     const related = e.relatedTarget as Node | null;
     if (!related) return false;
+    if (related instanceof Element) {
+      if (
+        related.closest('[data-story-rich-text]') ||
+        related.closest('[data-story-rich-menu]') ||
+        related.closest('[data-story-rich-submenu]')
+      ) {
+        return true;
+      }
+    }
     const field = e.currentTarget.closest('[data-story-rich-text]');
     return Boolean(field?.contains(related));
   };
@@ -279,6 +423,7 @@ export const StoryRichTextEditor = forwardRef<StoryRichTextEditorHandle, Props>(
     const html = normalized ? markdownToEditorHtml(normalized) : '<br>';
     if (el.innerHTML !== html) {
       el.innerHTML = html;
+      normalizeEditorParagraphs(el);
     }
     lastValueRef.current = normalized;
     queueMicrotask(() => {
@@ -500,13 +645,15 @@ export const StoryRichTextEditor = forwardRef<StoryRichTextEditorHandle, Props>(
 
   useImperativeHandle(ref, () => ({
     focus: () => {
-      editorRef.current?.focus();
+      editorRef.current?.focus({ preventScroll: true });
     },
     saveSelection,
     getMarkdown: getMarkdownFromEditor,
     copyToClipboard: copyMarkdownToClipboard,
     applyFormat: (cmd) => {
-      editorRef.current?.focus();
+      const el = editorRef.current;
+      if (!el) return;
+      el.focus({ preventScroll: true });
       restoreSelection();
       document.execCommand(cmd, false);
       syncToParent();
@@ -514,7 +661,7 @@ export const StoryRichTextEditor = forwardRef<StoryRichTextEditorHandle, Props>(
     applyAlign: (align) => {
       const el = editorRef.current;
       if (!el) return;
-      el.focus();
+      el.focus({ preventScroll: true });
       restoreSelection();
       applyAlignmentToSelection(el, align);
       syncToParent();
@@ -522,7 +669,7 @@ export const StoryRichTextEditor = forwardRef<StoryRichTextEditorHandle, Props>(
     clearFormat: () => {
       const el = editorRef.current;
       if (!el) return;
-      el.focus();
+      el.focus({ preventScroll: true });
       restoreSelection();
       clearFormattingInEditor(el);
       syncToParent();
@@ -530,7 +677,56 @@ export const StoryRichTextEditor = forwardRef<StoryRichTextEditorHandle, Props>(
     insertRef: (type, id, label) => {
       insertChipAtSelection(type, id, label);
     },
+    getFormatState: () => {
+      const el = editorRef.current;
+      if (!el) return { bold: false, italic: false, underline: false, align: null };
+      const saved = savedRangeRef.current?.cloneRange() ?? null;
+      return readFormatState(el, saved);
+    },
     getSelectionOffsets: () => null,
+    getSpellingTarget: (): { word: string; range: Range } | null => {
+      const el = editorRef.current;
+      if (!el) return null;
+
+      let base: Range | null = savedRangeRef.current?.cloneRange() ?? null;
+      if (!base) {
+        const sel = window.getSelection();
+        if (sel && sel.rangeCount > 0 && sel.anchorNode && el.contains(sel.anchorNode)) {
+          base = sel.getRangeAt(0).cloneRange();
+        }
+      }
+      if (!base || !rangeStillInEditor(base, el)) return null;
+
+      const wordRange = base.collapsed ? expandRangeToWord(base) : base.cloneRange();
+      if (!wordRange) return null;
+
+      const word = wordRange.toString().trim();
+      if (word.length < 2 || /\s/.test(word)) return null;
+
+      return { word, range: wordRange.cloneRange() };
+    },
+    replaceSpellingWord: (range: Range, replacement: string) => {
+      const el = editorRef.current;
+      if (!el) return;
+      el.focus({ preventScroll: true });
+      try {
+        range.deleteContents();
+        const textNode = document.createTextNode(replacement);
+        range.insertNode(textNode);
+        const sel = window.getSelection();
+        if (sel) {
+          const after = document.createRange();
+          after.setStartAfter(textNode);
+          after.collapse(true);
+          sel.removeAllRanges();
+          sel.addRange(after);
+          savedRangeRef.current = after.cloneRange();
+        }
+      } catch {
+        /* rango inválido */
+      }
+      syncToParent();
+    },
   }));
 
   const onInput = () => {
@@ -623,34 +819,46 @@ export const StoryRichTextEditor = forwardRef<StoryRichTextEditorHandle, Props>(
 
   return (
     <div
-      ref={editorRef}
-      role="textbox"
-      aria-multiline
-      contentEditable
-      suppressContentEditableWarning
-      data-story-rich-editor
-      className={`story-rich-editor min-h-[inherit] w-full px-3 py-2.5 text-sm leading-relaxed text-[#E8E9EB] outline-none empty:before:pointer-events-none empty:before:text-[#5A6078] empty:before:content-[attr(data-placeholder)] ${className}`}
-      style={{ minHeight }}
-      data-placeholder={placeholder}
-      onInput={onInput}
-      onPaste={onPaste}
-      onCopy={onCopy}
-      onKeyDown={onKeyDown}
-      onClick={onClick}
-      onDoubleClick={onDoubleClick}
-      onFocus={() => {
-        isFocusedRef.current = true;
-      }}
-      onContextMenu={(e) => {
-        saveSelection();
-        onContextMenu?.(e);
-      }}
-      onBlur={(e) => {
-        isFocusedRef.current = false;
-        saveSelection();
-        if (isBlurInsideField(e) || syncingRef.current || renamingChipRef.current) return;
-        syncToParent();
-      }}
-    />
+        ref={editorRef}
+        role="textbox"
+        aria-multiline
+        contentEditable
+        spellCheck
+        lang={browserLang}
+        suppressContentEditableWarning
+        data-story-rich-editor
+        className={`story-rich-editor min-h-[inherit] w-full px-3 py-2.5 text-sm leading-relaxed text-[#E8E9EB] outline-none empty:before:pointer-events-none empty:before:text-[#5A6078] empty:before:content-[attr(data-placeholder)] ${className}`}
+        style={{ minHeight }}
+        data-placeholder={placeholder}
+        onInput={onInput}
+        onPaste={onPaste}
+        onCopy={onCopy}
+        onKeyDown={onKeyDown}
+        onClick={onClick}
+        onDoubleClick={onDoubleClick}
+        onFocus={() => {
+          isFocusedRef.current = true;
+        }}
+        onContextMenuCapture={() => {
+          saveSelection();
+        }}
+        onContextMenu={(e) => {
+          saveSelection();
+          onContextMenu?.(e);
+        }}
+        onBlur={(e) => {
+          isFocusedRef.current = false;
+          saveSelection();
+          if (
+            richMenuOpen ||
+            isBlurInsideField(e) ||
+            syncingRef.current ||
+            renamingChipRef.current
+          ) {
+            return;
+          }
+          syncToParent();
+        }}
+      />
   );
 });

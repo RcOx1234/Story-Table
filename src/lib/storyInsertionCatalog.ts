@@ -1,4 +1,16 @@
 import type { AppState } from '@/store';
+import type { EntityFolderScope } from '@/types';
+
+/** Categorías de inserción que tienen carpetas en la sección del mundo. */
+export const INSERTION_CATEGORY_FOLDER_SCOPE: Record<string, EntityFolderScope> = {
+  characters: 'character',
+  scenes: 'scene',
+  components: 'component',
+  organizations: 'organization',
+  facts: 'worldFact',
+  data: 'worldDatum',
+  fantastic: 'fantasticElement',
+};
 
 export type InsertionCategory = {
   id: string;

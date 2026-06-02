@@ -14,6 +14,7 @@ import {
   Underline,
   Link2,
   ChevronRight,
+  Folder,
   Globe,
   AlignLeft,
   AlignCenter,
@@ -21,14 +22,25 @@ import {
   AlignJustify,
   RotateCcw,
   Copy,
+  SpellCheck,
 } from 'lucide-react';
+import { fetchSpellingSuggestion } from '@/lib/spellCheck';
 import { toast } from 'sonner';
 import type { TextAlign } from '@/lib/storyRichText';
 import { useAppStore, useStore } from '@/store';
-import { buildInsertionCatalog, type InsertionCategory } from '@/lib/storyInsertionCatalog';
+import {
+  buildInsertionCatalog,
+  INSERTION_CATEGORY_FOLDER_SCOPE,
+  type InsertionCategory,
+} from '@/lib/storyInsertionCatalog';
+import { DEFAULT_FOLDER_COLOR } from '@/lib/folderSectionBridge';
 import { clampMenuPosition, placeFlyoutMenu } from '@/lib/contextMenuPosition';
 import { insertionMeta } from '@/lib/insertionMeta';
-import { StoryRichTextEditor, type StoryRichTextEditorHandle } from '@/components/common/StoryRichTextEditor';
+import {
+  StoryRichTextEditor,
+  type StoryRichTextEditorHandle,
+  type RichFormatState,
+} from '@/components/common/StoryRichTextEditor';
 import { MENU_ANIM, MENU_PANEL, MENU_SCROLL } from '@/lib/menuStyles';
 
 type Props = {
@@ -95,14 +107,36 @@ export function StoryRichTextField({
   const menuRef = useRef<HTMLDivElement>(null);
   const catMenuRef = useRef<HTMLDivElement>(null);
   const itemsMenuRef = useRef<HTMLDivElement>(null);
+  const folderItemsMenuRef = useRef<HTMLDivElement>(null);
 
   const [menu, setMenu] = useState<MenuPos | null>(null);
   const [insertionsOpen, setInsertionsOpen] = useState(false);
   const [insertCategory, setInsertCategory] = useState<string | null>(null);
+  const [insertFolderId, setInsertFolderId] = useState<string | null>(null);
   const [insertQuery, setInsertQuery] = useState('');
+  const entityFolders = useStore((s) => s.entityFolders);
   const [menuVisible, setMenuVisible] = useState(false);
   const [catPos, setCatPos] = useState({ left: 0, top: 0 });
   const [itemsPos, setItemsPos] = useState({ left: 0, top: 0 });
+  const [folderItemsPos, setFolderItemsPos] = useState({ left: 0, top: 0 });
+  const [formatState, setFormatState] = useState<RichFormatState>({
+    bold: false,
+    italic: false,
+    underline: false,
+    align: null,
+  });
+  const [spellLoading, setSpellLoading] = useState(false);
+  const [spellSuggestion, setSpellSuggestion] = useState<{
+    word: string;
+    suggestion: string;
+  } | null>(null);
+  const spellRangeRef = useRef<Range | null>(null);
+  const spellAbortRef = useRef<AbortController | null>(null);
+
+  const refreshFormatState = useCallback(() => {
+    const next = editorRef.current?.getFormatState();
+    if (next) setFormatState(next);
+  }, []);
 
   const catalog = useMemo(() => {
     if (!pickerWorldId || !menu) return [];
@@ -110,26 +144,31 @@ export function StoryRichTextField({
   }, [pickerWorldId, menu]);
 
   const closeMenu = useCallback(() => {
+    spellAbortRef.current?.abort();
+    setSpellLoading(false);
+    setSpellSuggestion(null);
+    spellRangeRef.current = null;
     setMenu(null);
     setInsertionsOpen(false);
     setInsertCategory(null);
+    setInsertFolderId(null);
     setInsertQuery('');
     setMenuVisible(false);
   }, []);
 
   const applyFormat = (cmd: 'bold' | 'italic' | 'underline') => {
     editorRef.current?.applyFormat(cmd);
-    editorRef.current?.focus();
+    requestAnimationFrame(refreshFormatState);
   };
 
   const applyAlign = (align: TextAlign) => {
     editorRef.current?.applyAlign(align);
-    editorRef.current?.focus();
+    requestAnimationFrame(refreshFormatState);
   };
 
   const clearFormat = () => {
     editorRef.current?.clearFormat();
-    editorRef.current?.focus();
+    requestAnimationFrame(refreshFormatState);
   };
 
   const copyRichText = () => {
@@ -147,11 +186,46 @@ export function StoryRichTextField({
       editorRef.current?.focus();
       setInsertionsOpen(false);
       setInsertCategory(null);
+      setInsertFolderId(null);
       setInsertQuery('');
       closeMenu();
     },
     [closeMenu]
   );
+
+  const activeCategory = catalog.find((c) => c.id === insertCategory);
+
+  const categoryFolders = useMemo(() => {
+    if (!insertCategory || !pickerWorldId) return [];
+    const scope = INSERTION_CATEGORY_FOLDER_SCOPE[insertCategory];
+    if (!scope) return [];
+    return entityFolders
+      .filter((f) => f.worldId === pickerWorldId && f.scope === scope)
+      .sort((a, b) => a.name.localeCompare(b.name, 'es'));
+  }, [insertCategory, pickerWorldId, entityFolders]);
+
+  const activeFolder = insertFolderId
+    ? categoryFolders.find((f) => f.id === insertFolderId)
+    : null;
+
+  const filteredItems = useMemo(() => {
+    const items = activeCategory?.items ?? [];
+    const q = insertQuery.trim().toLowerCase();
+    return items.filter((it) => !q || it.label.toLowerCase().includes(q));
+  }, [activeCategory, insertQuery]);
+
+  const folderOnlyItems = useMemo(() => {
+    if (!activeFolder) return [];
+    const ids = new Set(activeFolder.itemIds);
+    const q = insertQuery.trim().toLowerCase();
+    return (activeCategory?.items ?? []).filter(
+      (it) => ids.has(it.id) && (!q || it.label.toLowerCase().includes(q))
+    );
+  }, [activeCategory, activeFolder, insertQuery]);
+
+  useEffect(() => {
+    setInsertFolderId(null);
+  }, [insertCategory]);
 
   useLayoutEffect(() => {
     if (!menu || !menuRef.current) return;
@@ -179,8 +253,47 @@ export function StoryRichTextField({
     setItemsPos({ left: items.left, top: items.top });
   }, [menu, insertCategory, menuVisible, insertQuery, catalog.length]);
 
+  const positionFolderItemsFromAnchor = useCallback((menuHeight = SUB_EST_H) => {
+    const itemsEl = itemsMenuRef.current;
+    if (!itemsEl) return null;
+    const anchor = itemsEl.getBoundingClientRect();
+    if (anchor.width <= 0 && anchor.height <= 0) return null;
+    return placeFlyoutMenu(anchor, ITEMS_W, menuHeight);
+  }, []);
+
+  const toggleInsertFolder = useCallback(
+    (folderId: string) => {
+      if (insertFolderId === folderId) {
+        setInsertFolderId(null);
+        return;
+      }
+      const pos = positionFolderItemsFromAnchor();
+      if (pos) setFolderItemsPos({ left: pos.left, top: pos.top });
+      setInsertFolderId(folderId);
+    },
+    [insertFolderId, positionFolderItemsFromAnchor]
+  );
+
+  const attachFolderItemsRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      folderItemsMenuRef.current = node;
+      if (!node) return;
+      const pos = positionFolderItemsFromAnchor(node.offsetHeight || SUB_EST_H);
+      if (!pos) return;
+      node.style.left = `${pos.left}px`;
+      node.style.top = `${pos.top}px`;
+      setFolderItemsPos((prev) =>
+        prev.left === pos.left && prev.top === pos.top ? prev : { left: pos.left, top: pos.top }
+      );
+    },
+    [positionFolderItemsFromAnchor]
+  );
+
   useEffect(() => {
     if (!menu) return;
+    refreshFormatState();
+    const onSelectionChange = () => refreshFormatState();
+    document.addEventListener('selectionchange', onSelectionChange);
     const onPointerDown = (e: MouseEvent) => {
       const t = e.target as Node;
       if (
@@ -197,15 +310,60 @@ export function StoryRichTextField({
     window.addEventListener('mousedown', onPointerDown, true);
     window.addEventListener('keydown', onKeyDown);
     return () => {
+      document.removeEventListener('selectionchange', onSelectionChange);
       window.removeEventListener('mousedown', onPointerDown, true);
       window.removeEventListener('keydown', onKeyDown);
     };
-  }, [menu, closeMenu]);
+  }, [menu, closeMenu, refreshFormatState]);
+
+  const formatBtnClass = (active: boolean) =>
+    `flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors hover:bg-[#1E2230] ${
+      active ? 'bg-[#D61E2B]/12 text-[#E8E9EB]' : 'text-[#E8E9EB]'
+    }`;
+
+  const loadSpellSuggestion = useCallback(() => {
+    spellAbortRef.current?.abort();
+    setSpellSuggestion(null);
+    spellRangeRef.current = null;
+
+    const target = editorRef.current?.getSpellingTarget();
+    if (!target) {
+      setSpellLoading(false);
+      return;
+    }
+
+    spellRangeRef.current = target.range;
+    setSpellLoading(true);
+    const ac = new AbortController();
+    spellAbortRef.current = ac;
+
+    void fetchSpellingSuggestion(target.word, ac.signal).then((suggestion) => {
+      if (ac.signal.aborted) return;
+      setSpellLoading(false);
+      if (suggestion) {
+        setSpellSuggestion({ word: target.word, suggestion });
+      }
+    });
+  }, []);
+
+  const applySpellCorrection = () => {
+    const range = spellRangeRef.current;
+    if (!range || !spellSuggestion) return;
+    editorRef.current?.replaceSpellingWord(range, spellSuggestion.suggestion);
+    setSpellSuggestion(null);
+    spellRangeRef.current = null;
+    closeMenu();
+  };
 
   const openMenu = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     editorRef.current?.saveSelection();
+    const fmt = editorRef.current?.getFormatState();
+    if (fmt) setFormatState(fmt);
+    setSpellLoading(true);
+    setSpellSuggestion(null);
+    loadSpellSuggestion();
     setMenuVisible(false);
     setMenu({
       x: e.clientX,
@@ -215,13 +373,9 @@ export function StoryRichTextField({
     });
     setInsertionsOpen(false);
     setInsertCategory(null);
+    setInsertFolderId(null);
     setInsertQuery('');
   };
-
-  const activeCategory = catalog.find((c) => c.id === insertCategory);
-  const filteredItems = activeCategory?.items.filter(
-    (it) => !insertQuery || it.label.toLowerCase().includes(insertQuery.toLowerCase())
-  );
 
   const contextMenu =
     menu &&
@@ -241,7 +395,8 @@ export function StoryRichTextField({
           </p>
           <button
             type="button"
-            className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-[#E8E9EB] transition-colors hover:bg-[#1E2230]"
+            className={formatBtnClass(formatState.bold)}
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => applyFormat('bold')}
           >
             <span className="flex h-6 w-6 items-center justify-center rounded-md bg-[#252A3C]">
@@ -251,7 +406,8 @@ export function StoryRichTextField({
           </button>
           <button
             type="button"
-            className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-[#E8E9EB] transition-colors hover:bg-[#1E2230]"
+            className={formatBtnClass(formatState.italic)}
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => applyFormat('italic')}
           >
             <span className="flex h-6 w-6 items-center justify-center rounded-md bg-[#252A3C]">
@@ -261,7 +417,8 @@ export function StoryRichTextField({
           </button>
           <button
             type="button"
-            className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-[#E8E9EB] transition-colors hover:bg-[#1E2230]"
+            className={formatBtnClass(formatState.underline)}
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => applyFormat('underline')}
           >
             <span className="flex h-6 w-6 items-center justify-center rounded-md bg-[#252A3C]">
@@ -307,13 +464,45 @@ export function StoryRichTextField({
                 type="button"
                 title={label}
                 aria-label={label}
-                className="flex h-8 flex-1 items-center justify-center rounded-md text-[#E8E9EB] transition-colors hover:bg-[#1E2230]"
+                className={`flex h-8 flex-1 items-center justify-center rounded-md transition-colors hover:bg-[#1E2230] ${
+                  formatState.align === align || (align === 'left' && !formatState.align)
+                    ? 'bg-[#D61E2B]/15 text-[#E8E9EB]'
+                    : 'text-[#E8E9EB]'
+                }`}
                 onClick={() => applyAlign(align)}
               >
                 <Icon size={15} className="text-[#E8E9EB]" />
               </button>
             ))}
           </div>
+          {(spellLoading || spellSuggestion) && (
+            <>
+              <div className="my-1 border-t border-[#2A3045]/80" />
+              <p className="px-3 py-1.5 text-[10px] font-mono uppercase tracking-wider text-[#5A6078]">
+                Ortografía
+              </p>
+              {spellLoading && !spellSuggestion && (
+                <p className="px-3 pb-2 text-xs text-[#5A6078]">Revisando palabra…</p>
+              )}
+              {spellSuggestion && (
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-[#E8E9EB] transition-colors hover:bg-[#1E2230]"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={applySpellCorrection}
+                >
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-[#22C55E]/12">
+                    <SpellCheck size={13} className="text-[#22C55E]" />
+                  </span>
+                  <span className="min-w-0 flex-1 truncate">
+                    <span className="text-[#5A6078] line-through">{spellSuggestion.word}</span>
+                    <span className="mx-1.5 text-[#5A6078]">→</span>
+                    <span className="font-medium text-[#22C55E]">{spellSuggestion.suggestion}</span>
+                  </span>
+                </button>
+              )}
+            </>
+          )}
           {pickerWorldId && catalog.length > 0 && (
             <>
               <div className="my-1 border-t border-[#2A3045]/80" />
@@ -366,7 +555,10 @@ export function StoryRichTextField({
                       className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-[#1E2230] ${
                         insertCategory === cat.id ? 'bg-[#D61E2B]/12 text-[#E8E9EB]' : 'text-[#8B91A7]'
                       }`}
-                      onMouseEnter={() => setInsertCategory(cat.id)}
+                      onMouseEnter={() => {
+                        setInsertCategory(cat.id);
+                        setInsertFolderId(null);
+                      }}
                     >
                       <Icon size={14} className="shrink-0 opacity-80" />
                       <span className="min-w-0 flex-1 truncate">{cat.label}</span>
@@ -386,7 +578,6 @@ export function StoryRichTextField({
           {insertCategory && activeCategory && (
             <motion.div
               key={`items-${insertCategory}`}
-              ref={itemsMenuRef}
               data-story-rich-submenu="items"
               data-open={menuVisible}
               className={`fixed z-[252] flex max-h-[min(300px,58vh)] flex-col ${MENU_PANEL}`}
@@ -395,7 +586,11 @@ export function StoryRichTextField({
               onContextMenu={(e) => e.preventDefault()}
               {...flyoutMotion}
             >
-              <div className="flex max-h-[min(300px,58vh)] flex-col" onWheel={(e) => e.stopPropagation()}>
+              <div
+                ref={itemsMenuRef}
+                className="flex max-h-[min(300px,58vh)] flex-col"
+                onWheel={(e) => e.stopPropagation()}
+              >
                 <div className="shrink-0 border-b border-[#2A3045]/80 p-2.5">
                   <p className="mb-2 text-[10px] font-mono uppercase tracking-wider text-[#D61E2B]">
                     {activeCategory.label}
@@ -409,6 +604,42 @@ export function StoryRichTextField({
                   />
                 </div>
                 <div className={`min-h-0 flex-1 p-1.5 ${MENU_SCROLL}`}>
+                  {categoryFolders.length > 0 && (
+                    <div className="mb-2 space-y-0.5 border-b border-[#2A3045]/60 pb-2">
+                      <p className="px-2 pb-1 text-[9px] font-mono uppercase tracking-wider text-[#5A6078]">
+                        Carpetas
+                      </p>
+                      {categoryFolders.map((folder) => {
+                        const color = folder.color ?? DEFAULT_FOLDER_COLOR;
+                        const count = folder.itemIds.filter((id) =>
+                          activeCategory?.items.some((it) => it.id === id)
+                        ).length;
+                        return (
+                          <button
+                            key={folder.id}
+                            type="button"
+                            className={`flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm transition-colors hover:bg-[#1E2230] ${
+                              insertFolderId === folder.id ? 'bg-[#D61E2B]/12 text-[#E8E9EB]' : 'text-[#8B91A7]'
+                            }`}
+                            onClick={() => toggleInsertFolder(folder.id)}
+                          >
+                            <span
+                              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"
+                              style={{ backgroundColor: `${color}18` }}
+                            >
+                              <Folder size={14} style={{ color }} strokeWidth={1.75} />
+                            </span>
+                            <span className="min-w-0 flex-1 truncate">{folder.name}</span>
+                            <span className="shrink-0 text-[10px] text-[#5A6078]">{count}</span>
+                            <ChevronRight size={12} className="shrink-0 text-[#5A6078]" />
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <p className="px-2 pb-1 text-[9px] font-mono uppercase tracking-wider text-[#5A6078]">
+                    Todos
+                  </p>
                   {(filteredItems?.length ?? 0) === 0 ? (
                     <p className="px-2 py-4 text-center text-xs text-[#5A6078]">Sin resultados</p>
                   ) : (
@@ -438,6 +669,66 @@ export function StoryRichTextField({
             </motion.div>
           )}
         </AnimatePresence>
+
+        <AnimatePresence>
+          {insertFolderId && activeFolder && (
+            <div
+              key={`folder-items-${insertFolderId}`}
+              ref={attachFolderItemsRef}
+              data-story-rich-submenu="folder-items"
+              data-open={menuVisible}
+              className={`fixed z-[253] flex max-h-[min(300px,58vh)] flex-col ${MENU_PANEL}`}
+              style={{
+                left: folderItemsPos.left,
+                top: folderItemsPos.top,
+                width: ITEMS_W,
+                visibility:
+                  folderItemsPos.left === 0 && folderItemsPos.top === 0 ? 'hidden' : 'visible',
+              }}
+              onMouseDown={(e) => e.stopPropagation()}
+              onContextMenu={(e) => e.preventDefault()}
+            >
+              <div className="flex max-h-[min(300px,58vh)] flex-col" onWheel={(e) => e.stopPropagation()}>
+                <div className="shrink-0 border-b border-[#2A3045]/80 p-2.5">
+                  <p className="mb-1 flex items-center gap-2 text-[10px] font-mono uppercase tracking-wider text-[#D61E2B]">
+                    <Folder
+                      size={12}
+                      style={{ color: activeFolder.color ?? DEFAULT_FOLDER_COLOR }}
+                    />
+                    {activeFolder.name}
+                  </p>
+                  <p className="text-[10px] text-[#5A6078]">{folderOnlyItems.length} en carpeta</p>
+                </div>
+                <div className={`min-h-0 flex-1 p-1.5 ${MENU_SCROLL}`}>
+                  {folderOnlyItems.length === 0 ? (
+                    <p className="px-2 py-4 text-center text-xs text-[#5A6078]">Carpeta vacía</p>
+                  ) : (
+                    folderOnlyItems.map((it) => {
+                      const meta = insertionMeta(it.type);
+                      const Icon = meta.icon;
+                      return (
+                        <button
+                          key={`folder-${it.type}-${it.id}`}
+                          type="button"
+                          className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm text-[#E8E9EB] transition-colors hover:bg-[#1E2230]"
+                          onClick={() => insertAtCursor(it.type, it.id, it.label)}
+                        >
+                          <span
+                            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"
+                            style={{ backgroundColor: meta.bg }}
+                          >
+                            <Icon size={14} style={{ color: meta.color }} />
+                          </span>
+                          <span className="min-w-0 truncate">{it.label}</span>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </AnimatePresence>
       </>,
       document.body
     );
@@ -462,11 +753,7 @@ export function StoryRichTextField({
           </select>
         </div>
       )}
-      <div
-        className="story-input relative w-full overflow-hidden p-0"
-        style={{ minHeight }}
-        onContextMenu={openMenu}
-      >
+      <div className="story-input relative w-full overflow-hidden p-0" style={{ minHeight }}>
         <StoryRichTextEditor
           ref={editorRef}
           value={value}
@@ -474,7 +761,7 @@ export function StoryRichTextField({
           worldId={pickerWorldId || worldId}
           placeholder={placeholder}
           minHeight={minHeight}
-          onContextMenu={openMenu}
+          richMenuOpen={Boolean(menu)}
         />
       </div>
       {!hideHint && (

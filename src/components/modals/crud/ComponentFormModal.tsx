@@ -5,6 +5,7 @@ import type { Component } from '@/types';
 import { Box, Mail, Gem, Sword, Sparkles, ScrollText, type LucideIcon } from 'lucide-react';
 import { ImageInputField } from '@/components/common/ImageInputField';
 import { StoryRichTextField } from '@/components/common/StoryRichTextField';
+import { EntityMultiPicker } from '@/components/common/EntityMultiPicker';
 
 const TYPES: { value: Component['type']; label: string }[] = [
   { value: 'object', label: 'Objeto' },
@@ -77,13 +78,6 @@ export function ComponentFormModal({ open, onClose, worldId, initial, onSubmit }
   }, [open, worldId, initial?.id, initial?.updatedAt]);
 
   const patch = (p: Partial<Omit<Component, 'id' | 'createdAt' | 'updatedAt'>>) => setForm((f) => ({ ...f, ...p }));
-
-  const toggleScene = (id: string) => {
-    setForm((f) => ({
-      ...f,
-      scenes: f.scenes.includes(id) ? f.scenes.filter((x) => x !== id) : [...f.scenes, id],
-    }));
-  };
 
   const save = () => {
     if (!form.name.trim()) {
@@ -206,17 +200,18 @@ export function ComponentFormModal({ open, onClose, worldId, initial, onSubmit }
             </div>
           </>
         )}
-        <div>
-          <label className="mb-1 block text-xs uppercase text-[#5A6078]">Escenas donde aparece</label>
-          <div className="flex max-h-24 flex-wrap gap-2 overflow-y-auto rounded-lg border border-[#2A3045] bg-[#111318] p-2">
-            {sceneList.map((s) => (
-              <label key={s.id} className="flex cursor-pointer items-center gap-1 text-xs text-[#E8E9EB]">
-                <input type="checkbox" checked={form.scenes.includes(s.id)} onChange={() => toggleScene(s.id)} />
-                {s.title}
-              </label>
-            ))}
-          </div>
-        </div>
+        <EntityMultiPicker
+          label="Escenas donde aparece"
+          items={sceneList.map((s) => ({
+            id: s.id,
+            label: s.title,
+            sublabel: s.description?.slice(0, 60) || undefined,
+          }))}
+          value={form.scenes}
+          onChange={(ids) => patch({ scenes: ids })}
+          placeholder="Buscar y elegir escenas…"
+          emptyMessage="No hay escenas en este mundo"
+        />
         <div>
           <label className="mb-1 block text-xs uppercase text-[#5A6078]">Tags (coma)</label>
           <input className="story-input w-full" value={tagsRaw} onChange={(e) => setTagsRaw(e.target.value)} />

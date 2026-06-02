@@ -8,6 +8,7 @@ type Props = {
   subtitle: string;
   index?: number;
   isActive?: boolean;
+  entityDataAttrs?: Record<string, string>;
   onOpen: () => void;
   onEdit: () => void;
   onViewDetails?: () => void;
@@ -20,6 +21,7 @@ export function CollectionCard({
   subtitle,
   index = 0,
   isActive = false,
+  entityDataAttrs,
   onOpen,
   onEdit,
   onViewDetails,
@@ -37,6 +39,7 @@ export function CollectionCard({
       className={`story-card group relative cursor-pointer overflow-hidden p-0 text-left transition-all hover:border-[#D61E2B]/40 ${
         isActive ? 'border-[#D61E2B]/50 ring-1 ring-[#D61E2B]/30' : ''
       }`}
+      {...entityDataAttrs}
     >
       <motion.div
         className="aspect-video bg-[#0B0D10]"

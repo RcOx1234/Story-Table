@@ -248,6 +248,7 @@ export function WorldMapsSection({ worldId }: Props) {
                   imageUrl={col.imageUrl}
                   subtitle={`${mapsInCollection(col).length} mapas`}
                   index={i}
+                  entityDataAttrs={storyEntityDataAttrs('mapCollection', col.id, worldId, col.name)}
                   onOpen={() => setOpenCollectionId(col.id)}
                   onEdit={() => {
                     setEditingCollection(col);

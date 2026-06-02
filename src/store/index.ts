@@ -39,6 +39,9 @@ import {
 import { resolveTagNames } from '@/lib/worldTags';
 import { worldInitialSectionConfig } from '@/lib/worldSections';
 import { buildStateWithReplacedUrl } from '@/lib/storeUrlReferences';
+import { duplicateStoryEntity as buildDuplicateEntity } from '@/lib/duplicateStoryEntity';
+import { isFolderDescendant } from '@/lib/entityFolderScopeMap';
+import type { StoryEntityType } from '@/lib/storyEntityContext';
 
 export interface AppState {
   // Auth
@@ -216,6 +219,13 @@ export interface AppState {
   getEntityFoldersByWorld: (worldId: string, scope: EntityFolderScope) => EntityFolder[];
   addItemToFolder: (folderId: string, itemId: string) => void;
   removeItemFromFolder: (folderId: string, itemId: string) => void;
+  /** Mueve referencia de carpeta: quita de origen (si hay) y añade al destino. */
+  moveItemToFolder: (itemId: string, toFolderId: string, fromFolderId?: string | null) => void;
+  /** Añade referencia sin quitar de otras carpetas (no duplica el elemento). */
+  copyItemToFolder: (itemId: string, toFolderId: string) => void;
+  /** Cambia la carpeta padre (misma sección/mundo). Devuelve false si el movimiento no es válido. */
+  moveEntityFolderTo: (folderId: string, newParentId: string | null) => boolean;
+  duplicateStoryEntity: (type: StoryEntityType, id: string) => string | null;
 
   /** Puente temporal para acciones de carpeta desde el menú contextual global. */
   folderSectionBridge: import('@/lib/folderSectionBridge').FolderSectionBridge | null;
@@ -966,6 +976,56 @@ export const useStore = create<AppState>()(
               : f
           ),
         })),
+      moveItemToFolder: (itemId, toFolderId, fromFolderId) =>
+        set((state) => {
+          const now = new Date().toISOString();
+          return {
+            entityFolders: state.entityFolders.map((f) => {
+              if (fromFolderId && f.id === fromFolderId) {
+                return {
+                  ...f,
+                  itemIds: f.itemIds.filter((cid) => cid !== itemId),
+                  updatedAt: now,
+                };
+              }
+              if (f.id === toFolderId && !f.itemIds.includes(itemId)) {
+                return { ...f, itemIds: [...f.itemIds, itemId], updatedAt: now };
+              }
+              return f;
+            }),
+          };
+        }),
+      copyItemToFolder: (itemId, toFolderId) => {
+        get().addItemToFolder(toFolderId, itemId);
+      },
+      moveEntityFolderTo: (folderId, newParentId) => {
+        const state = get();
+        const folder = state.entityFolders.find((f) => f.id === folderId);
+        if (!folder) return false;
+        if (newParentId === folder.parentFolderId) return true;
+        if (newParentId) {
+          const parent = state.entityFolders.find((f) => f.id === newParentId);
+          if (!parent || parent.worldId !== folder.worldId || parent.scope !== folder.scope) {
+            return false;
+          }
+          if (isFolderDescendant(state.entityFolders, folderId, newParentId)) return false;
+        }
+        set((s) => ({
+          entityFolders: s.entityFolders.map((f) =>
+            f.id === folderId
+              ? { ...f, parentFolderId: newParentId, updatedAt: new Date().toISOString() }
+              : f
+          ),
+        }));
+        return true;
+      },
+      duplicateStoryEntity: (type, id) => {
+        const state = get();
+        const result = buildDuplicateEntity(state, type, id);
+        if (!result.ok) return null;
+        set((s) => ({ ...s, ...result.patch }));
+        return result.newId;
+      },
 
       folderSectionBridge: null,
       setFolderSectionBridge: (bridge) => set({ folderSectionBridge: bridge }),

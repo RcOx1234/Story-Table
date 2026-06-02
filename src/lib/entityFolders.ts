@@ -49,6 +49,54 @@ export function countChildFolders(folders: EntityFolder[], folderId: string): nu
   return folders.filter((f) => f.parentFolderId === folderId).length;
 }
 
+export function collectDescendantFolderIds(
+  folders: EntityFolder[],
+  folderId: string
+): Set<string> {
+  const ids = new Set<string>([folderId]);
+  let added = true;
+  while (added) {
+    added = false;
+    for (const f of folders) {
+      if (f.parentFolderId && ids.has(f.parentFolderId) && !ids.has(f.id)) {
+        ids.add(f.id);
+        added = true;
+      }
+    }
+  }
+  return ids;
+}
+
+export type FolderPickerEntry = {
+  id: string | null;
+  label: string;
+  depth: number;
+};
+
+/** Lista carpetas con indentación para menús (raíz opcional). */
+export function buildFolderPickerList(
+  folders: EntityFolder[],
+  options?: { excludeIds?: Set<string>; includeRoot?: boolean; rootLabel?: string }
+): FolderPickerEntry[] {
+  const exclude = options?.excludeIds ?? new Set<string>();
+  const entries: FolderPickerEntry[] = [];
+  if (options?.includeRoot) {
+    entries.push({ id: null, label: options.rootLabel ?? 'Raíz de la sección', depth: 0 });
+  }
+
+  const walk = (parentId: string | null, depth: number) => {
+    const children = folders
+      .filter((f) => (f.parentFolderId ?? null) === parentId && !exclude.has(f.id))
+      .sort((a, b) => a.name.localeCompare(b.name, 'es'));
+    for (const f of children) {
+      entries.push({ id: f.id, label: f.name, depth });
+      walk(f.id, depth + 1);
+    }
+  };
+  walk(null, 0);
+  return entries;
+}
+
 /** Migra carpetas antiguas de personajes al modelo unificado. */
 export function migrateLegacyCharacterFolders(
   legacy: Array<{
