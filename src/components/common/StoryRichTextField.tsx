@@ -83,7 +83,12 @@ export function StoryRichTextField({
   hideHint = false,
   showInsertionWorldPicker,
 }: Props) {
-  const worlds = useAppStore((s) => s.worlds.filter((w) => !w.isDeleted));
+  const allWorlds = useAppStore((s) => s.worlds);
+
+  const worlds = useMemo(
+    () => allWorlds.filter((w) => !w.isDeleted),
+    [allWorlds]
+  );
   const catalogWorldId = worldId || insertionWorldId || '';
   const [localInsertionWorld, setLocalInsertionWorld] = useState(catalogWorldId);
 
