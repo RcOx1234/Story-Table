@@ -1,5 +1,10 @@
 import { chipIconHtml } from '@/lib/chipIconHtml';
 import { insertionMeta } from '@/lib/insertionMeta';
+import {
+  collectInlineSegments,
+  inlineSegmentsToMarkdown,
+  parseInlineMarkdownToHtml,
+} from '@/lib/storyRichTextSerialize';
 
 /** Referencia embebida: [[tipo:id|etiqueta]] (tipo en camelCase, p. ej. placeCollection) */
 export const STORY_REF_RE = /\[\[([a-z][a-zA-Z0-9_]*):([^|\]]+)\|([^\]]+)\]\]/g;
@@ -71,11 +76,7 @@ function escapeHtml(s: string): string {
 }
 
 function formatInlineMarkdown(chunk: string): string {
-  let s = escapeHtml(chunk);
-  s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-  s = s.replace(/__(.+?)__/g, '<u>$1</u>');
-  s = s.replace(/(?<!\*)\*([^*\n]+?)\*(?!\*)/g, '<em>$1</em>');
-  return s;
+  return parseInlineMarkdownToHtml(chunk);
 }
 
 function alignAttr(align: TextAlign): string {
@@ -139,49 +140,34 @@ function readAlign(el: HTMLElement): TextAlign | null {
   return null;
 }
 
-function childrenToMarkdown(node: Node): string {
-  let out = '';
-  node.childNodes.forEach((child) => {
-    out += nodeToMarkdown(child);
-  });
-  return out;
-}
-
-function nodeToMarkdown(node: Node): string {
-  if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? '';
-  if (node.nodeType !== Node.ELEMENT_NODE) return '';
-
-  const el = node as HTMLElement;
-  if (el.dataset.storyRef === 'true') {
-    const type = el.dataset.storyType ?? '';
-    const id = el.dataset.storyId ?? '';
-    const label = el.dataset.storyLabel ?? '';
-    if (type && id) return buildStoryRef(type, id, label);
-    return '';
-  }
-
-  const tag = el.tagName.toLowerCase();
-  if (tag === 'br') return '\n';
-  if (tag === 'strong' || tag === 'b') return `**${childrenToMarkdown(el)}**`;
-  if (tag === 'em' || tag === 'i') return `*${childrenToMarkdown(el)}*`;
-  if (tag === 'u') return `__${childrenToMarkdown(el)}__`;
-  if (tag === 'div' || tag === 'p') {
-    const inner = childrenToMarkdown(el);
-    const align = readAlign(el);
-    if (align && align !== 'left' && inner.trim()) return `{align:${align}}${inner}{/align}`;
-    return inner;
-  }
-
-  return childrenToMarkdown(el);
-}
-
-/** Serializa el DOM del editor enriquecido a markdown almacenado. */
+/** Serializa el DOM del editor enriquecido a markdown almacenado (segmentos atómicos). */
 export function editorHtmlToMarkdown(root: HTMLElement): string {
-  let result = '';
+  const parts: string[] = [];
+
+  const serializeBlock = (el: HTMLElement) => {
+    const segments = collectInlineSegments(el, root);
+    const md = inlineSegmentsToMarkdown(segments);
+    const align = readAlign(el);
+    if (align && align !== 'left' && md.trim()) parts.push(`{align:${align}}${md}{/align}`);
+    else parts.push(md);
+  };
+
   root.childNodes.forEach((child) => {
-    result += nodeToMarkdown(child);
+    if (child.nodeType === Node.TEXT_NODE) {
+      const text = child.textContent ?? '';
+      if (text) parts.push(text);
+      return;
+    }
+    if (child instanceof HTMLElement) {
+      if (child.tagName === 'BR') {
+        parts.push('\n');
+        return;
+      }
+      serializeBlock(child);
+    }
   });
-  const cleaned = result.replace(/\u200B/g, '');
+
+  const cleaned = normalizeStoredMarkdown(parts.join(''));
   return cleaned.trim() === '' ? '' : cleaned;
 }
 
@@ -223,7 +209,7 @@ function wrapPlainEditorLines(html: string): string {
 /** HTML para contenteditable (chips + párrafos + formato inline). */
 export function markdownToEditorHtml(text: string): string {
   if (!text) return '<div data-story-paragraph="true"><br></div>';
-  const body = formatBlockForEditor(text).replace(/\n/g, '<br>');
+  const body = formatBlockForEditor(normalizeStoredMarkdown(text)).replace(/\n/g, '<br>');
   return wrapPlainEditorLines(body) || '<div data-story-paragraph="true"><br></div>';
 }
 
@@ -232,23 +218,104 @@ export function extractStoryRefsFromText(text: string): StoryRefToken[] {
   return parseStoryRefs(text);
 }
 
-/** Tokens inline para vista (negrita, cursiva, subrayado) sin lookbehind. */
-const DISPLAY_INLINE_RE = /(\*\*[^*]+?\*\*|__[^_]+?__|\*[^*\n]+?\*|_{1}[^_\n]+?_{1})/g;
+/** Tokens inline para vista (negrita, cursiva, subrayado). */
+const DISPLAY_BOLD_ITALIC_RE = /\*\*\*([^*]+?)\*\*\*/g;
+const DISPLAY_BOLD_RE = /\*\*([^*]+?)\*\*/g;
+const DISPLAY_UNDERLINE_RE = /__([^_]+?)__/g;
+const DISPLAY_ITALIC_RE = /(?<!\*)\*([^*\n]+?)\*(?!\*)/g;
 
-export function splitDisplayInline(text: string): Array<{ type: 'text' | 'bold' | 'italic' | 'underline'; value: string }> {
-  const parts: Array<{ type: 'text' | 'bold' | 'italic' | 'underline'; value: string }> = [];
-  let last = 0;
-  let m: RegExpExecArray | null;
-  const re = new RegExp(DISPLAY_INLINE_RE.source, 'g');
-  while ((m = re.exec(text)) !== null) {
-    if (m.index > last) parts.push({ type: 'text', value: text.slice(last, m.index) });
-    const token = m[1];
-    if (token.startsWith('**')) parts.push({ type: 'bold', value: token.slice(2, -2) });
-    else if (token.startsWith('__')) parts.push({ type: 'underline', value: token.slice(2, -2) });
-    else if (token.startsWith('*')) parts.push({ type: 'italic', value: token.slice(1, -1) });
-    else parts.push({ type: 'text', value: token });
-    last = m.index + m[0].length;
+export type DisplayInlineToken = {
+  type: 'text' | 'bold' | 'italic' | 'underline' | 'boldItalic';
+  value: string;
+};
+
+function splitDisplayInlineChunk(text: string): DisplayInlineToken[] {
+  if (!text) return [];
+  const parts: DisplayInlineToken[] = [];
+  let cursor = 0;
+
+  const pushPlain = (end: number) => {
+    if (end > cursor) parts.push({ type: 'text', value: text.slice(cursor, end) });
+    cursor = end;
+  };
+
+  while (cursor < text.length) {
+    DISPLAY_BOLD_ITALIC_RE.lastIndex = cursor;
+    DISPLAY_BOLD_RE.lastIndex = cursor;
+    DISPLAY_UNDERLINE_RE.lastIndex = cursor;
+    DISPLAY_ITALIC_RE.lastIndex = cursor;
+
+    const boldItalic = DISPLAY_BOLD_ITALIC_RE.exec(text);
+    const bold = DISPLAY_BOLD_RE.exec(text);
+    const underline = DISPLAY_UNDERLINE_RE.exec(text);
+    const italic = DISPLAY_ITALIC_RE.exec(text);
+
+    const candidates = [boldItalic, bold, underline, italic].filter(Boolean) as RegExpExecArray[];
+    if (candidates.length === 0) {
+      parts.push({ type: 'text', value: text.slice(cursor) });
+      break;
+    }
+
+    const next = candidates.reduce((a, b) => (a.index <= b.index ? a : b));
+    pushPlain(next.index);
+
+    if (next === boldItalic) {
+      parts.push({ type: 'boldItalic', value: next[1] });
+    } else if (next === bold) {
+      parts.push({ type: 'bold', value: next[1] });
+    } else if (next === underline) {
+      parts.push({ type: 'underline', value: next[1] });
+    } else {
+      parts.push({ type: 'italic', value: next[1] });
+    }
+    cursor = next.index + next[0].length;
   }
-  if (last < text.length) parts.push({ type: 'text', value: text.slice(last) });
+
+  return parts.length ? parts : [{ type: 'text', value: text }];
+}
+
+/** Repara marcadores pegados a la palabra siguiente (texto ya guardado sin espacio). */
+function repairMarkerSpacing(s: string): string {
+  const letter = '[\\p{L}\\p{N}]';
+  s = s.replace(new RegExp(`(\\*\\*\\*[^*]+?\\*\\*\\*)(?=${letter})`, 'gu'), '$1 ');
+  s = s.replace(new RegExp(`(\\*\\*[^*]+?\\*\\*)(?=${letter})`, 'gu'), '$1 ');
+  s = s.replace(new RegExp(`(?<!\\*)\\*([^*\\n]+?)\\*(?!\\*)(?=${letter})`, 'gu'), '*$1* ');
+  s = s.replace(new RegExp(`(__[^_]+?__)(?=${letter})`, 'gu'), '$1 ');
+  return s;
+}
+
+/** Normaliza marcadores rotos (espacios, anidación mal serializada) tras edición enriquecida. */
+export function normalizeStoredMarkdown(text: string): string {
+  if (!text) return '';
+  let s = text.replace(/\u200B/g, '');
+  s = s.replace(/\*\*<u>([\s\S]*?)<\/u>\*\*/gi, '<u>***$1***</u>');
+  s = s.replace(/\*\*\*<u>([\s\S]*?)<\/u>\*\*\*/gi, '<u>***$1***</u>');
+  s = s.replace(/\*\*\\?\*([^*]+?)\\?\*\\?\*\*/g, '***$1***');
+  s = s.replace(/(?<!\*)\*\\?\*\*([^*]+?)\\?\*\\?\*(?!\*)/g, '***$1***');
+  s = s.replace(/\*\*<u>\*([^*]+?)\*<\/u>\*\*/gi, '***$1***');
+  s = s.replace(/\*<u>\*\*([^*]+?)\*\*<\/u>\*/gi, '***$1***');
+  s = s.replace(/\*\*\s+([^*]+?)\s+\*\*/g, '**$1**');
+  s = s.replace(/\*\*\s+([^*]+?)\*\*/g, '**$1**');
+  s = s.replace(/\*\*([^*]+?)\s+\*\*/g, '**$1**');
+  s = s.replace(/\*\*\*([^*]+?)\s+\*\*\*/g, '***$1***');
+  s = s.replace(/(?<!\*)\*\s+([^*\n]+?)\s+\*(?!\*)/g, '*$1*');
+  s = s.replace(/(?<!\*)\*\s+([^*\n]+?)\*(?!\*)/g, '*$1*');
+  s = s.replace(/(?<!\*)\*([^*\n]+?)\s+\*(?!\*)/g, '*$1*');
+  s = s.replace(/__\s+([^_]+?)\s+__/g, '__$1__');
+  s = repairMarkerSpacing(s);
+  return s;
+}
+
+export function splitDisplayInline(text: string): DisplayInlineToken[] {
+  if (!text) return [];
+  const segments = parseRichInline(text);
+  const parts: DisplayInlineToken[] = [];
+  for (const seg of segments) {
+    if (seg.kind === 'ref') {
+      parts.push({ type: 'text', value: buildStoryRef(seg.type, seg.id, seg.label) });
+      continue;
+    }
+    parts.push(...splitDisplayInlineChunk(seg.value));
+  }
   return parts.length ? parts : [{ type: 'text', value: text }];
 }

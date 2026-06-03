@@ -252,6 +252,7 @@ export interface AppState {
   setActiveModal: (modal: string | null) => void;
   /** Vista previa de inserción (componente, idea, etc.) sin cambiar de página. */
   insertionPreview: { worldId: string; type: string; id: string } | null;
+  insertionPreviewStack: { worldId: string; type: string; id: string }[];
   openInsertionPreview: (
     worldId: string,
     type: string,
@@ -1046,17 +1047,33 @@ export const useStore = create<AppState>()(
       activeModal: null,
       setActiveModal: (modal) => set({ activeModal: modal }),
       insertionPreview: null,
+      insertionPreviewStack: [],
       openInsertionPreview: (worldId, type, id, returnTo) => {
-        const ret = returnTo ?? captureNavigationReturn();
-        pushInsertionPreviewHistory({ worldId, type, id }, ret);
-        set({ insertionPreview: { worldId, type, id } });
+        const entry = { worldId, type, id };
+        const stack = get().insertionPreviewStack;
+        if (stack.length === 0) {
+          const ret = returnTo ?? captureNavigationReturn();
+          pushInsertionPreviewHistory(entry, ret);
+        }
+        const nextStack = [...stack, entry];
+        set({
+          insertionPreviewStack: nextStack,
+          insertionPreview: entry,
+        });
       },
       closeInsertionPreview: () => {
+        const stack = get().insertionPreviewStack;
+        if (stack.length > 1) {
+          const nextStack = stack.slice(0, -1);
+          const top = nextStack[nextStack.length - 1];
+          set({ insertionPreviewStack: nextStack, insertionPreview: top });
+          return;
+        }
         if (window.history.state?.overlay === 'insertion-preview') {
           window.history.back();
           return;
         }
-        set({ insertionPreview: null });
+        set({ insertionPreview: null, insertionPreviewStack: [] });
       },
       entityEditRequest: null,
       requestEntityEdit: (worldId, type, id) => set({ entityEditRequest: { worldId, type, id } }),

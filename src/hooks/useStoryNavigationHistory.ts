@@ -21,7 +21,7 @@ export function useStoryNavigationHistory() {
       const store = useStore.getState();
 
       if (store.insertionPreview && state?.overlay !== 'insertion-preview') {
-        useStore.setState({ insertionPreview: null });
+        useStore.setState({ insertionPreview: null, insertionPreviewStack: [] });
         restoreScrollFromState(state?.returnTo);
         return;
       }

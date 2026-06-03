@@ -13,6 +13,10 @@ import { toast } from 'sonner';
 import { storyEntityDataAttrs } from '@/lib/storyEntityContext';
 import { RichTextSnippet } from '@/components/common/RichTextSnippet';
 import { StoryRichTextDisplay } from '@/components/common/StoryRichTextDisplay';
+import {
+  StoryCardImagePlaceholder,
+  StoryEntityImageGallery,
+} from '@/components/common/StoryEntityImageGallery';
 import { EntityFoldersSection } from '@/components/common/EntityFoldersSection';
 
 const datumTypeLabels: Record<WorldDatumType, string> = {
@@ -42,6 +46,7 @@ export function DatosSection({ worldId }: Props) {
   const [editing, setEditing] = useState<WorldDatum | null>(null);
   const [viewing, setViewing] = useState<WorldDatum | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const insertionPreview = useAppStore((s) => s.insertionPreview);
 
   const filtered = data.filter(
     (d) =>
@@ -106,10 +111,12 @@ export function DatosSection({ worldId }: Props) {
           onDelete={() => setDeleteId(datum.id)}
         />
       </div>
-      {datum.images[0] && (
+      {datum.images[0] ? (
         <div className="mb-2 h-20 overflow-hidden rounded-lg">
           <img src={datum.images[0]} alt="" className="h-full w-full object-cover opacity-90" />
         </div>
+      ) : (
+        <StoryCardImagePlaceholder icon={<BookOpen size={28} className="text-[#2A3045]" strokeWidth={1.25} />} />
       )}
       <div className="mb-1.5 flex items-center gap-1.5">
         <BookOpen size={14} className="text-[#3B82F6]" />
@@ -169,7 +176,7 @@ export function DatosSection({ worldId }: Props) {
       />
 
       <BaseModal
-        open={!!viewing}
+        open={!!viewing && !insertionPreview}
         onClose={() => setViewing(null)}
         title={viewing?.title ?? ''}
         description={viewing ? datumTypeLabels[viewing.datumType] : undefined}
@@ -192,16 +199,7 @@ export function DatosSection({ worldId }: Props) {
         {viewing && (
           <div className="space-y-4 text-sm leading-relaxed text-[#8B91A7]">
             {viewing.images.length > 0 && (
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {viewing.images.map((url, i) => (
-                  <img
-                    key={`${url}-${i}`}
-                    src={url}
-                    alt=""
-                    className="max-h-56 w-full rounded-xl border border-[#2A3045] object-cover"
-                  />
-                ))}
-              </div>
+              <StoryEntityImageGallery images={viewing.images} alt={viewing.title} />
             )}
             {viewing.content ? (
               <StoryRichTextDisplay text={viewing.content} worldId={worldId} className="text-[#E8E9EB]" />

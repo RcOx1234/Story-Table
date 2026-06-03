@@ -13,6 +13,10 @@ import { toast } from 'sonner';
 import { storyEntityDataAttrs } from '@/lib/storyEntityContext';
 import { RichTextSnippet } from '@/components/common/RichTextSnippet';
 import { StoryRichTextDisplay } from '@/components/common/StoryRichTextDisplay';
+import {
+  StoryCardImagePlaceholder,
+  StoryEntityImageGallery,
+} from '@/components/common/StoryEntityImageGallery';
 import { EntityFoldersSection } from '@/components/common/EntityFoldersSection';
 
 const factTypeLabels: Record<WorldFactType, string> = {
@@ -43,6 +47,7 @@ export function FactsSection({ worldId }: Props) {
   const [editing, setEditing] = useState<WorldFact | null>(null);
   const [viewing, setViewing] = useState<WorldFact | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const insertionPreview = useAppStore((s) => s.insertionPreview);
 
   const filtered = facts.filter(
     (f) =>
@@ -109,10 +114,15 @@ export function FactsSection({ worldId }: Props) {
           onDelete={() => setDeleteId(fact.id)}
         />
       </div>
-      {fact.images[0] && (
+      {fact.images[0] ? (
         <div className="mb-2 -mx-3.5 -mt-3.5 h-20 overflow-hidden rounded-t-xl">
           <img src={fact.images[0]} alt="" className="h-full w-full object-cover opacity-80" />
         </div>
+      ) : (
+        <StoryCardImagePlaceholder
+          className="-mx-3.5 -mt-3.5 rounded-t-xl"
+          icon={<ScrollText size={28} className="text-[#2A3045]" strokeWidth={1.25} />}
+        />
       )}
       <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
         <ScrollText size={14} className="text-[#EAB308]" />
@@ -178,7 +188,7 @@ export function FactsSection({ worldId }: Props) {
       />
 
       <BaseModal
-        open={!!viewing}
+        open={!!viewing && !insertionPreview}
         onClose={() => setViewing(null)}
         title={viewing?.title ?? ''}
         description={viewing ? factTypeLabels[viewing.factType] : undefined}
@@ -201,16 +211,7 @@ export function FactsSection({ worldId }: Props) {
         {viewing && (
           <div className="space-y-4 text-sm text-[#8B91A7]">
             {viewing.images.length > 0 && (
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {viewing.images.map((url, i) => (
-                  <img
-                    key={`${url}-${i}`}
-                    src={url}
-                    alt=""
-                    className="max-h-56 w-full rounded-xl border border-[#2A3045] object-cover"
-                  />
-                ))}
-              </div>
+              <StoryEntityImageGallery images={viewing.images} alt={viewing.title} />
             )}
             {viewing.dateLabel && (
               <p>

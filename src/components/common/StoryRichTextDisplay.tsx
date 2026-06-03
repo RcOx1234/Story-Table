@@ -1,6 +1,12 @@
 import { Fragment, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { parseStorySegments, splitDisplayInline, type StorySegment, type TextAlign } from '@/lib/storyRichText';
+import {
+  normalizeStoredMarkdown,
+  parseStorySegments,
+  splitDisplayInline,
+  type StorySegment,
+  type TextAlign,
+} from '@/lib/storyRichText';
 import { storyRefPath } from '@/lib/storyInsertionCatalog';
 import { opensInPlacePreview } from '@/lib/storyInsertionPreview';
 import { captureNavigationReturn, navigateWithReturnState } from '@/lib/storyNavigation';
@@ -29,6 +35,12 @@ function InlineFormatted({ value, keyPrefix }: { value: string; keyPrefix: strin
     <>
       {tokens.map((t, i) => {
         const k = `${keyPrefix}-${i}`;
+        if (t.type === 'boldItalic')
+          return (
+            <strong key={k} className="font-semibold text-[#F3F1EA]">
+              <em>{t.value}</em>
+            </strong>
+          );
         if (t.type === 'bold') return <strong key={k} className="font-semibold text-[#F3F1EA]">{t.value}</strong>;
         if (t.type === 'italic') return <em key={k}>{t.value}</em>;
         if (t.type === 'underline')
@@ -132,7 +144,7 @@ export function StoryRichTextDisplay({ text, worldId, className = '', onLightSur
     return <span className="text-[#5A6078]">Sin datos.</span>;
   }
 
-  const segments = parseStorySegments(text);
+  const segments = parseStorySegments(normalizeStoredMarkdown(text));
 
   return (
     <div className={`story-rich-display text-sm leading-relaxed text-[#8B91A7] ${className}`}>

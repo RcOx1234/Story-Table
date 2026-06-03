@@ -156,6 +156,16 @@
   .story-rich-editor i {
     @apply italic text-[#C4C8D8];
   }
+  .story-rich-editor strong em,
+  .story-rich-editor strong i,
+  .story-rich-editor b em,
+  .story-rich-editor b i,
+  .story-rich-editor em strong,
+  .story-rich-editor em b,
+  .story-rich-editor i strong,
+  .story-rich-editor i b {
+    @apply font-semibold italic text-[#E8E9EB];
+  }
   .story-rich-editor u {
     @apply underline decoration-[#8B91A7] underline-offset-2;
   }
@@ -210,6 +220,10 @@
   }
   .story-rich-display em {
     @apply italic;
+  }
+  .story-rich-display strong em,
+  .story-rich-display em strong {
+    @apply font-semibold italic text-[#F3F1EA];
   }
   .story-rich-display u {
     @apply underline decoration-[#8B91A7] underline-offset-2;

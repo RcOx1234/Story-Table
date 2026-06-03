@@ -7,6 +7,17 @@ import {
   STORY_REF_RE,
   type TextAlign,
 } from '@/lib/storyRichText';
+import type { InlineMarks } from '@/lib/storyRichTextSerialize';
+import {
+  getTextSelectionBookmark,
+  restoreTextSelectionBookmark,
+  selectRange,
+  toggleFormatOnRange,
+  normalizeEditorDom,
+  rangeAllHasFormat,
+  clearInlineFormattingInRange,
+  type FormatKind,
+} from '@/lib/storyRichTextDom';
 import { chipIconHtml } from '@/lib/chipIconHtml';
 import { insertionMeta } from '@/lib/insertionMeta';
 import { expandRangeToWord } from '@/lib/spellCheck';
@@ -28,6 +39,10 @@ export type StoryRichTextEditorHandle = {
   getMarkdown: () => string;
   copyToClipboard: () => boolean;
   getFormatState: () => RichFormatState;
+  getSelectedChip: () => HTMLElement | null;
+  selectionIsChipOnly: () => boolean;
+  cutSelectedChip: () => string | null;
+  pasteCutChip: () => boolean;
   getSelectionOffsets: () => { start: number; end: number } | null;
   getSpellingTarget: () => { word: string; range: Range } | null;
   replaceSpellingWord: (range: Range, replacement: string) => void;
@@ -111,13 +126,6 @@ function normalizeEditorParagraphs(root: HTMLElement) {
   root.appendChild(fragment);
 }
 
-function unwrapAlignBlock(block: HTMLElement) {
-  const parent = block.parentNode;
-  if (!parent) return;
-  while (block.firstChild) parent.insertBefore(block.firstChild, block);
-  block.remove();
-}
-
 function paragraphsInRange(range: Range, root: HTMLElement): HTMLElement[] {
   const paragraphs = new Set<HTMLElement>();
 
@@ -166,29 +174,6 @@ function applyAlignmentToSelection(el: HTMLElement, align: TextAlign) {
   paragraphs.forEach((block) => setBlockAlignment(block, align));
 }
 
-function isFormatActive(
-  node: Node | null,
-  root: HTMLElement,
-  kind: 'bold' | 'italic' | 'underline'
-): boolean {
-  let el: Element | null =
-    node?.nodeType === Node.TEXT_NODE ? (node.parentElement as Element | null) : (node as Element | null);
-  const tags = kind === 'bold' ? ['STRONG', 'B'] : kind === 'italic' ? ['EM', 'I'] : ['U'];
-  while (el && el !== root) {
-    if (tags.includes(el.tagName)) return true;
-    if (el instanceof HTMLElement) {
-      if (kind === 'bold') {
-        const fw = el.style.fontWeight;
-        if (fw === 'bold' || fw === '700' || (Number.parseInt(fw, 10) || 0) >= 600) return true;
-      }
-      if (kind === 'italic' && el.style.fontStyle === 'italic') return true;
-      if (kind === 'underline' && el.style.textDecoration.includes('underline')) return true;
-    }
-    el = el.parentElement;
-  }
-  return false;
-}
-
 function readAlignFromParagraph(p: HTMLElement): TextAlign | null {
   const fromData = p.dataset.storyAlign as TextAlign | undefined;
   if (fromData && fromData !== 'left') return fromData;
@@ -201,35 +186,50 @@ function rangeStillInEditor(range: Range, root: HTMLElement): boolean {
   return root.contains(range.startContainer) && root.contains(range.endContainer);
 }
 
-/** true si todo el texto del rango tiene el formato (sin foco ni queryCommand). */
-function rangeHasFormat(
-  range: Range,
-  root: HTMLElement,
-  kind: 'bold' | 'italic' | 'underline'
-): boolean {
-  if (range.collapsed) {
-    return isFormatActive(range.startContainer, root, kind);
+function isInsideChip(node: Node | null, root: HTMLElement): boolean {
+  let current: Node | null = node;
+  if (current?.nodeType === Node.TEXT_NODE) current = current.parentNode;
+  while (current && current !== root) {
+    if (current instanceof HTMLElement && current.dataset.storyRef === 'true') return true;
+    current = current.parentNode;
   }
-
-  const textNodes: Text[] = [];
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-  let node: Node | null;
-  while ((node = walker.nextNode())) {
-    try {
-      if (range.intersectsNode(node)) textNodes.push(node as Text);
-    } catch {
-      /* nodo fuera del rango */
-    }
-  }
-
-  if (textNodes.length === 0) {
-    return isFormatActive(range.startContainer, root, kind);
-  }
-
-  return textNodes.every((text) => isFormatActive(text, root, kind));
+  return false;
 }
 
-function readFormatState(el: HTMLElement, fallbackRange: Range | null): RichFormatState {
+function chipElementFromNode(node: Node | null, root: HTMLElement): HTMLElement | null {
+  if (!node) return null;
+  const el = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : node.parentElement;
+  const chip = el?.closest('[data-story-ref="true"]') as HTMLElement | null;
+  if (!chip || !root.contains(chip)) return null;
+  return chip;
+}
+
+function runEditorNormalize(root: HTMLElement) {
+  normalizeEditorDom(root, normalizeEditorParagraphs);
+}
+
+/** Ajusta el rango para no aplicar formato dentro de inserciones (chips). */
+function adjustRangeForFormatting(range: Range, root: HTMLElement): Range | null {
+  const r = range.cloneRange();
+  if (isInsideChip(r.startContainer, root)) {
+    const chip = chipElementFromNode(r.startContainer, root);
+    if (chip) r.setStartAfter(chip);
+  }
+  if (isInsideChip(r.endContainer, root)) {
+    const chip = chipElementFromNode(r.endContainer, root);
+    if (chip) r.setEndBefore(chip);
+  }
+  if (r.collapsed) return null;
+  const text = r.toString().replace(/\u200B/g, '').trim();
+  if (!text) return null;
+  return r;
+}
+
+function readFormatState(
+  el: HTMLElement,
+  fallbackRange: Range | null,
+  pendingMarks?: InlineMarks
+): RichFormatState {
   const empty: RichFormatState = { bold: false, italic: false, underline: false, align: null };
 
   let range: Range | null = null;
@@ -246,9 +246,13 @@ function readFormatState(el: HTMLElement, fallbackRange: Range | null): RichForm
 
   const anchor = range.collapsed ? range.startContainer : range.commonAncestorContainer;
 
-  const bold = rangeHasFormat(range, el, 'bold');
-  const italic = rangeHasFormat(range, el, 'italic');
-  const underline = rangeHasFormat(range, el, 'underline');
+  const bold = range.collapsed && pendingMarks ? pendingMarks.bold : rangeAllHasFormat(range, el, 'bold');
+  const italic =
+    range.collapsed && pendingMarks ? pendingMarks.italic : rangeAllHasFormat(range, el, 'italic');
+  const underline =
+    range.collapsed && pendingMarks
+      ? pendingMarks.underline
+      : rangeAllHasFormat(range, el, 'underline');
 
   const paragraphs = paragraphsInRange(range, el);
   const alignTargets = paragraphs.length
@@ -267,18 +271,6 @@ function readFormatState(el: HTMLElement, fallbackRange: Range | null): RichForm
   }
 
   return { bold, italic, underline, align };
-}
-
-function clearFormattingInEditor(el: HTMLElement) {
-  document.execCommand('removeFormat', false);
-  el.querySelectorAll('[data-story-align]').forEach((node) => {
-    if (node instanceof HTMLElement) unwrapAlignBlock(node);
-  });
-  el.querySelectorAll('div, p').forEach((node) => {
-    const block = node as HTMLElement;
-    if (block.dataset.storyAlign) return;
-    if (block.style.textAlign) block.style.textAlign = '';
-  });
 }
 
 const CHIP_SELECT_STYLES: Record<string, { color: string; bg: string }> = {
@@ -327,20 +319,29 @@ export const StoryRichTextEditor = forwardRef<StoryRichTextEditorHandle, Props>(
     typeof navigator !== 'undefined' ? navigator.language : undefined;
   onChangeRef.current = onChange;
 
+  const cutChipRef = useRef<{ type: string; id: string; label: string } | null>(null);
+  const pendingMarksRef = useRef<InlineMarks>({ bold: false, italic: false, underline: false });
+
   const getInsertionRange = useCallback((): Range | null => {
     const el = editorRef.current;
     if (!el) return null;
     const sel = window.getSelection();
     if (sel && sel.rangeCount > 0) {
-      const r = sel.getRangeAt(0);
-      if (el.contains(r.commonAncestorContainer)) return r.cloneRange();
+      const current = sel.getRangeAt(0);
+      if (el.contains(current.commonAncestorContainer)) return current.cloneRange();
     }
-    if (savedRangeRef.current && el.contains(savedRangeRef.current.commonAncestorContainer)) {
+    if (savedRangeRef.current && rangeStillInEditor(savedRangeRef.current, el)) {
       return savedRangeRef.current.cloneRange();
     }
+    const blocks = el.querySelectorAll('[data-story-paragraph], [data-story-align]');
+    const lastBlock = blocks.length ? (blocks[blocks.length - 1] as HTMLElement) : el;
     const r = document.createRange();
-    r.selectNodeContents(el);
-    r.collapse(false);
+    if (lastBlock.lastChild) {
+      r.setStartAfter(lastBlock.lastChild);
+    } else {
+      r.selectNodeContents(lastBlock);
+    }
+    r.collapse(true);
     return r;
   }, []);
 
@@ -385,6 +386,7 @@ export const StoryRichTextEditor = forwardRef<StoryRichTextEditorHandle, Props>(
   const syncToParent = useCallback(() => {
     const el = editorRef.current;
     if (!el || syncingRef.current || mountGuardRef.current) return;
+    runEditorNormalize(el);
     const prev = lastValueRef.current;
     const md = editorHtmlToMarkdown(el);
     const normalized = normalizeStoredValue(md);
@@ -423,7 +425,7 @@ export const StoryRichTextEditor = forwardRef<StoryRichTextEditorHandle, Props>(
     const html = normalized ? markdownToEditorHtml(normalized) : '<br>';
     if (el.innerHTML !== html) {
       el.innerHTML = html;
-      normalizeEditorParagraphs(el);
+      runEditorNormalize(el);
     }
     lastValueRef.current = normalized;
     queueMicrotask(() => {
@@ -446,7 +448,7 @@ export const StoryRichTextEditor = forwardRef<StoryRichTextEditorHandle, Props>(
   );
 
   const insertPlainTextAtSelection = useCallback(
-    (text: string) => {
+    (text: string, marks?: InlineMarks) => {
       const el = editorRef.current;
       if (!el || !text) return;
       el.focus();
@@ -454,12 +456,32 @@ export const StoryRichTextEditor = forwardRef<StoryRichTextEditorHandle, Props>(
       if (!range) return;
       const sel = window.getSelection();
       range.deleteContents();
-      const node = document.createTextNode(text);
+      let node: Node = document.createTextNode(text);
+      const m = marks ?? pendingMarksRef.current;
+      if (m.underline) {
+        const u = document.createElement('u');
+        u.appendChild(node);
+        node = u;
+      }
+      if (m.italic) {
+        const em = document.createElement('em');
+        em.appendChild(node);
+        node = em;
+      }
+      if (m.bold) {
+        const strong = document.createElement('strong');
+        strong.appendChild(node);
+        node = strong;
+      }
       range.insertNode(node);
-      placeCaretAfterNode(node);
-      if (sel && sel.rangeCount) savedRangeRef.current = sel.getRangeAt(0).cloneRange();
+      const after = document.createRange();
+      after.setStartAfter(node);
+      after.collapse(true);
+      sel?.removeAllRanges();
+      sel?.addRange(after);
+      savedRangeRef.current = after.cloneRange();
     },
-    [getInsertionRange, placeCaretAfterNode]
+    [getInsertionRange]
   );
 
   const insertChipAtSelection = useCallback(
@@ -482,6 +504,7 @@ export const StoryRichTextEditor = forwardRef<StoryRichTextEditorHandle, Props>(
 
   const pasteRichMarkdownAtSelection = useCallback(
     (text: string) => {
+      const el = editorRef.current;
       const re = new RegExp(STORY_REF_RE.source, 'g');
       let lastIndex = 0;
       let match: RegExpExecArray | null;
@@ -493,6 +516,7 @@ export const StoryRichTextEditor = forwardRef<StoryRichTextEditorHandle, Props>(
         lastIndex = match.index + match[0].length;
       }
       if (lastIndex < text.length) insertPlainTextAtSelection(text.slice(lastIndex));
+      if (el) runEditorNormalize(el);
       syncToParent();
     },
     [insertChipAtSelection, insertPlainTextAtSelection, syncToParent]
@@ -539,7 +563,20 @@ export const StoryRichTextEditor = forwardRef<StoryRichTextEditorHandle, Props>(
   }, []);
 
   useEffect(() => {
-    const onSelectionChange = () => updateChipSelectionHighlight();
+    const onSelectionChange = () => {
+      updateChipSelectionHighlight();
+      const el = editorRef.current;
+      if (!el || !isFocusedRef.current) return;
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0) return;
+      const range = sel.getRangeAt(0);
+      if (!range.collapsed || !el.contains(range.startContainer)) return;
+      pendingMarksRef.current = {
+        bold: rangeAllHasFormat(range, el, 'bold'),
+        italic: rangeAllHasFormat(range, el, 'italic'),
+        underline: rangeAllHasFormat(range, el, 'underline'),
+      };
+    };
     document.addEventListener('selectionchange', onSelectionChange);
     return () => document.removeEventListener('selectionchange', onSelectionChange);
   }, [updateChipSelectionHighlight]);
@@ -602,13 +639,36 @@ export const StoryRichTextEditor = forwardRef<StoryRichTextEditorHandle, Props>(
   );
 
   const getSelectedChip = useCallback((): HTMLElement | null => {
+    const el = editorRef.current;
+    if (!el) return null;
     const sel = window.getSelection();
     if (!sel || sel.rangeCount === 0) return null;
-    const node = sel.anchorNode;
-    if (!node) return null;
-    const el = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : node.parentElement;
-    return el?.closest('[data-story-ref="true"]') as HTMLElement | null;
+    const range = sel.getRangeAt(0);
+    if (!el.contains(range.commonAncestorContainer)) return null;
+    const startChip = chipElementFromNode(range.startContainer, el);
+    const endChip = chipElementFromNode(range.endContainer, el);
+    if (startChip && startChip === endChip) return startChip;
+    if (!range.collapsed) return null;
+    return chipElementFromNode(sel.anchorNode, el);
   }, []);
+
+  const selectionIsChipOnly = useCallback((): boolean => {
+    const el = editorRef.current;
+    if (!el) return false;
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return false;
+    const range = sel.getRangeAt(0);
+    if (!el.contains(range.commonAncestorContainer)) return false;
+    const chip = getSelectedChip();
+    if (!chip) return false;
+    if (!range.collapsed) {
+      const frag = range.cloneContents();
+      const chips = frag.querySelectorAll('[data-story-ref="true"]');
+      const text = frag.textContent?.replace(/\u200B/g, '').trim() ?? '';
+      return chips.length === 1 && text === '';
+    }
+    return true;
+  }, [getSelectedChip]);
 
   const getMarkdownFromEditor = useCallback((): string => {
     const el = editorRef.current;
@@ -650,38 +710,120 @@ export const StoryRichTextEditor = forwardRef<StoryRichTextEditorHandle, Props>(
     saveSelection,
     getMarkdown: getMarkdownFromEditor,
     copyToClipboard: copyMarkdownToClipboard,
-    applyFormat: (cmd) => {
+    applyFormat: (cmd: FormatKind) => {
       const el = editorRef.current;
       if (!el) return;
+      restoreSelection();
       el.focus({ preventScroll: true });
       restoreSelection();
-      document.execCommand(cmd, false);
+
+      const sel = window.getSelection();
+      let workRange =
+        savedRangeRef.current?.cloneRange() ??
+        (sel && sel.rangeCount > 0 ? sel.getRangeAt(0).cloneRange() : null);
+
+      if (!workRange || !rangeStillInEditor(workRange, el)) return;
+
+      if (selectionIsChipOnly()) return;
+
+      if (workRange.collapsed) {
+        pendingMarksRef.current = {
+          ...pendingMarksRef.current,
+          [cmd]: !pendingMarksRef.current[cmd],
+        };
+        savedRangeRef.current = workRange.cloneRange();
+        return;
+      }
+
+      const adjusted = adjustRangeForFormatting(workRange, el);
+      if (adjusted) workRange = adjusted;
+
+      const bookmark = getTextSelectionBookmark(el, workRange);
+      toggleFormatOnRange(workRange, el, cmd);
+      runEditorNormalize(el);
+
+      const restored = bookmark ? restoreTextSelectionBookmark(el, bookmark) : null;
+      if (restored) {
+        selectRange(restored);
+        savedRangeRef.current = restored.cloneRange();
+      } else if (sel && sel.rangeCount > 0) {
+        savedRangeRef.current = sel.getRangeAt(0).cloneRange();
+      }
       syncToParent();
     },
     applyAlign: (align) => {
       const el = editorRef.current;
       if (!el) return;
+      restoreSelection();
       el.focus({ preventScroll: true });
       restoreSelection();
+      const bookmark =
+        savedRangeRef.current && rangeStillInEditor(savedRangeRef.current, el)
+          ? getTextSelectionBookmark(el, savedRangeRef.current)
+          : null;
       applyAlignmentToSelection(el, align);
+      runEditorNormalize(el);
+      if (bookmark) {
+        const restored = restoreTextSelectionBookmark(el, bookmark);
+        if (restored) {
+          selectRange(restored);
+          savedRangeRef.current = restored.cloneRange();
+        }
+      }
       syncToParent();
     },
     clearFormat: () => {
       const el = editorRef.current;
       if (!el) return;
+      restoreSelection();
       el.focus({ preventScroll: true });
       restoreSelection();
-      clearFormattingInEditor(el);
+      pendingMarksRef.current = { bold: false, italic: false, underline: false };
+      const sel = window.getSelection();
+      const range =
+        savedRangeRef.current?.cloneRange() ??
+        (sel && sel.rangeCount > 0 ? sel.getRangeAt(0).cloneRange() : null);
+      clearInlineFormattingInRange(
+        range && rangeStillInEditor(range, el) ? range : null,
+        el
+      );
+      runEditorNormalize(el);
       syncToParent();
     },
     insertRef: (type, id, label) => {
       insertChipAtSelection(type, id, label);
     },
+    getSelectedChip,
+    selectionIsChipOnly,
+    cutSelectedChip: () => {
+      const el = editorRef.current;
+      const chip = getSelectedChip();
+      if (!el || !chip) return null;
+      const type = chip.dataset.storyType ?? '';
+      const id = chip.dataset.storyId ?? '';
+      const label = chip.dataset.storyLabel ?? '';
+      if (!type || !id) return null;
+      const md = buildStoryRef(type, id, label);
+      cutChipRef.current = { type, id, label };
+      const next = chip.nextSibling;
+      chip.remove();
+      if (next?.nodeType === Node.TEXT_NODE && next.textContent === '\u200B') next.remove();
+      void navigator.clipboard.writeText(md);
+      syncToParent();
+      return md;
+    },
+    pasteCutChip: () => {
+      const payload = cutChipRef.current;
+      if (!payload) return false;
+      insertChipAtSelection(payload.type, payload.id, payload.label);
+      cutChipRef.current = null;
+      return true;
+    },
     getFormatState: () => {
       const el = editorRef.current;
       if (!el) return { bold: false, italic: false, underline: false, align: null };
       const saved = savedRangeRef.current?.cloneRange() ?? null;
-      return readFormatState(el, saved);
+      return readFormatState(el, saved, pendingMarksRef.current);
     },
     getSelectionOffsets: () => null,
     getSpellingTarget: (): { word: string; range: Range } | null => {
@@ -761,6 +903,12 @@ export const StoryRichTextEditor = forwardRef<StoryRichTextEditorHandle, Props>(
 
   const onPaste = (e: React.ClipboardEvent) => {
     e.preventDefault();
+    const cutPayload = cutChipRef.current;
+    if (cutPayload) {
+      insertChipAtSelection(cutPayload.type, cutPayload.id, cutPayload.label);
+      cutChipRef.current = null;
+      return;
+    }
     const text = e.clipboardData.getData('text/plain');
     if (!text) return;
     if (parseStoryRefs(text).length > 0) {
@@ -768,6 +916,20 @@ export const StoryRichTextEditor = forwardRef<StoryRichTextEditorHandle, Props>(
       return;
     }
     insertPlainTextAtSelection(text);
+    const el = editorRef.current;
+    if (el) runEditorNormalize(el);
+    syncToParent();
+  };
+
+  const onBeforeInput = (e: React.FormEvent<HTMLDivElement>) => {
+    const native = e.nativeEvent as InputEvent;
+    if (native.inputType !== 'insertText' || !native.data) return;
+    const marks = pendingMarksRef.current;
+    if (!marks.bold && !marks.italic && !marks.underline) return;
+    e.preventDefault();
+    insertPlainTextAtSelection(native.data, marks);
+    const el = editorRef.current;
+    if (el) runEditorNormalize(el);
     syncToParent();
   };
 
@@ -831,6 +993,7 @@ export const StoryRichTextEditor = forwardRef<StoryRichTextEditorHandle, Props>(
         style={{ minHeight }}
         data-placeholder={placeholder}
         onInput={onInput}
+        onBeforeInput={onBeforeInput}
         onPaste={onPaste}
         onCopy={onCopy}
         onKeyDown={onKeyDown}

@@ -6,6 +6,8 @@ import { normalizeInsertionType } from '@/lib/storyInsertionCatalog';
 import { ComponentDetailModal } from '@/components/modals/crud/ComponentDetailModal';
 import { BaseModal } from '@/components/modals/crud/BaseModal';
 import { StoryRichTextDisplay } from '@/components/common/StoryRichTextDisplay';
+import { StoryEntityImageGallery } from '@/components/common/StoryEntityImageGallery';
+import { FantasticCategoryIcon } from '@/lib/fantasticCategoryIcon';
 import { EntityReference } from '@/components/common/EntityReference';
 import { FANTASTIC_CATEGORY_LABELS } from '@/lib/fantasticElementLabels';
 import type { Component, FantasticElement, FantasticElementCategory, Idea, Organization, Plot } from '@/types';
@@ -219,12 +221,8 @@ export function StoryInsertionHost() {
         }
       >
         <div className="space-y-4">
-          {fact.images?.[0] && (
-            <img
-              src={fact.images[0]}
-              alt=""
-              className="max-h-56 w-full rounded-xl border border-[#2A3045] object-cover"
-            />
+          {fact.images && fact.images.length > 0 && (
+            <StoryEntityImageGallery images={fact.images} alt={fact.title} />
           )}
           <StoryRichTextDisplay text={fact.description} worldId={worldId} className="text-[#E8E9EB]" />
         </div>
@@ -252,16 +250,7 @@ export function StoryInsertionHost() {
       >
         <div className="space-y-4">
           {datum.images && datum.images.length > 0 && (
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {datum.images.map((url, i) => (
-                <img
-                  key={`${url}-${i}`}
-                  src={url}
-                  alt=""
-                  className="max-h-56 w-full rounded-xl border border-[#2A3045] object-cover"
-                />
-              ))}
-            </div>
+            <StoryEntityImageGallery images={datum.images} alt={datum.title} />
           )}
           <StoryRichTextDisplay text={datum.content} worldId={worldId} className="text-[#E8E9EB]" />
         </div>
@@ -306,7 +295,7 @@ export function StoryInsertionHost() {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4"
           onClick={close}
         >
           <motion.div
@@ -314,17 +303,31 @@ export function StoryInsertionHost() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 8, scale: 0.98 }}
             transition={{ duration: 0.22, ease: 'easeOut' }}
-            className="story-card max-h-[85vh] w-full max-w-lg overflow-y-auto p-6"
+            className="story-card max-h-[85vh] w-full max-w-lg overflow-y-auto p-5 scrollbar-thin"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="mb-4 flex items-start justify-between gap-3">
-              <div>
+            <div className="mb-3 flex items-start gap-3">
+              {fantastic.imageUrl ? (
+                <img
+                  src={fantastic.imageUrl}
+                  alt=""
+                  className="h-16 w-16 shrink-0 rounded-xl border border-[#2A3045] object-cover"
+                />
+              ) : (
+                <div
+                  className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl border border-[#2A3045] bg-[#1E2230]"
+                  style={{ boxShadow: `inset 0 0 16px ${catColor}22` }}
+                >
+                  <FantasticCategoryIcon category={fantastic.category} size={28} color={catColor} />
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
                 <p className="text-[10px] font-mono uppercase" style={{ color: catColor }}>
                   {FANTASTIC_CATEGORY_LABELS[fantastic.category]}
                 </p>
-                <h2 className="text-xl font-bold text-[#E8E9EB]">{fantastic.name}</h2>
+                <h2 className="text-lg font-bold text-[#E8E9EB]">{fantastic.name}</h2>
               </div>
-              <button type="button" className="story-btn-secondary text-xs" onClick={close}>
+              <button type="button" className="story-btn-secondary shrink-0 text-xs" onClick={close}>
                 Cerrar
               </button>
             </div>

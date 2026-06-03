@@ -22,6 +22,7 @@ import {
   AlignJustify,
   RotateCcw,
   Copy,
+  Scissors,
   SpellCheck,
 } from 'lucide-react';
 import { fetchSpellingSuggestion } from '@/lib/spellCheck';
@@ -108,6 +109,8 @@ export function StoryRichTextField({
   const catMenuRef = useRef<HTMLDivElement>(null);
   const itemsMenuRef = useRef<HTMLDivElement>(null);
   const folderItemsMenuRef = useRef<HTMLDivElement>(null);
+  const folderButtonRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
+  const [folderMenuReady, setFolderMenuReady] = useState(false);
 
   const [menu, setMenu] = useState<MenuPos | null>(null);
   const [insertionsOpen, setInsertionsOpen] = useState(false);
@@ -125,6 +128,7 @@ export function StoryRichTextField({
     underline: false,
     align: null,
   });
+  const [chipContext, setChipContext] = useState(false);
   const [spellLoading, setSpellLoading] = useState(false);
   const [spellSuggestion, setSpellSuggestion] = useState<{
     word: string;
@@ -176,6 +180,14 @@ export function StoryRichTextField({
     const copied = editorRef.current?.copyToClipboard();
     if (copied) toast.success('Texto copiado con formato');
     else toast.error('No hay texto para copiar');
+    editorRef.current?.focus();
+    closeMenu();
+  };
+
+  const cutChip = () => {
+    const md = editorRef.current?.cutSelectedChip();
+    if (md) toast.success('Inserción cortada — pégala donde quieras');
+    else toast.error('Selecciona una inserción');
     editorRef.current?.focus();
     closeMenu();
   };
@@ -253,41 +265,30 @@ export function StoryRichTextField({
     setItemsPos({ left: items.left, top: items.top });
   }, [menu, insertCategory, menuVisible, insertQuery, catalog.length]);
 
-  const positionFolderItemsFromAnchor = useCallback((menuHeight = SUB_EST_H) => {
-    const itemsEl = itemsMenuRef.current;
-    if (!itemsEl) return null;
-    const anchor = itemsEl.getBoundingClientRect();
-    if (anchor.width <= 0 && anchor.height <= 0) return null;
-    return placeFlyoutMenu(anchor, ITEMS_W, menuHeight);
-  }, []);
+  const toggleInsertFolder = useCallback((folderId: string) => {
+    if (insertFolderId === folderId) {
+      setInsertFolderId(null);
+      setFolderMenuReady(false);
+      return;
+    }
+    setFolderMenuReady(false);
+    setInsertFolderId(folderId);
+  }, [insertFolderId]);
 
-  const toggleInsertFolder = useCallback(
-    (folderId: string) => {
-      if (insertFolderId === folderId) {
-        setInsertFolderId(null);
-        return;
-      }
-      const pos = positionFolderItemsFromAnchor();
-      if (pos) setFolderItemsPos({ left: pos.left, top: pos.top });
-      setInsertFolderId(folderId);
-    },
-    [insertFolderId, positionFolderItemsFromAnchor]
-  );
-
-  const attachFolderItemsRef = useCallback(
-    (node: HTMLDivElement | null) => {
-      folderItemsMenuRef.current = node;
-      if (!node) return;
-      const pos = positionFolderItemsFromAnchor(node.offsetHeight || SUB_EST_H);
-      if (!pos) return;
-      node.style.left = `${pos.left}px`;
-      node.style.top = `${pos.top}px`;
-      setFolderItemsPos((prev) =>
-        prev.left === pos.left && prev.top === pos.top ? prev : { left: pos.left, top: pos.top }
-      );
-    },
-    [positionFolderItemsFromAnchor]
-  );
+  useLayoutEffect(() => {
+    if (!insertFolderId) {
+      setFolderMenuReady(false);
+      return;
+    }
+    const btn = folderButtonRefs.current.get(insertFolderId);
+    if (!btn) return;
+    const anchor = btn.getBoundingClientRect();
+    const menuEl = folderItemsMenuRef.current;
+    const menuHeight = menuEl?.offsetHeight || menuEl?.scrollHeight || SUB_EST_H;
+    const pos = placeFlyoutMenu(anchor, ITEMS_W, menuHeight);
+    setFolderItemsPos({ left: pos.left, top: pos.top });
+    setFolderMenuReady(true);
+  }, [insertFolderId, folderOnlyItems.length, insertQuery, menuVisible]);
 
   useEffect(() => {
     if (!menu) return;
@@ -359,6 +360,13 @@ export function StoryRichTextField({
     e.preventDefault();
     e.stopPropagation();
     editorRef.current?.saveSelection();
+    const onChip = editorRef.current?.selectionIsChipOnly() ?? false;
+    setChipContext(onChip);
+    if (onChip) {
+      setInsertionsOpen(false);
+      setInsertCategory(null);
+      setInsertFolderId(null);
+    }
     const fmt = editorRef.current?.getFormatState();
     if (fmt) setFormatState(fmt);
     setSpellLoading(true);
@@ -390,6 +398,36 @@ export function StoryRichTextField({
           onMouseDown={(e) => e.stopPropagation()}
           onContextMenu={(e) => e.preventDefault()}
         >
+          {chipContext ? (
+            <>
+              <p className="border-b border-[#2A3045]/80 px-3 py-1.5 text-[10px] font-mono uppercase tracking-wider text-[#D61E2B]">
+                Inserción
+              </p>
+              <button
+                type="button"
+                className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-[#E8E9EB] transition-colors hover:bg-[#1E2230]"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={copyRichText}
+              >
+                <span className="flex h-6 w-6 items-center justify-center rounded-md bg-[#252A3C]">
+                  <Copy size={13} className="text-[#E8E9EB]" />
+                </span>
+                Copiar
+              </button>
+              <button
+                type="button"
+                className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-[#E8E9EB] transition-colors hover:bg-[#1E2230]"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={cutChip}
+              >
+                <span className="flex h-6 w-6 items-center justify-center rounded-md bg-[#252A3C]">
+                  <Scissors size={13} className="text-[#E8E9EB]" />
+                </span>
+                Cortar
+              </button>
+            </>
+          ) : (
+            <>
           <p className="border-b border-[#2A3045]/80 px-3 py-1.5 text-[10px] font-mono uppercase tracking-wider text-[#D61E2B]">
             Formato
           </p>
@@ -429,6 +467,7 @@ export function StoryRichTextField({
           <button
             type="button"
             className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-[#E8E9EB] transition-colors hover:bg-[#1E2230]"
+            onMouseDown={(e) => e.preventDefault()}
             onClick={clearFormat}
           >
             <span className="flex h-6 w-6 items-center justify-center rounded-md bg-[#252A3C]">
@@ -439,6 +478,7 @@ export function StoryRichTextField({
           <button
             type="button"
             className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-[#E8E9EB] transition-colors hover:bg-[#1E2230]"
+            onMouseDown={(e) => e.preventDefault()}
             onClick={copyRichText}
           >
             <span className="flex h-6 w-6 items-center justify-center rounded-md bg-[#252A3C]">
@@ -469,13 +509,16 @@ export function StoryRichTextField({
                     ? 'bg-[#D61E2B]/15 text-[#E8E9EB]'
                     : 'text-[#E8E9EB]'
                 }`}
+                onMouseDown={(e) => e.preventDefault()}
                 onClick={() => applyAlign(align)}
               >
                 <Icon size={15} className="text-[#E8E9EB]" />
               </button>
             ))}
           </div>
-          {(spellLoading || spellSuggestion) && (
+            </>
+          )}
+          {!chipContext && (spellLoading || spellSuggestion) && (
             <>
               <div className="my-1 border-t border-[#2A3045]/80" />
               <p className="px-3 py-1.5 text-[10px] font-mono uppercase tracking-wider text-[#5A6078]">
@@ -503,7 +546,7 @@ export function StoryRichTextField({
               )}
             </>
           )}
-          {pickerWorldId && catalog.length > 0 && (
+          {pickerWorldId && catalog.length > 0 && !chipContext && (
             <>
               <div className="my-1 border-t border-[#2A3045]/80" />
               <button
@@ -618,9 +661,14 @@ export function StoryRichTextField({
                           <button
                             key={folder.id}
                             type="button"
+                            ref={(el) => {
+                              if (el) folderButtonRefs.current.set(folder.id, el);
+                              else folderButtonRefs.current.delete(folder.id);
+                            }}
                             className={`flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm transition-colors hover:bg-[#1E2230] ${
                               insertFolderId === folder.id ? 'bg-[#D61E2B]/12 text-[#E8E9EB]' : 'text-[#8B91A7]'
                             }`}
+                            onMouseDown={(e) => e.preventDefault()}
                             onClick={() => toggleInsertFolder(folder.id)}
                           >
                             <span
@@ -672,9 +720,9 @@ export function StoryRichTextField({
 
         <AnimatePresence>
           {insertFolderId && activeFolder && (
-            <div
+            <motion.div
               key={`folder-items-${insertFolderId}`}
-              ref={attachFolderItemsRef}
+              ref={folderItemsMenuRef}
               data-story-rich-submenu="folder-items"
               data-open={menuVisible}
               className={`fixed z-[253] flex max-h-[min(300px,58vh)] flex-col ${MENU_PANEL}`}
@@ -682,11 +730,11 @@ export function StoryRichTextField({
                 left: folderItemsPos.left,
                 top: folderItemsPos.top,
                 width: ITEMS_W,
-                visibility:
-                  folderItemsPos.left === 0 && folderItemsPos.top === 0 ? 'hidden' : 'visible',
+                visibility: folderMenuReady ? 'visible' : 'hidden',
               }}
               onMouseDown={(e) => e.stopPropagation()}
               onContextMenu={(e) => e.preventDefault()}
+              {...flyoutMotion}
             >
               <div className="flex max-h-[min(300px,58vh)] flex-col" onWheel={(e) => e.stopPropagation()}>
                 <div className="shrink-0 border-b border-[#2A3045]/80 p-2.5">
@@ -726,7 +774,7 @@ export function StoryRichTextField({
                   )}
                 </div>
               </div>
-            </div>
+            </motion.div>
           )}
         </AnimatePresence>
       </>,
