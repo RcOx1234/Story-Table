@@ -167,7 +167,7 @@ export function editorHtmlToMarkdown(root: HTMLElement): string {
     }
   });
 
-  const cleaned = normalizeStoredMarkdown(parts.join(''));
+  const cleaned = normalizeStoredMarkdown(parts.join('\n'));
   return cleaned.trim() === '' ? '' : cleaned;
 }
 
