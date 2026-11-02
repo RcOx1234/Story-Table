@@ -311,13 +311,15 @@ export function GenealogyTree({
     });
   }, [scrollToCharacterId, tree]);
 
-  const handleMouseDown = (e: React.MouseEvent) => {
+  const handleMouseDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if ((e.target as HTMLElement).closest('button')) return;
+    if (e.button !== 0 || !e.isPrimary) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
     setDragging(true);
     setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
   };
 
-  const handleMouseMove = (e: React.MouseEvent) => {
+  const handleMouseMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!dragging) return;
     pendingPanRef.current = { x: e.clientX - dragStart.x, y: e.clientY - dragStart.y };
     if (panRafRef.current != null) return;
@@ -340,13 +342,14 @@ export function GenealogyTree({
   const canvas = (
     <div
       ref={containerRef}
-      className={`relative overflow-hidden rounded-xl border border-[#2A3045] bg-[#08090c] ${canvasHeight} ${
+      className={`genealogy-canvas relative touch-none overflow-hidden rounded-xl border border-[#2A3045] bg-[#08090c] ${canvasHeight} ${
         dragging ? 'cursor-grabbing' : 'cursor-grab'
       }`}
-      onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseUp}
+      onPointerDown={handleMouseDown}
+      onPointerMove={handleMouseMove}
+      onPointerUp={handleMouseUp}
+      onPointerCancel={handleMouseUp}
+        onLostPointerCapture={handleMouseUp}
     >
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,#1a1f2a_0%,transparent_65%)] opacity-40" />
       {timelines.length > 0 && activeTimelineId && (

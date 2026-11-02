@@ -84,7 +84,7 @@ export function SearchModal() {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh] p-4" onClick={() => setActiveModal(null)}>
+    <div className="story-search-overlay fixed inset-0 z-50 flex items-start justify-center pt-[15vh] p-4" onClick={() => setActiveModal(null)}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: -20 }}
@@ -102,13 +102,13 @@ export function SearchModal() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Buscar mundos, personajes, escenas, lugares..."
-            className="flex-1 bg-transparent text-[#E8E9EB] placeholder:text-[#5A6078] outline-none text-base"
+            className="min-w-0 flex-1 bg-transparent text-[#E8E9EB] placeholder:text-[#5A6078] outline-none text-base"
           />
-          <div className="flex items-center gap-1 text-xs text-[#5A6078]">
+          <div className="hidden sm:flex items-center gap-1 text-xs text-[#5A6078]">
             <Command size={12} />
             <span>K</span>
           </div>
-          <button onClick={() => setActiveModal(null)} className="p-1 rounded hover:bg-[#1E2230]">
+          <button aria-label="Cerrar búsqueda" onClick={() => setActiveModal(null)} className="p-1 rounded hover:bg-[#1E2230]">
             <X size={16} className="text-[#5A6078]" />
           </button>
         </div>

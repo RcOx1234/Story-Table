@@ -1,9 +1,10 @@
+import { STORY_STORAGE_KEY } from '@/lib/previewMode';
 import { useStore } from '@/store';
 import { saveLibraryToFirestore, loadLibraryFromFirestore } from '@/services/libraryFirestoreService';
 import type { AppState } from '@/store';
 import { storyContentFingerprint } from '@/lib/storyFingerprint';
 
-const PERSIST_STORAGE_KEY = 'story-table-storage';
+const PERSIST_STORAGE_KEY = STORY_STORAGE_KEY;
 
 let lastHydratedUid: string | null = null;
 let hydrateInFlight: Promise<void> | null = null;

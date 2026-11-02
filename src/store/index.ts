@@ -1,3 +1,4 @@
+import { STORY_STORAGE_KEY } from '@/lib/previewMode';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { useShallow } from 'zustand/react/shallow';
@@ -1207,7 +1208,7 @@ export const useStore = create<AppState>()(
       },
     }),
     {
-      name: 'story-table-storage',
+      name: STORY_STORAGE_KEY,
       partialize: (state) => ({
         user: state.user,
         worlds: state.worlds,

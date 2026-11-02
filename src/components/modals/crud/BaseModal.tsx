@@ -1,4 +1,5 @@
-import { useEffect } from 'react';
+import { useId } from 'react';
+import * as Dialog from '@radix-ui/react-dialog';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
 
@@ -22,19 +23,14 @@ export function BaseModal({
   footer,
   maxWidthClass = 'max-w-3xl',
 }: BaseModalProps) {
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
+  const titleId = useId();
 
   return (
+    <Dialog.Root open={open} onOpenChange={(value) => { if (!value) onClose(); }}>
     <AnimatePresence>
       {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+        <Dialog.Portal forceMount>
+        <div className="story-modal-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -43,23 +39,24 @@ export function BaseModal({
             aria-hidden
             onClick={onClose}
           />
+          <Dialog.Content asChild aria-describedby={undefined}>
           <motion.div
             role="dialog"
             aria-modal
-            aria-labelledby="modal-title"
+            aria-labelledby={titleId}
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 8 }}
             transition={{ duration: 0.2 }}
-            className={`relative w-full ${maxWidthClass} rounded-[24px] border border-white/10 bg-gradient-to-b from-[#12141a] to-[#0A0A0A] p-0 shadow-[0_40px_100px_rgba(0,0,0,0.65)] max-h-[90vh] flex flex-col overflow-hidden`}
+            className={`story-modal-panel relative w-full ${maxWidthClass} rounded-[24px] border border-white/10 bg-gradient-to-b from-[#12141a] to-[#0A0A0A] p-0 shadow-[0_40px_100px_rgba(0,0,0,0.65)] max-h-[90vh] flex flex-col overflow-hidden`}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="px-6 pt-6 pb-4 shrink-0 border-b border-white/5 bg-[#0A0A0A]/80">
             <div className="flex flex-shrink-0 items-start justify-between gap-4">
               <div className="min-w-0">
-                <h2 id="modal-title" className="text-lg font-semibold text-[#F3F1EA]" style={{ fontFamily: 'Montserrat' }}>
+                <Dialog.Title asChild><h2 id={titleId} className="text-lg font-semibold text-[#F3F1EA]" style={{ fontFamily: 'Montserrat' }}>
                   {title}
-                </h2>
+                </h2></Dialog.Title>
                 {description && <p className="mt-1 text-sm text-[#8B91A7]">{description}</p>}
               </div>
               <button
@@ -72,11 +69,14 @@ export function BaseModal({
               </button>
             </div>
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4 scrollbar-thin">{children}</div>
-            {footer && <div className="mt-0 flex flex-shrink-0 justify-end gap-3 border-t border-white/10 bg-[#0A0A0A]/90 px-6 py-4">{footer}</div>}
+            <div className="story-modal-body min-h-0 flex-1 overflow-y-auto px-6 py-4 scrollbar-thin">{children}</div>
+            {footer && <div className="story-modal-footer mt-0 flex flex-shrink-0 justify-end gap-3 border-t border-white/10 bg-[#0A0A0A]/90 px-6 py-4">{footer}</div>}
           </motion.div>
+          </Dialog.Content>
         </div>
+        </Dialog.Portal>
       )}
     </AnimatePresence>
+    </Dialog.Root>
   );
 }

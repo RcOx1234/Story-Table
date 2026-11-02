@@ -21,10 +21,12 @@ import { logout as firebaseLogout } from '@/services/authService';
 
 const sidebarMotion = { duration: 0.28, ease: [0.4, 0, 0.2, 1] as const };
 
-export function Sidebar() {
-  const navigate = useNavigate();
+export function Sidebar({ mobile = false, onNavigate }: { mobile?: boolean; onNavigate?: () => void }) {
+  const routerNavigate = useNavigate();
+  const navigate = (path: string) => { routerNavigate(path); onNavigate?.(); };
   const location = useLocation();
-  const sidebarOpen = useAppStore((s) => s.sidebarOpen);
+  const desktopOpen = useAppStore((s) => s.sidebarOpen);
+  const sidebarOpen = mobile || desktopOpen;
   const toggleSidebar = useAppStore((s) => s.toggleSidebar);
   const user = useAppStore((s) => s.user);
   const logoutStore = useAppStore((s) => s.logout);
@@ -64,9 +66,9 @@ export function Sidebar() {
   return (
     <motion.aside
       initial={false}
-      animate={{ width: sidebarOpen ? 260 : 56 }}
+      animate={{ width: mobile ? '100%' : sidebarOpen ? 260 : 56 }}
       transition={sidebarMotion}
-      className="relative flex shrink-0 flex-col overflow-hidden border-r border-[#1E2230] bg-[#111318]"
+      className="story-sidebar relative flex h-full shrink-0 flex-col overflow-hidden border-r border-[#1E2230] bg-[#111318]"
     >
       <div
         className={`flex h-16 shrink-0 items-center border-b border-[#1E2230] ${
@@ -106,6 +108,7 @@ export function Sidebar() {
         <button
           type="button"
           onClick={toggleSidebar}
+          hidden={mobile}
           className={`shrink-0 p-1.5 text-[#5A6078] transition-colors hover:text-[#E8E9EB] ${
             sidebarOpen ? '' : 'absolute right-1 top-4'
           }`}

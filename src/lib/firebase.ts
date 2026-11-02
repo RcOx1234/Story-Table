@@ -1,3 +1,4 @@
+import { IS_ISOLATED_PREVIEW } from './previewMode';
 import { initializeApp, type FirebaseApp } from 'firebase/app';
 import { getAuth, type Auth } from 'firebase/auth';
 import { getFirestore, type Firestore } from 'firebase/firestore';
@@ -35,7 +36,7 @@ function readConfig() {
   return config;
 }
 
-const cfg = readConfig();
+const cfg = IS_ISOLATED_PREVIEW ? null : readConfig();
 
 export function isFirebaseConfigured(): boolean {
   return cfg !== null;

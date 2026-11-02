@@ -166,7 +166,7 @@ export function WorldView() {
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}>
       <div className="relative mb-6">
-        <div className="relative mb-4 h-48 overflow-hidden rounded-2xl">
+        <div className="relative mb-4 h-64 sm:h-48 overflow-hidden rounded-2xl">
           {world.imageUrl ? (
             <img src={world.imageUrl} alt={world.name} className="h-full w-full object-cover" />
           ) : (
@@ -182,8 +182,8 @@ export function WorldView() {
             <ArrowLeft size={18} />
           </button>
 
-          <div className="absolute bottom-0 left-0 right-0 p-6">
-            <div className="flex items-end justify-between">
+          <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-6">
+            <div className="flex items-end justify-between gap-2">
               <div>
                 <div className="mb-2 flex items-center gap-3">
                   <h1 className="text-2xl font-bold text-[#E8E9EB]" style={{ fontFamily: 'Montserrat' }}>
@@ -192,7 +192,7 @@ export function WorldView() {
                   {world.protected && <Shield size={16} className="text-[#EAB308]" />}
                 </div>
                 <p className="line-clamp-2 max-w-2xl text-sm text-[#8B91A7]">{world.description}</p>
-                <div className="mt-3 flex gap-2">
+                <div className="mt-3 flex flex-wrap gap-2">
                   {world.tags.map((tag) => (
                     <span key={tag} className="rounded-full bg-black/30 px-2.5 py-1 text-xs uppercase tracking-wider text-[#8B91A7]">
                       {tag}
