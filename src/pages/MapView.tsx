@@ -54,14 +54,14 @@ export function MapView() {
       const el = containerRef.current;
       if (!el || !mapData) return null;
       const rect = el.getBoundingClientRect();
-      const nx = ((clientX - rect.left) / rect.width) * 100;
-      const ny = ((clientY - rect.top) / rect.height) * 100;
+      const nx = (((clientX - rect.left - rect.width / 2 - pan.x) / scale + rect.width / 2) / rect.width) * 100;
+      const ny = (((clientY - rect.top - rect.height / 2 - pan.y) / scale + rect.height / 2) / rect.height) * 100;
       return {
         x: Math.min(100, Math.max(0, nx)),
         y: Math.min(100, Math.max(0, ny)),
       };
     },
-    [mapData]
+    [mapData, pan, scale]
   );
 
   if (!dataReady) {
@@ -90,13 +90,15 @@ export function MapView() {
     );
   }
 
-  const handleMouseDown = (e: React.MouseEvent) => {
-    if (addMode) return;
+  const handleMouseDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (addMode || (e.target as HTMLElement).closest('button')) return;
+    if (e.button !== 0 || !e.isPrimary) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
     setDragging(true);
     setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
   };
 
-  const handleMouseMove = (e: React.MouseEvent) => {
+  const handleMouseMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (addMode || !dragging) return;
     setPan({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
   };
@@ -106,16 +108,6 @@ export function MapView() {
   const onMapClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!addMode || !containerRef.current) return;
     const p = percentFromEvent(e.clientX, e.clientY);
-    if (!p) return;
-    setMarkerModal({ initial: null, coords: p });
-    setAddMode(false);
-  };
-
-  const onMapTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
-    if (!addMode || !containerRef.current) return;
-    const t = e.changedTouches[0];
-    if (!t) return;
-    const p = percentFromEvent(t.clientX, t.clientY);
     if (!p) return;
     setMarkerModal({ initial: null, coords: p });
     setAddMode(false);
@@ -183,8 +175,8 @@ export function MapView() {
   };
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex h-[calc(100vh-120px)] flex-col">
-      <div className="mb-4 flex flex-shrink-0 items-center justify-between">
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="map-page flex h-[calc(100dvh-160px)] min-h-[460px] flex-col">
+      <div className="mb-4 flex flex-shrink-0 flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-4">
           <button type="button" onClick={goBack} className="rounded-lg p-2 transition-all hover:bg-[#1E2230]">
             <ArrowLeft size={20} className="text-[#8B91A7]" />
@@ -204,10 +196,10 @@ export function MapView() {
           >
             <Plus size={16} /> {addMode ? 'Toca el mapa…' : 'Agregar marcador'}
           </button>
-          <button type="button" onClick={() => setScale((s) => Math.min(s + 0.2, 3))} className="rounded-lg bg-[#1E2230] p-2 transition-all hover:bg-[#252A3C]">
+          <button type="button" aria-label="Acercar mapa" onClick={() => setScale((s) => Math.min(s + 0.2, 3))} className="rounded-lg bg-[#1E2230] p-2 transition-all hover:bg-[#252A3C]">
             <ZoomIn size={16} className="text-[#E8E9EB]" />
           </button>
-          <button type="button" onClick={() => setScale((s) => Math.max(s - 0.2, 0.5))} className="rounded-lg bg-[#1E2230] p-2 transition-all hover:bg-[#252A3C]">
+          <button type="button" aria-label="Alejar mapa" onClick={() => setScale((s) => Math.max(s - 0.2, 0.5))} className="rounded-lg bg-[#1E2230] p-2 transition-all hover:bg-[#252A3C]">
             <ZoomOut size={16} className="text-[#E8E9EB]" />
           </button>
           <button
@@ -233,13 +225,13 @@ export function MapView() {
 
       <div
         ref={containerRef}
-        className={`story-card relative flex-1 overflow-hidden ${addMode ? 'cursor-crosshair' : 'cursor-grab active:cursor-grabbing'}`}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
+        className={`story-card map-canvas relative min-h-[280px] flex-1 overflow-hidden touch-none ${addMode ? 'cursor-crosshair' : 'cursor-grab active:cursor-grabbing'}`}
+        onPointerDown={handleMouseDown}
+        onPointerMove={handleMouseMove}
+        onPointerUp={handleMouseUp}
+        onPointerCancel={handleMouseUp}
+        onLostPointerCapture={handleMouseUp}
         onClick={onMapClick}
-        onTouchEnd={onMapTouchEnd}
       >
         <div
           className="absolute inset-0 flex items-center justify-center"

@@ -16,18 +16,18 @@ export function MainLayout({ children }: MainLayoutProps) {
   useFirebaseAutoSync();
 
   return (
-    <div className="flex h-screen w-full bg-[#0B0D10] overflow-hidden">
+    <div className="story-app flex h-screen w-full bg-[#0B0D10] overflow-hidden">
       <StoryTableContextMenu />
       <StoryInsertionHost />
       <StoryEntityActionHost />
-      <Sidebar />
+      <div className="hidden h-full md:flex"><Sidebar /></div>
       <div 
         className="flex-1 flex flex-col min-w-0 transition-all duration-300"
         style={{ marginLeft: sidebarOpen ? 0 : 0 }}
       >
         <TopBar />
-        <main id="main-scroll" className="flex-1 overflow-y-auto scrollbar-thin ambient-bg">
-          <div className="p-6 lg:p-8 max-w-[1600px] mx-auto">
+        <main id="main-scroll" className="min-h-0 flex-1 overflow-y-auto scrollbar-thin ambient-bg">
+          <div className="story-content p-4 sm:p-6 lg:p-8 max-w-[1600px] mx-auto">
             {children}
           </div>
         </main>

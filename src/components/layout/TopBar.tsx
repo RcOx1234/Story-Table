@@ -1,3 +1,4 @@
+import { MobileNavigation } from './MobileNavigation';
 import { useAppStore, useStore, type AppState } from '@/store';
 import { Search, Plus, Bell, Command, User, Settings, LogOut, Lightbulb, FileText, Sparkles, Download, Upload, CloudUpload, CloudCog, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -125,24 +126,26 @@ export function TopBar() {
   };
 
   return (
-    <header className="sticky top-0 z-40 flex h-16 flex-shrink-0 items-center gap-4 border-b border-[#B51823] bg-[#D61E2B] px-6">
+    <header className="story-topbar sticky top-0 z-40 flex h-16 flex-shrink-0 items-center gap-2 sm:gap-4 border-b border-[#B51823] bg-[#D61E2B] px-2 sm:px-6">
+      <MobileNavigation />
       <button
+        aria-label="Buscar en Story Table"
         type="button"
         onClick={() => setActiveModal('search')}
-        className="flex max-w-md flex-1 items-center gap-3 rounded-xl border border-[#2A3045] bg-[#1E2230] px-4 py-2 text-sm text-[#5A6078] transition-all hover:border-[#3A4460]"
+        className="flex min-w-0 max-w-md flex-1 items-center gap-3 rounded-xl border border-[#2A3045] bg-[#1E2230] px-4 py-2 text-sm text-[#5A6078] transition-all hover:border-[#3A4460]"
       >
         <Search size={16} />
-        <span className="flex-1 text-left">Buscar mundos, personajes, escenas...</span>
-        <div className="flex items-center gap-1 text-xs text-[#5A6078]">
+        <span className="min-w-0 flex-1 truncate text-left"><span className="sm:hidden">Buscar…</span><span className="hidden sm:inline">Buscar mundos, personajes, escenas...</span></span>
+        <div className="hidden sm:flex items-center gap-1 text-xs text-[#5A6078]">
           <Command size={12} />
           <span>K</span>
         </div>
       </button>
 
-      <div className="flex-1" />
+      <div className="hidden sm:block flex-1" />
 
       <div className="flex items-center gap-2">
-        <button type="button" onClick={() => setActiveModal('quick-capture')} className="story-btn-primary text-sm">
+        <button type="button" aria-label="Capturar idea" onClick={() => setActiveModal('quick-capture')} className="story-btn-primary text-sm">
           <Plus size={16} />
           <span className="hidden sm:inline">Capturar</span>
         </button>
