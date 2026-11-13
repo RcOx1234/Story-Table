@@ -31,7 +31,7 @@ test('account change during upload cannot acknowledge another account',async()=>
   const save=createSnapshotSaveQueue({read:()=>({v:1}),isOwnerActive:uid=>owner===uid,
     write:async()=>gate.promise,acknowledge:()=>acknowledged++});
   const pending=save('a'); await Promise.resolve(); owner='b';gate.resolve();
-  await assert.rejects(pending,/sesi�n cambi�/);assert.equal(acknowledged,0);
+  await assert.rejects(pending,/sesión cambió/);assert.equal(acknowledged,0);
 });
 test('queued request for a stale account never writes',async()=>{
   let writes=0;const save=createSnapshotSaveQueue({read:()=>({}),isOwnerActive:()=>false,write:async()=>{writes++;},acknowledge:()=>{}});

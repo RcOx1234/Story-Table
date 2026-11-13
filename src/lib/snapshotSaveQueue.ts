@@ -8,10 +8,10 @@ export function createSnapshotSaveQueue<T>(options: {
   let tail: Promise<void> = Promise.resolve();
   return (owner: string): Promise<void> => {
     const operation = tail.then(async () => {
-      if (!options.isOwnerActive(owner)) throw new Error('La sesión cambi. El guardado sigue pendiente.');
+      if (!options.isOwnerActive(owner)) throw new Error('La sesión cambió. El guardado sigue pendiente.');
       const snapshot = structuredClone(options.read());
       await options.write(owner, snapshot);
-      if (!options.isOwnerActive(owner)) throw new Error('La sesión cambi durante el guardado. Revisa la sincronizacin.');
+      if (!options.isOwnerActive(owner)) throw new Error('La sesión cambió durante el guardado. Revisa la sincronización.');
       options.acknowledge(snapshot);
     });
     tail = operation.catch(() => undefined);
