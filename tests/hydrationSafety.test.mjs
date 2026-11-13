@@ -37,7 +37,7 @@ function fixture({pending=false,gate=null,loadFails=false}={}) {
       if(name.startsWith('@/'))return load('src/'+name.slice(2)+'.ts');
       throw Error(name);
     };
-    vm.runInNewContext(code,{module,exports:module.exports,require,structuredClone,console,localStorage:{getItem:k=>storage.get(k)??null}});
+    vm.runInNewContext(code,{module,exports:module.exports,require,structuredClone,console,Error,localStorage:{getItem:k=>storage.get(k)??null}});
     return module.exports;
   }
   const fingerprint=load('src/lib/storyFingerprint.ts').storyContentFingerprint;
