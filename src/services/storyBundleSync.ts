@@ -1,7 +1,7 @@
 import { useStore } from '@/store';
 import { auth } from '@/lib/firebase';
 import { createSnapshotSaveQueue } from '@/lib/snapshotSaveQueue';
-import { saveLibraryToFirestore, loadLibraryFromFirestore } from '@/services/libraryFirestoreService';
+import { saveLibraryToFirestore, loadLibraryFromFirestore, forgetLibraryVersion } from '@/services/libraryFirestoreService';
 import type { AppState } from '@/store';
 import { storyContentFingerprint } from '@/lib/storyFingerprint';
 
@@ -11,7 +11,7 @@ let lastHydratedUid: string | null = null;
 let hydrateInFlight: Promise<void> | null = null;
 let hydrateInFlightUid: string | null = null;
 
-const HYDRATE_TIMEOUT_MS = 18_000;
+
 
 type StorySlice = Pick<
   AppState,
@@ -209,96 +209,92 @@ export function markStoryBundleSynced(): void {
 const saveSnapshot = createSnapshotSaveQueue<StorySlice>({
   read: getStorySlice,
   write: (uid, snapshot) => saveLibraryToFirestore(uid, snapshot as unknown as Record<string, unknown>),
-  acknowledge: (snapshot) => useStore.getState().setLastFirebaseSyncFingerprint(fingerprintFromSlice(snapshot)),
+  acknowledge: (snapshot) => {
+    useStore.getState().setLastFirebaseSyncFingerprint(fingerprintFromSlice(snapshot));
+    useStore.setState({ firebaseSyncError: null });
+  },
   isOwnerActive: (uid) => auth?.currentUser?.uid === uid,
 });
 
 export function pushStoryBundle(uid: string): Promise<void> {
-  return saveSnapshot(uid);
+  return saveSnapshot(uid).catch((error) => {
+    if (auth?.currentUser?.uid === uid) useStore.setState({
+      firebaseSyncError: error instanceof Error ? error.message : 'No se pudo guardar. Conserva una copia local.',
+    });
+    throw error;
+  });
 }
 
 /** Carga la biblioteca desde Firebase; muestra splash mientras tanto. */
 export async function hydrateStoryBundleFromFirebase(uid: string): Promise<void> {
-  if (hydrateInFlight && hydrateInFlightUid === uid) {
-    return hydrateInFlight;
-  }
-
+  if (hydrateInFlight && hydrateInFlightUid === uid) return hydrateInFlight;
   hydrateInFlightUid = uid;
+  forgetLibraryVersion(uid);
   hydrateInFlight = (async () => {
-    const { setStoryDataLoading } = useStore.getState();
-    setStoryDataLoading(true);
-
-    const forceDone = setTimeout(() => {
-      useStore.getState().setStoryDataLoading(false);
-    }, HYDRATE_TIMEOUT_MS);
-
+    useStore.getState().setStoryDataLoading(true);
+    useStore.setState({ firebaseSyncError: null });
     try {
       await waitForStoreRehydration();
-
-      // Solo vaciar al cambiar de cuenta en la misma sesión (no en cada refresh).
+      if (auth?.currentUser?.uid !== uid) return;
       if (lastHydratedUid != null && lastHydratedUid !== uid) {
-        useStore.setState(EMPTY_STORY_SLICE);
+        throw new Error('Cambio de cuenta: conserva la copia local antes de cargar otra biblioteca.');
       }
       lastHydratedUid = uid;
-
       const fromMemory = getStorySlice();
       const fromStorage = readPersistedStorySlice();
-      const localSnapshot = pickRicherSlice(
-        fromMemory,
-        fromStorage && sliceHasContent(fromStorage) ? fromStorage : fromMemory
-      );
-
-      if (sliceHasContent(localSnapshot) && !sliceHasContent(fromMemory)) {
-        applyStorySlice(localSnapshot as unknown as Record<string, unknown>);
-      }
-
-      const fpBeforePull = fingerprintFromSlice(localSnapshot);
+      const local = pickRicherSlice(fromMemory, fromStorage ?? fromMemory);
+      const localFingerprint = fingerprintFromSlice(local);
+      const startFingerprint = fingerprintFromSlice(fromMemory);
       const lastSynced = useStore.getState().lastFirebaseSyncFingerprint;
-      const hasUnsyncedLocal = lastSynced != null && lastSynced !== fpBeforePull;
-
-      const pulled = await pullStoryBundle(uid);
-      const remote = getStorySlice();
-
-      if (!pulled) {
-        if (sliceHasContent(localSnapshot)) {
-          await pushStoryBundle(uid);
+      const pending = lastSynced !== localFingerprint &&
+        (lastSynced != null || sliceHasContent(local));
+      const remote = await loadLibraryFromFirestore(uid);
+      if (auth?.currentUser?.uid !== uid) { forgetLibraryVersion(uid); return; }
+      if (fingerprintFromSlice(getStorySlice()) !== startFingerprint) {
+        forgetLibraryVersion(uid);
+        throw new Error('Hay ediciones realizadas durante la carga. Se conservan pendientes; guarda una copia local.');
+      }
+      if (pending || (!remote && sliceHasContent(local))) {
+        const same = remote && localFingerprint === fingerprintFromSlice(remote as unknown as StorySlice);
+        if (!same) {
+          forgetLibraryVersion(uid);
+          // Do not temporarily apply remote data: persistence would erase pending local edits.
+          if (!sliceHasContent(fromMemory) && sliceHasContent(local)) applyStorySlice(local as unknown as Record<string, unknown>);
+          throw new Error('Hay cambios locales pendientes y una copia remota diferente. No se reemplazó ni se envió ninguna copia. Descarga tu copia local antes de resolver el conflicto.');
         }
-        return;
       }
-
-      if (!sliceHasContent(remote) && sliceHasContent(localSnapshot)) {
-        applyStorySlice(localSnapshot as unknown as Record<string, unknown>);
-        await pushStoryBundle(uid);
-        return;
-      }
-
-      if (hasUnsyncedLocal && fpBeforePull !== storyContentFingerprint(useStore.getState())) {
-        applyStorySlice(localSnapshot as unknown as Record<string, unknown>);
-        await pushStoryBundle(uid);
-        return;
-      }
-
+      if (remote) applyStorySlice(remote);
       markStoryBundleSynced();
-    } catch {
-      const fallback = readPersistedStorySlice();
-      if (fallback && sliceHasContent(fallback) && !sliceHasContent(getStorySlice())) {
-        applyStorySlice(fallback as unknown as Record<string, unknown>);
-      }
+    } catch (error) {
+      forgetLibraryVersion(uid);
+      if (auth?.currentUser?.uid === uid) useStore.setState({
+        firebaseSyncError: error instanceof Error ? error.message : 'No se pudo cargar la nube. Tus cambios locales siguen pendientes.',
+      });
     } finally {
-      clearTimeout(forceDone);
-      useStore.getState().setStoryDataLoading(false);
-      hydrateInFlight = null;
-      hydrateInFlightUid = null;
+      if (hydrateInFlightUid === uid) {
+        useStore.getState().setStoryDataLoading(false);
+        hydrateInFlight = null;
+        hydrateInFlightUid = null;
+      }
     }
   })();
-
   return hydrateInFlight;
 }
 
 export async function pullStoryBundle(uid: string): Promise<boolean> {
+  const before = fingerprintFromSlice(getStorySlice());
+  const synced = useStore.getState().lastFirebaseSyncFingerprint;
+  if (before !== synced && (synced != null || sliceHasContent(getStorySlice()))) {
+    throw new Error('Hay cambios locales pendientes. Guarda una copia antes de cargar desde la nube.');
+  }
   const data = await loadLibraryFromFirestore(uid);
+  if (auth?.currentUser?.uid !== uid || before !== fingerprintFromSlice(getStorySlice())) {
+    forgetLibraryVersion(uid);
+    throw new Error('La sesión o los datos locales cambiaron durante la carga.');
+  }
   if (!data || !Array.isArray(data.worlds)) return false;
   applyStorySlice(data);
+  markStoryBundleSynced();
   return true;
 }
 

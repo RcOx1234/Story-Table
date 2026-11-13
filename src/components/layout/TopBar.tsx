@@ -28,6 +28,7 @@ export function TopBar() {
   const scenesRecent = useAppStore((s) => s.scenes.filter((sc) => !sc.isDeleted).slice(-3));
   const [savingCloud, setSavingCloud] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
+  const syncError = useAppStore((s) => s.firebaseSyncError);
   const autoSaveEnabled = useAppStore((s) => s.firebaseAutoSaveEnabled);
   const autoSaveSyncing = useAppStore((s) => s.firebaseAutoSaveSyncing);
   const setAutoSaveEnabled = useAppStore((s) => s.setFirebaseAutoSaveEnabled);
@@ -147,6 +148,7 @@ export function TopBar() {
   };
 
   return (
+    <>
     <header className="story-topbar sticky top-0 z-40 flex h-16 flex-shrink-0 items-center gap-2 sm:gap-4 border-b border-[#B51823] bg-[#D61E2B] px-2 sm:px-6">
       <MobileNavigation />
       <button
@@ -325,6 +327,15 @@ export function TopBar() {
       </div>
       <AccountSettingsModal open={accountOpen} onClose={() => setAccountOpen(false)} />
     </header>
+    {syncError && (
+      <div role="alert" className="border-b border-amber-500/40 bg-amber-950 px-4 py-3 text-sm text-amber-100">
+        <p>{syncError}</p>
+        <button type="button" onClick={exportRecoverySnapshot} className="mt-2 underline">
+          Guardar copia local con papelera
+        </button>
+      </div>
+    )}
+    </>
   );
 }
 

@@ -1,3 +1,4 @@
+import { versionedUploadPath } from '@/lib/versionedUploadPath';
 import { uploadFileToUserPath } from '@/services/storageService';
 import { pathInWorld, storageSlug, worldStorageFolder } from '@/lib/storagePaths';
 
@@ -46,7 +47,7 @@ function extFromMime(mime: string): string {
 
 async function replaceDataUrl(uid: string, path: string, dataUrl: string): Promise<string> {
   const blob = dataUrlToBlob(dataUrl);
-  return uploadFileToUserPath(uid, path, blob, blob.type || undefined);
+  return uploadFileToUserPath(uid, versionedUploadPath(path), blob, blob.type || undefined);
 }
 
 type WorldMeta = { id: string; name: string };

@@ -239,6 +239,7 @@ export interface AppState {
   setFirebaseAutoSaveSyncing: (syncing: boolean) => void;
 
   /** Sincronización inicial de biblioteca desde Firebase. */
+  firebaseSyncError: string | null;
   storyDataLoading: boolean;
   setStoryDataLoading: (loading: boolean) => void;
   /** Huella del último guardado exitoso en Firebase (evita pisar cambios locales al recargar). */
@@ -1036,6 +1037,7 @@ export const useStore = create<AppState>()(
       firebaseAutoSaveSyncing: false,
       setFirebaseAutoSaveSyncing: (syncing) => set({ firebaseAutoSaveSyncing: syncing }),
 
+      firebaseSyncError: null,
       storyDataLoading: false,
       setStoryDataLoading: (loading) => set({ storyDataLoading: loading }),
       lastFirebaseSyncFingerprint: null,

@@ -19,3 +19,13 @@ Legacy libraries are returned without uploading, migrating, or deleting anything
 The toolbar exposes Guardar copia in the isolated preview. This downloads a local recovery JSON, not a cloud save. Existing cloud controls remain conditional on Firebase being configured.
 
 New tests execute the actual service through a TypeScript-transpiled in-memory adapter. They are not Firebase emulator or live integration tests. One test documents the remaining stale-device overwrite problem; passing that reproduction does not mean conflicts are fixed. Cross-device version enforcement, atomic multi-document commits, real Storage quota diagnosis, backups and restore remain pending.
+
+## Sprint 3: optimistic concurrency (isolated preview only)
+
+A verified load records an in-memory base revision per UID. Saves preflight the revision, then verify it again within one Firestore transaction containing every entity write and metadata. Conflicts fail without silently reloading the latest revision. Failed/uncertain commits invalidate the base until a verified reconciliation. New media receives unique filenames to avoid changing existing images before a transaction succeeds; failed saves may leave unreferenced uploads, and upload deduplication/cleanup remain pending.
+
+This preview deliberately refuses more than 399 entities per atomic save before uploads. This is an implementation guard, not a claimed Firestore service limit. Large libraries need a staged revision design before production. IDs are validated before uploads. No absent entities are deleted.
+
+Hydration no longer automatically pushes pending local data or applies remote data before checking pending edits. It preserves local content and exposes a persistent error notice with a recovery-copy action. Conflict resolution is conservative: merging and selecting a remote/local winner are not implemented. No cloud-enabled deployment or migration is authorized by this preview.
+
+Tests use the actual service and a serial in-memory transaction adapter, not the Firebase emulator. Server retries, security rules, offline device recovery, full backup/restore, old clients that do not follow this protocol, explicit delete/tombstone handling, and actual Safari/device synchronization still require integration testing. Documentation: https://firebase.google.com/docs/firestore/manage-data/transactions
