@@ -14,7 +14,7 @@ import { toast } from 'sonner';
 import { isFirebaseConfigured } from '@/lib/firebase';
 import { logout as firebaseLogout } from '@/services/authService';
 import { buildLibraryExport, parseLibraryImport, sanitizeLibraryImport } from '@/lib/storyImportExport';
-import { pushStoryBundle } from '@/services/storyBundleSync';
+import { pushStoryBundle, getStorySlice } from '@/services/storyBundleSync';
 import { formatFirestoreSaveError } from '@/lib/firestorePayload';
 import { AccountSettingsModal } from '@/components/modals/AccountSettingsModal';
 
@@ -39,7 +39,7 @@ export function TopBar() {
       /* ignore */
     }
     logoutStore();
-    toast.success('Sesión cerrada');
+    toast.success('Sesi�n cerrada');
     navigate(isFirebaseConfigured() ? '/login' : '/');
   };
 
@@ -57,7 +57,7 @@ export function TopBar() {
       const data = sanitizeLibraryImport(parsed);
       if (
         !window.confirm(
-          'Esto reemplazará todos tus mundos y entidades en este navegador por los del archivo. ¿Continuar?'
+          'Esto reemplazar� todos tus mundos y entidades en este navegador por los del archivo. �Continuar?'
         )
       ) {
         return;
@@ -99,7 +99,7 @@ export function TopBar() {
   const exportToFirebase = async () => {
     const uid = user?.id;
     if (!uid) {
-      toast.error('Inicia sesión para guardar en Firebase');
+      toast.error('Inicia sesi�n para guardar en Firebase');
       navigate('/login');
       return;
     }
@@ -112,6 +112,25 @@ export function TopBar() {
     } finally {
       setSavingCloud(false);
     }
+  };
+
+  const exportRecoverySnapshot = () => {
+    const state = useStore.getState();
+    const payload = {
+      format: 'storytable-local-recovery-v1',
+      exportedAt: new Date().toISOString(),
+      ownerId: state.user?.id ?? null,
+      includesTrash: true,
+      linkedFilesIncluded: false,
+      library: structuredClone(getStorySlice()),
+    };
+    const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'story-table-copia-local-' + Date.now() + '.json';
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    toast.info('Copia local descargada con papelera. Las im�genes enlazadas necesitan respaldo aparte.');
   };
 
   const exportLibraryFile = () => {
@@ -135,7 +154,7 @@ export function TopBar() {
         className="flex min-w-0 max-w-md flex-1 items-center gap-3 rounded-xl border border-[#2A3045] bg-[#1E2230] px-4 py-2 text-sm text-[#5A6078] transition-all hover:border-[#3A4460]"
       >
         <Search size={16} />
-        <span className="min-w-0 flex-1 truncate text-left"><span className="sm:hidden">Buscar…</span><span className="hidden sm:inline">Buscar mundos, personajes, escenas...</span></span>
+        <span className="min-w-0 flex-1 truncate text-left"><span className="sm:hidden">Buscar.</span><span className="hidden sm:inline">Buscar mundos, personajes, escenas...</span></span>
         <div className="hidden sm:flex items-center gap-1 text-xs text-[#5A6078]">
           <Command size={12} />
           <span>K</span>
@@ -156,14 +175,14 @@ export function TopBar() {
               type="button"
               aria-label={
                 autoSaveSyncing
-                  ? 'Guardando en Firebase…'
+                  ? 'Guardando en Firebase.'
                   : autoSaveEnabled
                     ? 'Desactivar auto-guardado'
                     : 'Activar auto-guardado'
               }
               title={
                 autoSaveSyncing
-                  ? 'Guardando…'
+                  ? 'Guardando.'
                   : autoSaveEnabled
                     ? 'Auto-guardado activo'
                     : 'Auto-guardado desactivado'
@@ -228,7 +247,7 @@ export function TopBar() {
               <p className="px-2 py-2 text-xs text-[#5A6078]">No hay escenas recientes</p>
             )}
             <DropdownMenuSeparator className="bg-[#2A3045]" />
-            <DropdownMenuItem className="cursor-pointer focus:bg-[#1E2230]" onClick={() => toast.info('Más alertas en la siguiente fase')}>
+            <DropdownMenuItem className="cursor-pointer focus:bg-[#1E2230]" onClick={() => toast.info('M�s alertas en la siguiente fase')}>
               <Sparkles size={14} className="mr-2" />
               Elementos pendientes
             </DropdownMenuItem>
@@ -239,7 +258,7 @@ export function TopBar() {
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              aria-label="Menú de usuario"
+              aria-label="Men� de usuario"
               className="flex h-9 w-9 items-center justify-center rounded-full bg-[#D61E2B]/20 text-sm font-semibold text-[#D61E2B] transition-all hover:bg-[#D61E2B]/30"
             >
               {user?.displayName?.charAt(0) || 'U'}
@@ -255,33 +274,36 @@ export function TopBar() {
             />
             <div className="border-b border-[#2A3045] px-2 py-2">
               <p className="truncate text-sm font-medium">{user?.displayName || 'Invitado'}</p>
-              <p className="truncate text-xs text-[#5A6078]">{user?.email || 'Sin sesión'}</p>
+              <p className="truncate text-xs text-[#5A6078]">{user?.email || 'Sin sesi�n'}</p>
             </div>
             <DropdownMenuItem className="cursor-pointer focus:bg-[#1E2230]" onClick={() => exportLibraryFile()}>
               <Download size={14} className="mr-2" /> Exportar biblioteca (JSON)
             </DropdownMenuItem>
+            <DropdownMenuItem className="cursor-pointer focus:bg-[#1E2230]" onClick={exportRecoverySnapshot}>
+              <Download size={14} className="mr-2" /> Copia local con papelera
+            </DropdownMenuItem>
             <DropdownMenuItem className="cursor-pointer focus:bg-[#1E2230]" onClick={() => fileImportRef.current?.click()}>
-              <Upload size={14} className="mr-2" /> Importar biblioteca…
+              <Upload size={14} className="mr-2" /> Importar biblioteca.
             </DropdownMenuItem>
             <DropdownMenuSeparator className="bg-[#2A3045]" />
             <DropdownMenuItem
               className="cursor-pointer focus:bg-[#1E2230]"
               onClick={() => {
                 if (!isFirebaseConfigured() || !user?.isAuthenticated) {
-                  toast.error('Inicia sesión con Firebase para gestionar tu cuenta');
+                  toast.error('Inicia sesi�n con Firebase para gestionar tu cuenta');
                   return;
                 }
                 setAccountOpen(true);
               }}
             >
-              <User size={14} className="mr-2" /> Cuenta y contraseña
+              <User size={14} className="mr-2" /> Cuenta y contrase�a
             </DropdownMenuItem>
             <DropdownMenuItem className="cursor-pointer focus:bg-[#1E2230]" onClick={() => setAccountOpen(true)}>
-              <Settings size={14} className="mr-2" /> Configuración
+              <Settings size={14} className="mr-2" /> Configuraci�n
             </DropdownMenuItem>
             <DropdownMenuSeparator className="bg-[#2A3045]" />
             <DropdownMenuItem className="cursor-pointer text-[#D61E2B] focus:bg-[#D61E2B]/10" onClick={() => void handleLogout()}>
-              <LogOut size={14} className="mr-2" /> Cerrar sesión
+              <LogOut size={14} className="mr-2" /> Cerrar sesi�n
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -290,3 +312,4 @@ export function TopBar() {
     </header>
   );
 }
+

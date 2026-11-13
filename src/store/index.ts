@@ -163,7 +163,7 @@ export interface AppState {
   deleteTimeline: (id: string) => void;
   getTimelinesByWorld: (worldId: string) => Timeline[];
 
-  // Elementos fantásticos
+  // Elementos fant�sticos
   fantasticElements: FantasticElement[];
   addFantasticElement: (el: Omit<FantasticElement, 'id' | 'createdAt' | 'updatedAt'>) => void;
   updateFantasticElement: (id: string, data: Partial<FantasticElement>) => void;
@@ -211,7 +211,7 @@ export interface AppState {
   characterOrderByWorld: Record<string, string[]>;
   setCharacterOrder: (worldId: string, ids: string[]) => void;
 
-  /** Carpetas manuales por sección y mundo (personajes, escenas, etc.). */
+  /** Carpetas manuales por secci�n y mundo (personajes, escenas, etc.). */
   entityFolders: EntityFolder[];
   addEntityFolder: (folder: Omit<EntityFolder, 'id' | 'createdAt' | 'updatedAt'>) => string;
   updateEntityFolder: (id: string, data: Partial<EntityFolder>) => void;
@@ -219,15 +219,15 @@ export interface AppState {
   getEntityFoldersByWorld: (worldId: string, scope: EntityFolderScope) => EntityFolder[];
   addItemToFolder: (folderId: string, itemId: string) => void;
   removeItemFromFolder: (folderId: string, itemId: string) => void;
-  /** Mueve referencia de carpeta: quita de origen (si hay) y añade al destino. */
+  /** Mueve referencia de carpeta: quita de origen (si hay) y a�ade al destino. */
   moveItemToFolder: (itemId: string, toFolderId: string, fromFolderId?: string | null) => void;
-  /** Añade referencia sin quitar de otras carpetas (no duplica el elemento). */
+  /** A�ade referencia sin quitar de otras carpetas (no duplica el elemento). */
   copyItemToFolder: (itemId: string, toFolderId: string) => void;
-  /** Cambia la carpeta padre (misma sección/mundo). Devuelve false si el movimiento no es válido. */
+  /** Cambia la carpeta padre (misma secci�n/mundo). Devuelve false si el movimiento no es v�lido. */
   moveEntityFolderTo: (folderId: string, newParentId: string | null) => boolean;
   duplicateStoryEntity: (type: StoryEntityType, id: string) => string | null;
 
-  /** Puente temporal para acciones de carpeta desde el menú contextual global. */
+  /** Puente temporal para acciones de carpeta desde el men� contextual global. */
   folderSectionBridge: import('@/lib/folderSectionBridge').FolderSectionBridge | null;
   setFolderSectionBridge: (bridge: import('@/lib/folderSectionBridge').FolderSectionBridge | null) => void;
 
@@ -238,10 +238,10 @@ export interface AppState {
   firebaseAutoSaveSyncing: boolean;
   setFirebaseAutoSaveSyncing: (syncing: boolean) => void;
 
-  /** Sincronización inicial de biblioteca desde Firebase. */
+  /** Sincronizaci�n inicial de biblioteca desde Firebase. */
   storyDataLoading: boolean;
   setStoryDataLoading: (loading: boolean) => void;
-  /** Huella del último guardado exitoso en Firebase (evita pisar cambios locales al recargar). */
+  /** Huella del �ltimo guardado exitoso en Firebase (evita pisar cambios locales al recargar). */
   lastFirebaseSyncFingerprint: string | null;
   setLastFirebaseSyncFingerprint: (fp: string | null) => void;
 
@@ -250,7 +250,7 @@ export interface AppState {
   toggleSidebar: () => void;
   activeModal: string | null;
   setActiveModal: (modal: string | null) => void;
-  /** Vista previa de inserción (componente, idea, etc.) sin cambiar de página. */
+  /** Vista previa de inserci�n (componente, idea, etc.) sin cambiar de p�gina. */
   insertionPreview: { worldId: string; type: string; id: string } | null;
   insertionPreviewStack: { worldId: string; type: string; id: string }[];
   openInsertionPreview: (
@@ -271,7 +271,7 @@ export interface AppState {
   activeSection: SectionType;
   setActiveSection: (section: SectionType) => void;
 
-  /** Orden manual de mundos en el tablero (ids). Vacío = orden por fecha de actualización. */
+  /** Orden manual de mundos en el tablero (ids). Vac�o = orden por fecha de actualizaci�n. */
   dashboardWorldIds: string[];
   setDashboardWorldOrder: (ids: string[]) => void;
   shiftDashboardWorld: (worldId: string, direction: -1 | 1) => void;
@@ -1207,7 +1207,7 @@ export const useStore = create<AppState>()(
       },
     }),
     {
-      name: 'story-table-storage',
+      name: 'story-table-sync-preview-v1',
       partialize: (state) => ({
         user: state.user,
         worlds: state.worlds,
@@ -1260,3 +1260,4 @@ export const useStore = create<AppState>()(
 export function useAppStore<T>(selector: (state: AppState) => T): T {
   return useStore(useShallow(selector));
 }
+

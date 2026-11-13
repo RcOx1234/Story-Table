@@ -4,6 +4,11 @@ import { getFirestore, type Firestore } from 'firebase/firestore';
 import { getStorage, type FirebaseStorage } from 'firebase/storage';
 
 function readConfig() {
+  // Isolated review branch: never initialize the personal Firebase project.
+  return null;
+}
+
+export function readProductionConfigForReviewOnly() {
   const config = {
     apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
     authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,

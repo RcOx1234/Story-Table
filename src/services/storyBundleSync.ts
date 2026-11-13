@@ -1,9 +1,11 @@
 import { useStore } from '@/store';
+import { auth } from '@/lib/firebase';
+import { createSnapshotSaveQueue } from '@/lib/snapshotSaveQueue';
 import { saveLibraryToFirestore, loadLibraryFromFirestore } from '@/services/libraryFirestoreService';
 import type { AppState } from '@/store';
 import { storyContentFingerprint } from '@/lib/storyFingerprint';
 
-const PERSIST_STORAGE_KEY = 'story-table-storage';
+const PERSIST_STORAGE_KEY = 'story-table-sync-preview-v1';
 
 let lastHydratedUid: string | null = null;
 let hydrateInFlight: Promise<void> | null = null;
@@ -71,7 +73,7 @@ function waitForStoreRehydration(): Promise<void> {
   });
 }
 
-/** Lee el backup en localStorage (por si la memoria quedó vacía tras un refresh). */
+/** Lee el backup en localStorage (por si la memoria qued� vac�a tras un refresh). */
 function readPersistedStorySlice(): StorySlice | null {
   try {
     const raw = localStorage.getItem(PERSIST_STORAGE_KEY);
@@ -131,7 +133,7 @@ function pickRicherSlice(a: StorySlice, b: StorySlice): StorySlice {
   return score(a) >= score(b) ? a : b;
 }
 
-/** Vacía la biblioteca local (p. ej. al cerrar sesión). */
+/** Vac�a la biblioteca local (p. ej. al cerrar sesi�n). */
 export function applyEmptyStorySlice(): void {
   lastHydratedUid = null;
   hydrateInFlight = null;
@@ -204,10 +206,15 @@ export function markStoryBundleSynced(): void {
   useStore.getState().setLastFirebaseSyncFingerprint(fp);
 }
 
-export async function pushStoryBundle(uid: string): Promise<void> {
-  const raw = getStorySlice() as unknown as Record<string, unknown>;
-  await saveLibraryToFirestore(uid, raw);
-  markStoryBundleSynced();
+const saveSnapshot = createSnapshotSaveQueue<StorySlice>({
+  read: getStorySlice,
+  write: (uid, snapshot) => saveLibraryToFirestore(uid, snapshot as unknown as Record<string, unknown>),
+  acknowledge: (snapshot) => useStore.getState().setLastFirebaseSyncFingerprint(fingerprintFromSlice(snapshot)),
+  isOwnerActive: (uid) => auth?.currentUser?.uid === uid,
+});
+
+export function pushStoryBundle(uid: string): Promise<void> {
+  return saveSnapshot(uid);
 }
 
 /** Carga la biblioteca desde Firebase; muestra splash mientras tanto. */
@@ -228,7 +235,7 @@ export async function hydrateStoryBundleFromFirebase(uid: string): Promise<void>
     try {
       await waitForStoreRehydration();
 
-      // Solo vaciar al cambiar de cuenta en la misma sesión (no en cada refresh).
+      // Solo vaciar al cambiar de cuenta en la misma sesi�n (no en cada refresh).
       if (lastHydratedUid != null && lastHydratedUid !== uid) {
         useStore.setState(EMPTY_STORY_SLICE);
       }
@@ -306,7 +313,7 @@ function scoreStorySlice(slice: StorySlice): number {
   );
 }
 
-/** Intenta recuperar la biblioteca desde localStorage si la sesión quedó vacía. */
+/** Intenta recuperar la biblioteca desde localStorage si la sesi�n qued� vac�a. */
 export function recoverLocalStoryBackup(): { recovered: boolean; worlds: number; ideas: number } {
   const backup = readPersistedStorySlice();
   const current = getStorySlice();
@@ -319,3 +326,4 @@ export function recoverLocalStoryBackup(): { recovered: boolean; worlds: number;
   applyStorySlice(backup as unknown as Record<string, unknown>);
   return { recovered: true, worlds: backup.worlds.length, ideas: backup.ideas.length };
 }
+

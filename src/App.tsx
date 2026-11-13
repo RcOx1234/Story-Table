@@ -53,6 +53,9 @@ function AppContent() {
 
   return (
     <>
+      <div role="status" className="bg-amber-100 px-4 py-2 text-center text-sm text-amber-950">
+        Vista de prueba � Datos de ejemplo � Guardado solo en este navegador
+      </div>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route element={<ProtectedRoute />}>
@@ -102,3 +105,4 @@ function App() {
 }
 
 export default App;
+

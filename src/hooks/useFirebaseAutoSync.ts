@@ -9,93 +9,69 @@ import { formatFirestoreSaveError } from '@/lib/firestorePayload';
 
 const DEBOUNCE_MS = 8_000;
 
-/** Auto-guardado: cambios reales, al cambiar de ruta, al cerrar pestaña; máx. cada 8s en reposo. */
 export function useFirebaseAutoSync() {
   const uid = useStore((s) => s.user?.id ?? null);
   const autoSave = useStore((s) => s.firebaseAutoSaveEnabled);
-  const setSyncing = useStore((s) => s.setFirebaseAutoSaveSyncing);
   const { pathname } = useLocation();
+  const flushRef = useRef<(() => void) | null>(null);
 
-  const lastSavedFp = useRef<string | null>(null);
-  const pendingFp = useRef<string | null>(null);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const savingRef = useRef(false);
-  const uidRef = useRef(uid);
-  uidRef.current = uid;
-
-  const flushSave = async (uid: string, opts?: { silent?: boolean }) => {
-    if (savingRef.current || !pendingFp.current) return;
-    if (pendingFp.current === lastSavedFp.current) {
-      pendingFp.current = null;
-      return;
-    }
-    savingRef.current = true;
-    setSyncing(true);
-    try {
-      await pushStoryBundle(uid);
-      lastSavedFp.current = pendingFp.current;
-      pendingFp.current = null;
-    } catch (err) {
-      if (!opts?.silent) {
-        toast.error(formatFirestoreSaveError(err), { id: 'firebase-autosave-error' });
+  useEffect(() => {
+    if (!isFirebaseConfigured() || !uid || !autoSave) return;
+    let disposed = false;
+    let saving = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const clearTimer = () => { if (timer) clearTimeout(timer); timer = null; };
+    const dirty = () => {
+      const state = useStore.getState();
+      return state.user?.id === uid && !state.storyDataLoading &&
+        storyContentFingerprint(state) !== state.lastFirebaseSyncFingerprint;
+    };
+    const schedule = () => {
+      if (disposed || saving) return;
+      clearTimer();
+      if (dirty()) timer = setTimeout(() => { timer = null; void flush(); }, DEBOUNCE_MS);
+    };
+    const flush = async () => {
+      if (disposed || saving || !dirty()) return;
+      clearTimer();
+      saving = true;
+      useStore.getState().setFirebaseAutoSaveSyncing(true);
+      let succeeded = false;
+      try {
+        await pushStoryBundle(uid);
+        succeeded = true;
+      } catch (error) {
+        if (!disposed) toast.error(formatFirestoreSaveError(error), { id: 'firebase-autosave-error' });
+      } finally {
+        saving = false;
+        if (!disposed) {
+          useStore.getState().setFirebaseAutoSaveSyncing(false);
+          // Only the sent snapshot was acknowledged. Later edits remain dirty.
+          if (succeeded) schedule();
+          else clearTimer(); // Retry on an edit, reconnect, or visible tab; no tight failure loop.
+        }
       }
-    } finally {
-      savingRef.current = false;
-      setSyncing(false);
-    }
-  };
-
-  const scheduleSave = (uid: string) => {
-    if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => {
-      timerRef.current = null;
-      void flushSave(uid);
-    }, DEBOUNCE_MS);
-  };
-
-  useEffect(() => {
-    if (!isFirebaseConfigured() || !uid || !autoSave) {
-      if (timerRef.current) clearTimeout(timerRef.current);
-      lastSavedFp.current = null;
-      pendingFp.current = null;
-      setSyncing(false);
-      return;
-    }
-
-    const bootFp = storyContentFingerprint(useStore.getState());
-    const syncedFp = useStore.getState().lastFirebaseSyncFingerprint;
-    lastSavedFp.current = syncedFp ?? bootFp;
-
-    const unsub = useStore.subscribe((state) => {
-      const fp = storyContentFingerprint(state);
-      if (fp === lastSavedFp.current || fp === pendingFp.current) return;
-      pendingFp.current = fp;
-      scheduleSave(uid);
-    });
-
-    const onPageHide = () => {
-      const currentUid = uidRef.current;
-      if (!currentUid || !pendingFp.current) return;
-      if (timerRef.current) clearTimeout(timerRef.current);
-      void flushSave(currentUid, { silent: true });
     };
-
-    window.addEventListener('pagehide', onPageHide);
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'hidden') onPageHide();
-    });
-
+    const flushNow = () => { void flush(); };
+    flushRef.current = flushNow;
+    const unsubscribe = useStore.subscribe(schedule);
+    const onVisibility = () => {
+      // Local persistence is the recovery source; do not depend on an async unload write.
+      if (document.visibilityState === 'visible') schedule();
+    };
+    window.addEventListener('online', schedule);
+    document.addEventListener('visibilitychange', onVisibility);
+    schedule();
     return () => {
-      unsub();
-      window.removeEventListener('pagehide', onPageHide);
-      if (timerRef.current) clearTimeout(timerRef.current);
-      setSyncing(false);
+      disposed = true;
+      clearTimer();
+      unsubscribe();
+      window.removeEventListener('online', schedule);
+      document.removeEventListener('visibilitychange', onVisibility);
+      if (flushRef.current === flushNow) flushRef.current = null;
+      useStore.getState().setFirebaseAutoSaveSyncing(false);
     };
-  }, [uid, autoSave, setSyncing]);
+  }, [uid, autoSave]);
 
-  useEffect(() => {
-    if (!isFirebaseConfigured() || !uid || !autoSave || !pendingFp.current) return;
-    if (timerRef.current) clearTimeout(timerRef.current);
-    void flushSave(uid);
-  }, [pathname, uid, autoSave]);
+  useEffect(() => { flushRef.current?.(); }, [pathname]);
 }
