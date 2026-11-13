@@ -73,7 +73,7 @@ function waitForStoreRehydration(): Promise<void> {
   });
 }
 
-/** Lee el backup en localStorage (por si la memoria qued� vac�a tras un refresh). */
+/** Lee el backup en localStorage (por si la memoria quedó vacía tras un refresh). */
 function readPersistedStorySlice(): StorySlice | null {
   try {
     const raw = localStorage.getItem(PERSIST_STORAGE_KEY);
@@ -133,7 +133,7 @@ function pickRicherSlice(a: StorySlice, b: StorySlice): StorySlice {
   return score(a) >= score(b) ? a : b;
 }
 
-/** Vac�a la biblioteca local (p. ej. al cerrar sesi�n). */
+/** Vacía la biblioteca local (p. ej. al cerrar sesión). */
 export function applyEmptyStorySlice(): void {
   lastHydratedUid = null;
   hydrateInFlight = null;
@@ -235,7 +235,7 @@ export async function hydrateStoryBundleFromFirebase(uid: string): Promise<void>
     try {
       await waitForStoreRehydration();
 
-      // Solo vaciar al cambiar de cuenta en la misma sesi�n (no en cada refresh).
+      // Solo vaciar al cambiar de cuenta en la misma sesión (no en cada refresh).
       if (lastHydratedUid != null && lastHydratedUid !== uid) {
         useStore.setState(EMPTY_STORY_SLICE);
       }
@@ -313,7 +313,7 @@ function scoreStorySlice(slice: StorySlice): number {
   );
 }
 
-/** Intenta recuperar la biblioteca desde localStorage si la sesi�n qued� vac�a. */
+/** Intenta recuperar la biblioteca desde localStorage si la sesión quedó vacía. */
 export function recoverLocalStoryBackup(): { recovered: boolean; worlds: number; ideas: number } {
   const backup = readPersistedStorySlice();
   const current = getStorySlice();

@@ -3,7 +3,6 @@ import {
   doc,
   getDoc,
   getDocs,
-  setDoc,
   writeBatch,
   deleteDoc,
   type DocumentData,
@@ -124,32 +123,6 @@ async function writeEntities(
   await runBatched(ops);
 }
 
-async function deleteOrphanEntities(
-  uid: string,
-  libraryId: string,
-  collectionName: LibraryEntityCollection,
-  keepIds: Set<string>
-): Promise<void> {
-  const snap = await getDocs(entityCollectionRef(uid, libraryId, collectionName));
-  const ops: Array<(batch: WriteBatch) => void> = [];
-  for (const d of snap.docs) {
-    if (!keepIds.has(d.id)) {
-      ops.push((batch) => batch.delete(d.ref));
-    }
-  }
-  await runBatched(ops);
-}
-
-function collectIds(items: unknown[]): Set<string> {
-  const ids = new Set<string>();
-  for (const raw of items) {
-    if (!raw || typeof raw !== 'object') continue;
-    const id = entityId(raw as Record<string, unknown>);
-    if (id) ids.add(id);
-  }
-  return ids;
-}
-
 async function saveAllEntityCollections(
   uid: string,
   libraryId: string,
@@ -159,7 +132,7 @@ async function saveAllEntityCollections(
     LIBRARY_ENTITY_COLLECTIONS.map(async (col) => {
       const items = Array.isArray(prepared[col]) ? (prepared[col] as unknown[]) : [];
       await writeEntities(uid, libraryId, col, items);
-      await deleteOrphanEntities(uid, libraryId, col, collectIds(items));
+      // Absence from a local snapshot is never authorization to delete remote data.
     })
   );
 }
@@ -195,45 +168,23 @@ async function loadMetadataDoc(
   return snap.data() as Record<string, unknown>;
 }
 
-/** Migra un documento monolítico a subcolecciones y deja solo metadata en el doc raíz. */
+/** Automatic migration is disabled until a verified backup and explicit workflow exist. */
 export async function migrateMonolithicLibraryToSubcollections(
-  uid: string,
-  data: Record<string, unknown>,
-  libraryId = LIBRARY_DOC_ID
+  _uid: string,
+  _data: Record<string, unknown>,
+  _libraryId = LIBRARY_DOC_ID
 ): Promise<void> {
-  if (!db) throw new Error('Firestore no disponible');
-  const entities = extractLegacyEntities(data);
-  const settings = extractLegacySettings(data);
-  const now = new Date().toISOString();
-  const prepared = await prepareStorySliceForFirestore(uid, {
-    ...entities,
-    characterOrderByWorld: settings.characterOrderByWorld,
-    dashboardWorldIds: settings.dashboardWorldIds,
-  } as StorySlicePayload);
-
-  await saveAllEntityCollections(uid, libraryId, prepared);
-
-  const metadata: LibraryMetadata = {
-    name: typeof data.name === 'string' ? data.name : 'Mi biblioteca',
-    ownerId: uid,
-    createdAt: typeof data.createdAt === 'string' ? data.createdAt : now,
-    updatedAt: now,
-    version: typeof data.version === 'number' ? data.version + 1 : 1,
-    schemaVersion: LIBRARY_SCHEMA_VERSION,
-    settings,
-    migratedAt: now,
-  };
-
-  await setDoc(
-    libraryRootRef(uid, libraryId),
-    deepSanitizeForFirestore(metadata) as DocumentData
-  );
+  throw new Error('La migración requiere una copia verificada y un proceso explícito. El origen no fue modificado.');
 }
 
 export async function saveLibraryToFirestore(uid: string, slice: StorySlicePayload): Promise<void> {
   if (!db) throw new Error('Firestore no disponible');
   const libraryId = LIBRARY_DOC_ID;
   const existingRaw = await loadMetadataDoc(uid, libraryId);
+  const legacy = existingRaw ? null : await loadMetadataDoc(uid, LEGACY_LIBRARY_DOC_ID);
+  if (legacy || (existingRaw && existingRaw.schemaVersion !== LIBRARY_SCHEMA_VERSION)) {
+    throw new Error('Biblioteca antigua o formato desconocido: guardado detenido para conservar el original. Exporta una copia antes de migrar.');
+  }
   const existing =
     existingRaw && existingRaw.schemaVersion === LIBRARY_SCHEMA_VERSION
       ? (existingRaw as unknown as LibraryMetadata)
@@ -265,28 +216,20 @@ export async function loadLibraryFromFirestore(
 
   if (!rootData) return null;
 
-  const wasLegacyDoc = libraryId === LEGACY_LIBRARY_DOC_ID;
-
   if (isLegacyMonolithicLibrary(rootData)) {
-    await migrateMonolithicLibraryToSubcollections(uid, rootData, LIBRARY_DOC_ID);
-    if (wasLegacyDoc) {
-      await deleteDoc(libraryRootRef(uid, LEGACY_LIBRARY_DOC_ID)).catch(() => {});
-    }
-    rootData = await loadMetadataDoc(uid, LIBRARY_DOC_ID);
-    libraryId = LIBRARY_DOC_ID;
+    const legacyEntities = extractLegacyEntities(rootData);
+    return {
+      ...Object.fromEntries(LIBRARY_ENTITY_COLLECTIONS.map((key) => [key, legacyEntities[key] ?? []])),
+      ...extractLegacySettings(rootData),
+    };
   }
 
-  if (!rootData || rootData.schemaVersion !== LIBRARY_SCHEMA_VERSION) {
-    if (isLegacyMonolithicLibrary(rootData)) {
-      await migrateMonolithicLibraryToSubcollections(uid, rootData!, LIBRARY_DOC_ID);
-      rootData = await loadMetadataDoc(uid, LIBRARY_DOC_ID);
-    } else {
-      return null;
-    }
+  if (rootData.schemaVersion !== LIBRARY_SCHEMA_VERSION) {
+    throw new Error('Formato de biblioteca no reconocido. No se modificaron los datos.');
   }
 
   const meta = rootData as unknown as LibraryMetadata;
-  const entities = await loadAllEntities(uid, LIBRARY_DOC_ID);
+  const entities = await loadAllEntities(uid, libraryId);
 
   return {
     ...entities,

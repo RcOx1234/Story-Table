@@ -39,7 +39,7 @@ export function TopBar() {
       /* ignore */
     }
     logoutStore();
-    toast.success('Sesi�n cerrada');
+    toast.success('Sesión cerrada');
     navigate(isFirebaseConfigured() ? '/login' : '/');
   };
 
@@ -57,7 +57,9 @@ export function TopBar() {
       const data = sanitizeLibraryImport(parsed);
       if (
         !window.confirm(
-          'Esto reemplazar� todos tus mundos y entidades en este navegador por los del archivo. �Continuar?'
+          isFirebaseConfigured()
+            ? 'Esto reemplazará la biblioteca local y se intentará guardar en Firebase. Conserva una copia independiente antes de continuar.'
+            : 'Esto reemplazará los datos de ejemplo de este navegador. No se enviará nada a Firebase. ¿Continuar?'
         )
       ) {
         return;
@@ -99,7 +101,7 @@ export function TopBar() {
   const exportToFirebase = async () => {
     const uid = user?.id;
     if (!uid) {
-      toast.error('Inicia sesi�n para guardar en Firebase');
+      toast.error('Inicia sesión para guardar en Firebase');
       navigate('/login');
       return;
     }
@@ -130,7 +132,7 @@ export function TopBar() {
     link.download = 'story-table-copia-local-' + Date.now() + '.json';
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
-    toast.info('Copia local descargada con papelera. Las im�genes enlazadas necesitan respaldo aparte.');
+    toast.info('Copia local descargada con papelera. Las imágenes enlazadas necesitan respaldo aparte.');
   };
 
   const exportLibraryFile = () => {
@@ -168,6 +170,19 @@ export function TopBar() {
           <Plus size={16} />
           <span className="hidden sm:inline">Capturar</span>
         </button>
+
+        {!isFirebaseConfigured() && (
+          <button
+            type="button"
+            aria-label="Guardar copia local"
+            title="Descargar copia local con papelera. Este preview no guarda en Firebase."
+            onClick={exportRecoverySnapshot}
+            className="flex items-center gap-1 rounded-xl p-2.5 text-white transition-all hover:bg-[#1E2230]"
+          >
+            <Download size={20} />
+            <span className="hidden sm:inline text-xs">Guardar copia</span>
+          </button>
+        )}
 
         {isFirebaseConfigured() && (
           <>
@@ -247,7 +262,7 @@ export function TopBar() {
               <p className="px-2 py-2 text-xs text-[#5A6078]">No hay escenas recientes</p>
             )}
             <DropdownMenuSeparator className="bg-[#2A3045]" />
-            <DropdownMenuItem className="cursor-pointer focus:bg-[#1E2230]" onClick={() => toast.info('M�s alertas en la siguiente fase')}>
+            <DropdownMenuItem className="cursor-pointer focus:bg-[#1E2230]" onClick={() => toast.info('Más alertas en la siguiente fase')}>
               <Sparkles size={14} className="mr-2" />
               Elementos pendientes
             </DropdownMenuItem>
@@ -258,7 +273,7 @@ export function TopBar() {
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              aria-label="Men� de usuario"
+              aria-label="Menú de usuario"
               className="flex h-9 w-9 items-center justify-center rounded-full bg-[#D61E2B]/20 text-sm font-semibold text-[#D61E2B] transition-all hover:bg-[#D61E2B]/30"
             >
               {user?.displayName?.charAt(0) || 'U'}
@@ -274,7 +289,7 @@ export function TopBar() {
             />
             <div className="border-b border-[#2A3045] px-2 py-2">
               <p className="truncate text-sm font-medium">{user?.displayName || 'Invitado'}</p>
-              <p className="truncate text-xs text-[#5A6078]">{user?.email || 'Sin sesi�n'}</p>
+              <p className="truncate text-xs text-[#5A6078]">{user?.email || 'Sin sesión'}</p>
             </div>
             <DropdownMenuItem className="cursor-pointer focus:bg-[#1E2230]" onClick={() => exportLibraryFile()}>
               <Download size={14} className="mr-2" /> Exportar biblioteca (JSON)
@@ -290,20 +305,20 @@ export function TopBar() {
               className="cursor-pointer focus:bg-[#1E2230]"
               onClick={() => {
                 if (!isFirebaseConfigured() || !user?.isAuthenticated) {
-                  toast.error('Inicia sesi�n con Firebase para gestionar tu cuenta');
+                  toast.error('Inicia sesión con Firebase para gestionar tu cuenta');
                   return;
                 }
                 setAccountOpen(true);
               }}
             >
-              <User size={14} className="mr-2" /> Cuenta y contrase�a
+              <User size={14} className="mr-2" /> Cuenta y contraseña
             </DropdownMenuItem>
             <DropdownMenuItem className="cursor-pointer focus:bg-[#1E2230]" onClick={() => setAccountOpen(true)}>
-              <Settings size={14} className="mr-2" /> Configuraci�n
+              <Settings size={14} className="mr-2" /> Configuración
             </DropdownMenuItem>
             <DropdownMenuSeparator className="bg-[#2A3045]" />
             <DropdownMenuItem className="cursor-pointer text-[#D61E2B] focus:bg-[#D61E2B]/10" onClick={() => void handleLogout()}>
-              <LogOut size={14} className="mr-2" /> Cerrar sesi�n
+              <LogOut size={14} className="mr-2" /> Cerrar sesión
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
