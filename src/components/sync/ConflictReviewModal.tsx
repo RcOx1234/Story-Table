@@ -2,7 +2,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { BaseModal } from '@/components/modals/crud/BaseModal';
 import { getStorySlice } from '@/services/storyBundleSync';
-import { readReviewCopy, compareCopies, buildConflictArchive, type LibraryCopy, type Choice } from '@/lib/conflictReview';
+import { readReviewCopy, compareCopies, buildConflictArchive, buildReviewedCopy, auditReviewedCopy, type LibraryCopy, type Choice } from '@/lib/conflictReview';
 
 type Source={label:string;original:unknown;library:LibraryCopy};
 const names:Record<string,string>={worlds:'Mundos',characters:'Personajes',scenes:'Escenas',places:'Lugares',maps:'Mapas',plots:'Tramas',components:'Componentes',organizations:'Organizaciones',ideas:'Ideas',timelines:'Cronologías',fantasticElements:'Elementos fantásticos',houses:'Casas',worldFacts:'Hechos',worldData:'Datos del mundo',placeCollections:'Colecciones de lugares',mapCollections:'Colecciones de mapas',worldTags:'Etiquetas',entityFolders:'Carpetas',characterOrderByWorld:'Orden de personajes',dashboardWorldIds:'Mundos del inicio'};
@@ -23,6 +23,7 @@ export function ConflictReviewModal({open,onClose}:{open:boolean;onClose:()=>voi
   const requests=useRef({a:0,b:0});
   const differences=useMemo(()=>a&&b?compareCopies(a.library,b.library):[],[a,b]);
   const remaining=differences.filter(d=>!choices[d.key]).length;
+  const validation=useMemo(()=>a&&b&&remaining===0?auditReviewedCopy(buildReviewedCopy(a.library,b.library,choices)):null,[a,b,choices,remaining]);
   function select(side:Choice,label:string,original:unknown) {
     const source={label,original:structuredClone(original),library:readReviewCopy(original)};
     (side==='a'?setA:setB)(source);setChoices({});setPage(0);setError('');setNotice('');
@@ -65,6 +66,15 @@ export function ConflictReviewModal({open,onClose}:{open:boolean;onClose:()=>voi
       {a&&b&&<>
         <p>{differences.length} diferencias · {remaining} pendientes de elegir</p>
         <button type="button" className="underline" onClick={()=>download({format:'storytable-comparison-originals-v1',createdAt:new Date().toISOString(),a:{label:a.label,payload:a.original},b:{label:b.label,payload:b.original}})}>Descargar ambas originales sin elegir</button>
+        {validation&&<section aria-label="Comprobación de la propuesta" className="rounded-xl border border-amber-500/40 p-3 space-y-2">
+          <h3 className="font-semibold">Comprobación de la propuesta</h3>
+          <p>{validation.issues.length} advertencias en las relaciones comprobadas. Este resultado no autoriza aplicar la propuesta.</p>
+          <p>Archivos: {validation.media.embedded} referencias embebidas · {validation.media.remoteUnverified} enlaces remotos sin verificar · {validation.media.temporary} enlaces temporales · {validation.media.otherUnverified} otras referencias.</p>
+          {validation.media.temporary>0&&<p className="text-amber-200">Los enlaces temporales pueden dejar de funcionar al cerrar la página y no constituyen un respaldo.</p>}
+          <ul className="list-disc pl-5 break-all">{validation.issues.slice(0,30).map((issue,i)=><li key={i}>{issue.path}: {({missing:'destino ausente',deleted:'destino en papelera','different-world':'destino de otro mundo','invalid-reference':'referencia inválida'})[issue.code]} ({names[issue.target]??issue.target})</li>)}</ul>
+          {validation.issues.length>30&&<p>Se muestran 30 advertencias. La descarga incluye el informe completo.</p>}
+          <p className="text-xs text-[#AAB0C0]">Comprobación parcial: no descarga imágenes ni verifica genealogías completas, complementos, cuenta o versión remota. Conserva las originales.</p>
+        </section>}
         {differences.length===0&&<p>No se encontraron diferencias de contenido.</p>}
         {differences.slice(page*10,page*10+10).map(d=><fieldset key={d.key} className="min-w-0 rounded-xl border border-white/20 p-3">
           <legend className="px-2 font-semibold">{names[d.collection]??d.collection}{d.id?' · '+d.id:''}</legend>

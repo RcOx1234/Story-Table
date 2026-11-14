@@ -38,3 +38,8 @@ Menú de usuario → Comparar copias. Incluye un ejemplo ficticio y lectura de e
 Permite descargar ambas originales sin resolver diferencias, o un archivo de revisión con originales completas, decisiones y propuesta. El archivo de revisión no es una importación de biblioteca: aún requiere validar relaciones, imágenes, pertenencia a cuenta y versión remota antes de poder aplicarse. La revisión permanece en memoria hasta descargarla. No descarga imágenes enlazadas. No implica resolución integral de conflictos ni restauración verificada.
 
 Pruebas nuevas: contenido equivalente, orden de entidades y ajustes, decisiones pendientes, ausencia explícita, papelera, originales independientes, formatos e identificadores inválidos. La validación visual y entre dispositivos sigue pendiente.
+
+
+## Sprint 5 — Comprobación parcial de propuestas
+
+El comparador muestra e incluye en la descarga un informe de referencias conocidas: destinos ausentes, papelera y cruces de mundo, escenas, personajes, colecciones, carpetas y enlaces genealógicos. Inventaría campos conocidos de imágenes/audio/vídeo como embebidos, remotos no verificados o temporales. No descarga archivos, no prueba su integridad ni valida ciclos genealógicos, todos los complementos, pertenencia a cuenta o versión remota. No aplica propuestas, incluso sin advertencias. Pruebas sintéticas incluidas; validación visual y recuperación real pendientes.

@@ -40,3 +40,37 @@ test('missing settings require explicit choice',()=>{
  const d=compareCopies(left,right)[0];
  assert.equal(Object.hasOwn(buildReviewedCopy(left,right,{[d.key]:'b'}),'dashboardWorldIds'),false);
 });
+
+import {auditReviewedCopy} from '../src/lib/conflictReview.ts';
+test('audit detects a character whose world was excluded',()=>{
+ const report=auditReviewedCopy({worlds:[],characters:[{id:'c',worldId:'lost'}]});
+ assert.equal(report.issues[0].code,'missing');assert.equal(report.canApply,false);
+});
+test('audit detects cross-world scene links',()=>{
+ const report=auditReviewedCopy({worlds:[{id:'a'},{id:'b'}],characters:[{id:'c',worldId:'b'}],scenes:[{id:'s',worldId:'a',characters:['c']}]});
+ assert.ok(report.issues.some(i=>i.code==='different-world'));
+});
+test('audit distinguishes trash references and keeps trash untouched',()=>{
+ const input={worlds:[{id:'w'}],characters:[{id:'c',worldId:'w',isDeleted:true}],scenes:[{id:'s',worldId:'w',characters:['c']}]};
+ const before=JSON.stringify(input);assert.ok(auditReviewedCopy(input).issues.some(i=>i.code==='deleted'));assert.equal(JSON.stringify(input),before);
+});
+test('audit checks family references and timeline dictionary keys',()=>{
+ const report=auditReviewedCopy({worlds:[{id:'w'}],houses:[{id:'h',worldId:'w',familyRelations:[{fromCharacterId:'missing',toCharacterId:'c'}]}],characters:[{id:'c',worldId:'w',ageByTimeline:{lost:22}}]});
+ assert.equal(report.issues.filter(i=>i.code==='missing').length,2);
+});
+test('audit inventories media without claiming remote verification',()=>{
+ const report=auditReviewedCopy({worlds:[{id:'w',imageUrl:'https://example.test/a'}],characters:[{id:'c',worldId:'w',images:['data:image/png;base64,AA','blob:temporary','/local.png']}]});
+ assert.deepEqual(report.media,{embedded:1,remoteUnverified:1,temporary:1,otherUnverified:1});assert.equal(report.remoteFilesChecked,false);
+});
+test('unassigned ideas are permitted and free text is not a reference',()=>{
+ assert.equal(auditReviewedCopy({worlds:[],ideas:[{id:'i',worldId:null,description:'missing-id'}]}).issues.length,0);
+});
+test('audit checks folders and dashboard references',()=>{
+ const report=auditReviewedCopy({worlds:[{id:'w'}],entityFolders:[{id:'f',worldId:'w',scope:'character',itemIds:['lost']}],dashboardWorldIds:['lost']});
+ assert.equal(report.issues.length,2);
+});
+test('download archive includes partial audit without changing proposal',()=>{
+ const copy={worlds:[{id:'w'}]};
+ const archive=buildConflictArchive(copy,copy,{});
+ assert.equal(archive.validation.canApply,false);assert.deepEqual(archive.proposal,copy);
+});
