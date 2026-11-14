@@ -184,8 +184,14 @@ export async function saveLibraryToFirestore(uid: string, slice: StorySlicePaylo
     });
     loadedVersions.set(uid, nextVersion);
   } catch (error) {
-    // Force a verified reconciliation before a retry after an uncertain or conflicting commit.
-    forgetLibraryVersion(uid);
+    // Keep the last verified version after a transport failure. Every retry checks
+    // the server again, so an unchanged revision can be retried without a false
+    // conflict. A committed write with a lost acknowledgement still conflicts
+    // on the next attempt; never advance the baseline without confirmation.
+    if (typeof error === 'object' && error !== null &&
+        'code' in error && error.code === 'storytable/conflict') {
+      forgetLibraryVersion(uid);
+    }
     throw error;
   }
 }

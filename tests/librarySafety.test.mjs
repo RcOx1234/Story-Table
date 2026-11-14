@@ -10,6 +10,7 @@ function fixture(initial = {}) {
   const mutations = [];
   let uploads = 0;
   let failCommit = false;
+  let failAfterCommit = false;
   let afterPrepare = null;
   let prepareFailure = null;
   let tail = Promise.resolve();
@@ -34,6 +35,7 @@ function fixture(initial = {}) {
           mutations.push(['set',path]);
           docs.set(path,options?.merge?{...docs.get(path),...data}:data);
         }
+        if(failAfterCommit)throw Error('simulated lost acknowledgement');
         return result;
       });
       tail=job.catch(()=>{});
@@ -74,6 +76,7 @@ function fixture(initial = {}) {
     service:load('src/services/libraryFirestoreService.ts'),docs,mutations,uploads:()=>uploads,
     newClient:()=>{for(const key of Object.keys(cache))delete cache[key];return load('src/services/libraryFirestoreService.ts');},
     setFailure:value=>{failCommit=value;},
+    setLostAcknowledgement:value=>{failAfterCommit=value;},
     setPrepareFailure:value=>{prepareFailure=value;},
     setAfterPrepare:callback=>{afterPrepare=callback;}
   };
@@ -180,4 +183,48 @@ test('Storage quota failure leaves all Firestore documents and the input unchang
  await assert.rejects(f.service.saveLibraryToFirestore('test-user',input),/quota/);
  assert.equal(f.mutations.length,0);assert.equal(f.docs.get(root).version,1);
  assert.equal(f.docs.get(root+'/worlds/w').name,'Original');assert.equal(JSON.stringify(input),before);
+});
+
+test('retry after a failed commit succeeds when the server revision is unchanged',async()=>{
+  const f=fixture({[root]:metadata});
+  await f.service.loadLibraryFromFirestore('test-user');
+  const input={characters:[{id:'a',name:'Pending edit'}]};
+  f.setFailure(true);
+  await assert.rejects(f.service.saveLibraryToFirestore('test-user',input),/network/);
+  assert.equal(f.mutations.length,0);
+  f.setFailure(false);
+  await f.service.saveLibraryToFirestore('test-user',input);
+  assert.equal(f.docs.get(root).version,2);
+  assert.equal(f.docs.get(root+'/characters/a').name,'Pending edit');
+});
+test('a lost acknowledgement never authorizes a second write over the committed revision',async()=>{
+  const f=fixture({[root]:metadata});
+  await f.service.loadLibraryFromFirestore('test-user');
+  f.setLostAcknowledgement(true);
+  await assert.rejects(f.service.saveLibraryToFirestore('test-user',
+    {characters:[{id:'a',name:'Committed edit'}]}),/lost acknowledgement/);
+  assert.equal(f.docs.get(root).version,2);
+  const writes=f.mutations.length,uploads=f.uploads();
+  f.setLostAcknowledgement(false);
+  await assert.rejects(f.service.saveLibraryToFirestore('test-user',
+    {characters:[{id:'a',name:'Later local edit'}]}),/Conflicto/);
+  assert.equal(f.mutations.length,writes);
+  assert.equal(f.uploads(),uploads);
+  assert.equal(f.docs.get(root+'/characters/a').name,'Committed edit');
+});
+test('retry after a transport failure still rejects another device newer revision',async()=>{
+  const f=fixture({[root]:metadata});
+  const phone=f.newClient();
+  await f.service.loadLibraryFromFirestore('test-user');
+  await phone.loadLibraryFromFirestore('test-user');
+  f.setFailure(true);
+  await assert.rejects(f.service.saveLibraryToFirestore('test-user',
+    {characters:[{id:'a',name:'PC pending'}]}),/network/);
+  f.setFailure(false);
+  await phone.saveLibraryToFirestore('test-user',{characters:[{id:'a',name:'Phone saved'}]});
+  const writes=f.mutations.length;
+  await assert.rejects(f.service.saveLibraryToFirestore('test-user',
+    {characters:[{id:'a',name:'PC pending'}]}),/Conflicto/);
+  assert.equal(f.mutations.length,writes);
+  assert.equal(f.docs.get(root+'/characters/a').name,'Phone saved');
 });

@@ -71,3 +71,12 @@ Se conserva el flujo read-only. Integrar el diálogo al guardado requiere captur
 El error de revisión incompatible tiene código explícito. La ruta real pushStoryBundle captura una instantánea local y lee la remota sin establecer una nueva base de guardado. Abre el comparador para la cuenta activa; no necesita archivos. Una captura en curso se comparte para evitar lecturas duplicadas, y un cambio de cuenta o limpieza invalida su resultado. Cerrar el diálogo no autoriza sobreescrituras ni elimina los originales. Una revisión pendiente bloquea nuevos envíos. Si falla la lectura remota, permanece el error y no se crea una propuesta vacía.
 
 Alcance: código integrado y pruebas con adaptadores, Firebase sigue desactivado en este preview. La aplicación de decisiones, base común duradera, bibliotecas grandes y validación Firebase real siguen pendientes. Las capturas están en memoria: hay que descargar para preservarlas fuera de la sesión. En este entorno las herramientas Firebase dejaron de estar disponibles; no se verificaron cuotas ni datos reales en este sprint.
+
+
+## Sprint 10 — Retry without artificial conflicts
+
+A failed transaction now retains the previously verified revision unless it reports an explicit conflict. The next save still reads the server revision before media preparation and checks it again inside the transaction. When the server is unchanged, a transient failure no longer forces manual copy review. No unconfirmed write advances the local baseline.
+
+Regression scenarios: failed commit followed by successful retry; committed write with lost acknowledgement rejects the next write; another device saving between failure and retry remains protected. These use the real service with an in-memory adapter, not live Firebase.
+
+Production, Firebase configuration, rules, data and billing remain unchanged. Preview isolation remains in place. Real cloud validation, recovery verification, reconciliation application and large-library handling remain release dependencies.
