@@ -11,6 +11,7 @@ function fixture(initial = {}) {
   let uploads = 0;
   let failCommit = false;
   let afterPrepare = null;
+  let prepareFailure = null;
   let tail = Promise.resolve();
   const ref = (...parts) => parts.join('/');
   const snapshot = (path) => ({ id:path.split('/').at(-1), ref:path,
@@ -59,7 +60,7 @@ function fixture(initial = {}) {
       if(name==='@/lib/firebase')return {db:{}};
       if(name==='@/lib/firestorePayload')return {
         deepSanitizeForFirestore:structuredClone,
-        prepareStorySliceForFirestore:async(_,s)=>{uploads++;if(afterPrepare)afterPrepare();return structuredClone(s);},
+        prepareStorySliceForFirestore:async(_,s)=>{uploads++;if(prepareFailure)throw prepareFailure;if(afterPrepare)afterPrepare();return structuredClone(s);},
         assertEntityUnderFirestoreLimit:()=>{},
         formatFirestoreSaveError:e=>e.message
       };
@@ -73,6 +74,7 @@ function fixture(initial = {}) {
     service:load('src/services/libraryFirestoreService.ts'),docs,mutations,uploads:()=>uploads,
     newClient:()=>{for(const key of Object.keys(cache))delete cache[key];return load('src/services/libraryFirestoreService.ts');},
     setFailure:value=>{failCommit=value;},
+    setPrepareFailure:value=>{prepareFailure=value;},
     setAfterPrepare:callback=>{afterPrepare=callback;}
   };
 }
@@ -167,4 +169,15 @@ test('duplicate IDs fail before media preparation',async()=>{
   const f=fixture({[root]:metadata});await f.service.loadLibraryFromFirestore('test-user');
   await assert.rejects(f.service.saveLibraryToFirestore('test-user',{characters:[{id:'a'},{id:'a'}]}),/duplicado/);
   assert.equal(f.uploads(),0);
+});
+
+test('Storage quota failure leaves all Firestore documents and the input unchanged',async()=>{
+ const f=fixture({[root]:metadata,[root+'/worlds/w']:{id:'w',name:'Original'}});
+ await f.service.loadLibraryFromFirestore('test-user');
+ const input={worlds:[{id:'w',name:'Edited',imageUrl:'data:image/png;base64,AA=='}]};
+ const before=JSON.stringify(input);
+ f.setPrepareFailure(Object.assign(new Error('Storage quota exceeded'),{code:'storage/quota-exceeded'}));
+ await assert.rejects(f.service.saveLibraryToFirestore('test-user',input),/quota/);
+ assert.equal(f.mutations.length,0);assert.equal(f.docs.get(root).version,1);
+ assert.equal(f.docs.get(root+'/worlds/w').name,'Original');assert.equal(JSON.stringify(input),before);
 });

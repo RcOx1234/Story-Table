@@ -1,3 +1,4 @@
+import { formatSaveFailure } from '@/lib/saveFailure';
 import { useStore } from '@/store';
 import { auth } from '@/lib/firebase';
 import { createSnapshotSaveQueue } from '@/lib/snapshotSaveQueue';
@@ -219,7 +220,7 @@ const saveSnapshot = createSnapshotSaveQueue<StorySlice>({
 export function pushStoryBundle(uid: string): Promise<void> {
   return saveSnapshot(uid).catch((error) => {
     if (auth?.currentUser?.uid === uid) useStore.setState({
-      firebaseSyncError: error instanceof Error ? error.message : 'No se pudo guardar. Conserva una copia local.',
+      firebaseSyncError: formatSaveFailure(error),
     });
     throw error;
   });

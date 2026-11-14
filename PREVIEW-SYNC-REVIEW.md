@@ -43,3 +43,10 @@ Pruebas nuevas: contenido equivalente, orden de entidades y ajustes, decisiones 
 ## Sprint 5 — Comprobación parcial de propuestas
 
 El comparador muestra e incluye en la descarga un informe de referencias conocidas: destinos ausentes, papelera y cruces de mundo, escenas, personajes, colecciones, carpetas y enlaces genealógicos. Inventaría campos conocidos de imágenes/audio/vídeo como embebidos, remotos no verificados o temporales. No descarga archivos, no prueba su integridad ni valida ciclos genealógicos, todos los complementos, pertenencia a cuenta o versión remota. No aplica propuestas, incluso sin advertencias. Pruebas sintéticas incluidas; validación visual y recuperación real pendientes.
+
+
+## Sprint 6 — Fallos de Storage y archivos embebidos
+
+Prevalidación de data URLs antes de iniciar subidas; conserva el origen y admite base64 y codificación porcentual. Mensajes distinguen cuota de Storage, autorización, interrupción y errores de Firestore, sin prometer persistencia local. Pruebas del preparador real con Storage simulado y del servicio Firestore verifican que un fallo deja originales y documentos intactos. No hay pruebas contra el bucket real ni solución confirmada de su cuota. Subidas repetidas y archivos huérfanos siguen pendientes.
+
+Consulta de solo lectura: proyecto activo y Billing Enabled: Yes. Herramientas disponibles no exponen consumo ni cuotas del bucket; facturación habilitada no demuestra disponibilidad de cuota. Firestore no devolvió respaldos ni programaciones en la revisión previa; PITR desactivado. No se activó ningún servicio.

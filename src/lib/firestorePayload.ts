@@ -1,3 +1,5 @@
+import { decodeEmbeddedDataUrl, validateEmbeddedDataUrls } from '@/lib/embeddedDataUrl';
+import { formatSaveFailure } from '@/lib/saveFailure';
 import { versionedUploadPath } from '@/lib/versionedUploadPath';
 import { uploadFileToUserPath } from '@/services/storageService';
 import { pathInWorld, storageSlug, worldStorageFolder } from '@/lib/storagePaths';
@@ -27,14 +29,7 @@ function estimateBytes(value: unknown): number {
   }
 }
 
-function dataUrlToBlob(dataUrl: string): Blob {
-  const [header, base64] = dataUrl.split(',');
-  const mime = /data:([^;]+)/.exec(header ?? '')?.[1] ?? 'application/octet-stream';
-  const binary = atob(base64 ?? '');
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  return new Blob([bytes], { type: mime });
-}
+const dataUrlToBlob = decodeEmbeddedDataUrl;
 
 function extFromMime(mime: string): string {
   if (mime.includes('png')) return 'png';
@@ -304,18 +299,7 @@ async function inlineDataUrls(uid: string, payload: Record<string, unknown>): Pr
   return clone;
 }
 
-export function formatFirestoreSaveError(err: unknown): string {
-  const code =
-    err && typeof err === 'object' && 'code' in err ? String((err as { code: string }).code) : '';
-  if (code === 'permission-denied') {
-    return 'Sin permiso en Firestore (revisa reglas y sesión)';
-  }
-  if (code === 'resource-exhausted' || code === 'invalid-argument') {
-    return 'Datos demasiado grandes o inválidos para Firestore';
-  }
-  if (err instanceof Error && err.message) return err.message;
-  return 'No se pudo guardar en Firebase';
-}
+export const formatFirestoreSaveError = formatSaveFailure;
 
 function hasDataUrls(value: unknown): boolean {
   if (typeof value === 'string') return value.startsWith('data:');
@@ -344,6 +328,8 @@ export async function prepareStorySliceForFirestore(
   let sanitized = deepSanitizeForFirestore(payload) as Record<string, unknown>;
 
   if (hasDataUrls(sanitized)) {
+    // Validate all embedded values before any Storage upload can begin.
+    validateEmbeddedDataUrls(sanitized);
     sanitized = await inlineDataUrls(uid, sanitized);
     sanitized = deepSanitizeForFirestore(sanitized) as Record<string, unknown>;
   }
