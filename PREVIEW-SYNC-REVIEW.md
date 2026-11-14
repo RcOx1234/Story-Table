@@ -50,3 +50,10 @@ El comparador muestra e incluye en la descarga un informe de referencias conocid
 Prevalidación de data URLs antes de iniciar subidas; conserva el origen y admite base64 y codificación porcentual. Mensajes distinguen cuota de Storage, autorización, interrupción y errores de Firestore, sin prometer persistencia local. Pruebas del preparador real con Storage simulado y del servicio Firestore verifican que un fallo deja originales y documentos intactos. No hay pruebas contra el bucket real ni solución confirmada de su cuota. Subidas repetidas y archivos huérfanos siguen pendientes.
 
 Consulta de solo lectura: proyecto activo y Billing Enabled: Yes. Herramientas disponibles no exponen consumo ni cuotas del bucket; facturación habilitada no demuestra disponibilidad de cuota. Firestore no devolvió respaldos ni programaciones en la revisión previa; PITR desactivado. No se activó ningún servicio.
+
+
+## Sprint 7 — Flujo habitual y combinación compatible
+
+Menú simplificado: Guardar una copia y Copias y recuperación. La antigua importación que reemplazaba el store y enviaba a Firebase se sustituyó en el preview por preparación de revisión: conserva ambas entradas y no escribe en el store ni en Firebase. Herramientas avanzadas agrupadas; detalles JSON plegados y nombres de elementos visibles.
+
+Planificador puro de tres versiones: versión común + dispositivo A + B. Preselecciona modificaciones de un solo lado y altas independientes; modificaciones concurrentes, ausencia de una base y borrados quedan para revisión. Detecta borrados coincidentes como bloqueos. El ejemplo usa una base ficticia y conserva esa base en la descarga. No se integra aún al autoguardado: requiere checkpoints por cuenta/version, aplicación atómica con control de revisión, recuperación y pruebas reales. Incluso sin conflictos canApply permanece false. La comparación por entidad es conservadora; dos campos distintos de la misma entidad todavía requieren revisión.

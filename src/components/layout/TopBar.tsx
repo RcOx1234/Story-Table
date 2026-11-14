@@ -1,6 +1,8 @@
+import { BaseModal } from '@/components/modals/crud/BaseModal';
+import { stageLibraryImport } from '@/lib/conflictReview';
 import { ConflictReviewModal } from '@/components/sync/ConflictReviewModal';
 import { MobileNavigation } from './MobileNavigation';
-import { useAppStore, useStore, type AppState } from '@/store';
+import { useAppStore, useStore } from '@/store';
 import { Search, Plus, Bell, Command, User, Settings, LogOut, Lightbulb, FileText, Sparkles, Download, Upload, CloudUpload, CloudCog, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useRef, useState, type ChangeEvent } from 'react';
@@ -14,7 +16,7 @@ import {
 import { toast } from 'sonner';
 import { isFirebaseConfigured } from '@/lib/firebase';
 import { logout as firebaseLogout } from '@/services/authService';
-import { buildLibraryExport, parseLibraryImport, sanitizeLibraryImport } from '@/lib/storyImportExport';
+import { buildLibraryExport } from '@/lib/storyImportExport';
 import { pushStoryBundle, getStorySlice } from '@/services/storyBundleSync';
 import { formatFirestoreSaveError } from '@/lib/firestorePayload';
 import { AccountSettingsModal } from '@/components/modals/AccountSettingsModal';
@@ -30,6 +32,10 @@ export function TopBar() {
   const [savingCloud, setSavingCloud] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
+  const [recoveryOpen,setRecoveryOpen]=useState(false);
+  const [importBusy,setImportBusy]=useState(false);
+  const [reviewInitial,setReviewInitial]=useState<ReturnType<typeof stageLibraryImport>|undefined>();
+  const [reviewKey,setReviewKey]=useState(0);
   const syncError = useAppStore((s) => s.firebaseSyncError);
   const autoSaveEnabled = useAppStore((s) => s.firebaseAutoSaveEnabled);
   const autoSaveSyncing = useAppStore((s) => s.firebaseAutoSaveSyncing);
@@ -46,60 +52,22 @@ export function TopBar() {
     navigate(isFirebaseConfigured() ? '/login' : '/');
   };
 
+
   const handleImportLibrary = async (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file) return;
+    const file=e.target.files?.[0];e.target.value='';
+    if(!file||importBusy) return;
+    setImportBusy(true);
     try {
-      const text = await file.text();
-      const parsed = parseLibraryImport(JSON.parse(text));
-      if (!parsed?.worlds) {
-        toast.error('El archivo no tiene el formato de biblioteca Story Table');
-        return;
-      }
-      const data = sanitizeLibraryImport(parsed);
-      if (
-        !window.confirm(
-          isFirebaseConfigured()
-            ? 'Esto reemplazará la biblioteca local y se intentará guardar en Firebase. Conserva una copia independiente antes de continuar.'
-            : 'Esto reemplazará los datos de ejemplo de este navegador. No se enviará nada a Firebase. ¿Continuar?'
-        )
-      ) {
-        return;
-      }
-      useStore.setState({
-        worlds: data.worlds as AppState['worlds'],
-        characters: data.characters as AppState['characters'],
-        scenes: data.scenes as AppState['scenes'],
-        places: data.places as AppState['places'],
-        maps: data.maps as AppState['maps'],
-        plots: data.plots as AppState['plots'],
-        components: data.components as AppState['components'],
-        organizations: data.organizations as AppState['organizations'],
-        ideas: data.ideas as AppState['ideas'],
-        timelines: data.timelines as AppState['timelines'],
-        houses: (data.houses as AppState['houses']) ?? [],
-        worldFacts: (data.worldFacts as AppState['worldFacts']) ?? [],
-        worldData: (data.worldData as AppState['worldData']) ?? [],
-        placeCollections: (data.placeCollections as AppState['placeCollections']) ?? [],
-        mapCollections: (data.mapCollections as AppState['mapCollections']) ?? [],
-        worldTags: (data.worldTags as AppState['worldTags']) ?? [],
-        fantasticElements: (data.fantasticElements as AppState['fantasticElements']) ?? [],
-        entityFolders: (data.entityFolders as AppState['entityFolders']) ?? [],
-        characterOrderByWorld: data.characterOrderByWorld ?? {},
-        dashboardWorldIds: data.dashboardWorldIds ?? [],
-      });
-      toast.success('Biblioteca importada');
-      const uid = useStore.getState().user?.id;
-      if (isFirebaseConfigured() && uid) {
-        void pushStoryBundle(uid)
-          .then(() => toast.success('Biblioteca sincronizada con Firebase'))
-          .catch(() => toast.error('Importado localmente, pero no se pudo subir a Firebase'));
-      }
-    } catch {
-      toast.error('No se pudo leer el JSON');
-    }
+      if(file.size>20*1024*1024) throw Error('El límite de revisión es 20 MB por archivo.');
+      const incoming=JSON.parse(await file.text());
+      const staged=stageLibraryImport(JSON.parse(JSON.stringify(getStorySlice())),incoming,file.name);
+      setReviewInitial(staged);setReviewKey(k=>k+1);setRecoveryOpen(false);setReviewOpen(true);
+      toast.info('Archivo abierto para revisión. Tu biblioteca no se ha reemplazado.');
+    } catch(error) {
+      toast.error(error instanceof Error?error.message:'No se pudo leer la copia.');
+    } finally {setImportBusy(false);}
   };
+  const openComparison=()=>{setReviewInitial(undefined);setReviewKey(k=>k+1);setRecoveryOpen(false);setReviewOpen(true);};
 
   const exportToFirebase = async () => {
     const uid = user?.id;
@@ -284,28 +252,16 @@ export function TopBar() {
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="min-w-[200px] border-[#2A3045] bg-[#111318] text-[#E8E9EB]">
-            <input
-              ref={fileImportRef}
-              type="file"
-              accept="application/json,.json"
-              className="hidden"
-              onChange={(e) => void handleImportLibrary(e)}
-            />
             <div className="border-b border-[#2A3045] px-2 py-2">
               <p className="truncate text-sm font-medium">{user?.displayName || 'Invitado'}</p>
               <p className="truncate text-xs text-[#5A6078]">{user?.email || 'Sin sesión'}</p>
             </div>
-            <DropdownMenuItem className="cursor-pointer focus:bg-[#1E2230]" onClick={() => exportLibraryFile()}>
-              <Download size={14} className="mr-2" /> Exportar biblioteca (JSON)
-            </DropdownMenuItem>
+
             <DropdownMenuItem className="cursor-pointer focus:bg-[#1E2230]" onClick={exportRecoverySnapshot}>
-              <Download size={14} className="mr-2" /> Copia local con papelera
+              <Download size={14} className="mr-2" /> Guardar una copia
             </DropdownMenuItem>
-            <DropdownMenuItem className="cursor-pointer focus:bg-[#1E2230]" onClick={() => setReviewOpen(true)}>
-              <FileText size={14} className="mr-2" /> Comparar copias
-            </DropdownMenuItem>
-            <DropdownMenuItem className="cursor-pointer focus:bg-[#1E2230]" onClick={() => fileImportRef.current?.click()}>
-              <Upload size={14} className="mr-2" /> Importar biblioteca.
+            <DropdownMenuItem className="cursor-pointer focus:bg-[#1E2230]" onClick={() => setRecoveryOpen(true)}>
+              <CloudCog size={14} className="mr-2" /> Copias y recuperación
             </DropdownMenuItem>
             <DropdownMenuSeparator className="bg-[#2A3045]" />
             <DropdownMenuItem
@@ -332,7 +288,35 @@ export function TopBar() {
       </div>
       <AccountSettingsModal open={accountOpen} onClose={() => setAccountOpen(false)} />
     </header>
-    <ConflictReviewModal open={reviewOpen} onClose={() => setReviewOpen(false)} />
+            <input
+              ref={fileImportRef}
+              type="file"
+              accept="application/json,.json"
+              className="hidden"
+              onChange={(e) => void handleImportLibrary(e)}
+            />
+    <ConflictReviewModal key={reviewKey} open={reviewOpen} initial={reviewInitial} onClose={() => setReviewOpen(false)} />
+    <BaseModal open={recoveryOpen} onClose={()=>setRecoveryOpen(false)} title="Copias y recuperación" description="Protege tu trabajo o revisa una copia sin reemplazar la biblioteca." maxWidthClass="max-w-2xl">
+      <div className="space-y-4 text-sm text-[#E8E9EB]">
+        <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+          <p className="font-semibold">{isFirebaseConfigured()?'Herramientas de recuperación':'Preview · Solo este navegador'}</p>
+          <p className="mt-1 text-[#AAB0C0]">{isFirebaseConfigured()?'Estas herramientas son independientes del guardado habitual.':'Este entorno no guarda en la nube. Guardar una copia descarga un archivo de respaldo.'}</p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <button type="button" onClick={exportRecoverySnapshot} className="rounded-xl border border-white/15 p-4 text-left hover:bg-white/5 focus-visible:ring-2 focus-visible:ring-white">
+            <Download size={20}/><span className="mt-2 block font-semibold">Guardar una copia</span><span className="mt-1 block text-xs text-[#AAB0C0]">Incluye la papelera. Las imágenes enlazadas requieren respaldo aparte.</span>
+          </button>
+          <button type="button" disabled={importBusy} onClick={()=>fileImportRef.current?.click()} className="rounded-xl border border-white/15 p-4 text-left hover:bg-white/5 focus-visible:ring-2 focus-visible:ring-white disabled:opacity-50">
+            <Upload size={20}/><span className="mt-2 block font-semibold">{importBusy?'Leyendo copia…':'Revisar una copia'}</span><span className="mt-1 block text-xs text-[#AAB0C0]">Abre un archivo y lo compara con este navegador. No reemplaza ni envía contenido.</span>
+          </button>
+        </div>
+        <details className="rounded-xl border border-white/10 p-4">
+          <summary className="cursor-pointer font-medium">Herramientas avanzadas</summary>
+          <div className="mt-3 flex flex-wrap gap-3"><button type="button" onClick={openComparison} className="story-btn-secondary">Comparar dos copias</button><button type="button" onClick={exportLibraryFile} className="story-btn-secondary">Exportar formato de biblioteca</button></div>
+          <p className="mt-2 text-xs text-[#AAB0C0]">La exportación tradicional no incluye la papelera. Las propuestas revisadas todavía no pueden aplicarse.</p>
+        </details>
+      </div>
+    </BaseModal>
     {syncError && (
       <div role="alert" className="border-b border-amber-500/40 bg-amber-950 px-4 py-3 text-sm text-amber-100">
         <p>{syncError}</p>

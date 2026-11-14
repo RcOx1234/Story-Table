@@ -148,3 +148,40 @@ export function auditReviewedCopy(input:LibraryCopy) {
   return {scope:'known-schema-references-and-media-fields-v1',issues,media,canApply:false,remoteFilesChecked:false,
     limitations:['No comprueba acceso ni integridad de archivos remotos o embebidos.','No verifica ciclos genealógicos, enlaces en texto enriquecido ni todos los campos de complementos.','No comprueba cuenta, versión remota ni restauración. La propuesta no se aplica.']};
 }
+
+/** Pure three-way planner. A trusted common base must come from a future verified sync checkpoint. */
+export function planCompatibleChanges(baseInput:LibraryCopy|null,aInput:LibraryCopy,bInput:LibraryCopy) {
+  const a=readReviewCopy(aInput),b=readReviewCopy(bInput),base=baseInput?readReviewCopy(baseInput):null;
+  const differences=compareCopies(a,b),choices:Record<string,Choice>={};
+  const pending:Array<{key:string;reason:string}>=[];
+  const deletionHolds:string[]=[];
+  const baseTables=new Map(REVIEW_ENTITY_KEYS.map(k=>[k,indexed(base?.[k])]));
+  const baseValue=(d:Difference)=>d.id===null?base?.[d.collection]:baseTables.get(d.collection as typeof REVIEW_ENTITY_KEYS[number])?.get(d.id);
+  for(const d of differences) {
+    if(!base) {pending.push({key:d.key,reason:'Sin versión común verificada'});continue;}
+    const original=baseValue(d);
+    if((original!==undefined&&(!d.aPresent||!d.bPresent)) ||
+      (record(d.a)&&d.a.isDeleted===true)||(record(d.b)&&d.b.isDeleted===true)) {
+      pending.push({key:d.key,reason:'Eliminación o papelera: requiere revisión explícita'});continue;
+    }
+    if(canonical(d.a)===canonical(original)) choices[d.key]='b';
+    else if(canonical(d.b)===canonical(original)) choices[d.key]='a';
+    else pending.push({key:d.key,reason:'Ambos dispositivos cambiaron este elemento'});
+  }
+  if(base) for(const d of compareCopies(base,a)) {
+    if(d.id!==null) {
+      const other=indexed(b[d.collection]).get(d.id);
+      if((!d.bPresent&&!other)||(record(d.b)&&d.b.isDeleted===true&&other?.isDeleted===true))
+        deletionHolds.push(d.key);
+    }
+  }
+  return {choices,pending,deletionHolds,canApply:false,baseKnown:base!==null};
+}
+
+/** Import is staged for review only; neither input is changed or sanitized away. */
+export function stageLibraryImport(current:unknown,incoming:unknown,label:string) {
+  return {
+    a:{label:'Biblioteca de este navegador',original:structuredClone(current),library:readReviewCopy(current)},
+    b:{label,original:structuredClone(incoming),library:readReviewCopy(incoming)}
+  };
+}
