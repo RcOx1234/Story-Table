@@ -1,3 +1,4 @@
+import { cloudConflictReview, isStoryConflict } from '@/services/cloudConflictReview';
 import { formatSaveFailure } from '@/lib/saveFailure';
 import { useStore } from '@/store';
 import { auth } from '@/lib/firebase';
@@ -136,6 +137,7 @@ function pickRicherSlice(a: StorySlice, b: StorySlice): StorySlice {
 
 /** Vacía la biblioteca local (p. ej. al cerrar sesión). */
 export function applyEmptyStorySlice(): void {
+  cloudConflictReview.clear();
   lastHydratedUid = null;
   hydrateInFlight = null;
   hydrateInFlightUid = null;
@@ -217,13 +219,33 @@ const saveSnapshot = createSnapshotSaveQueue<StorySlice>({
   isOwnerActive: (uid) => auth?.currentUser?.uid === uid,
 });
 
-export function pushStoryBundle(uid: string): Promise<void> {
-  return saveSnapshot(uid).catch((error) => {
-    if (auth?.currentUser?.uid === uid) useStore.setState({
-      firebaseSyncError: formatSaveFailure(error),
-    });
+
+export async function pushStoryBundle(uid: string): Promise<void> {
+  if (cloudConflictReview.getSnapshot()?.ownerId === uid) {
+    throw new Error('Hay una revisión de conflicto pendiente. No se enviaron cambios nuevos.');
+  }
+  try {
+    await saveSnapshot(uid);
+  } catch (error) {
+    const active=()=>auth?.currentUser?.uid===uid&&useStore.getState().user?.id===uid;
+    if(active()) {
+      useStore.setState({firebaseSyncError:formatSaveFailure(error)});
+      if(isStoryConflict(error)) {
+        try {
+          await cloudConflictReview.capture(uid,
+            ()=>getStorySlice() as unknown as Record<string,unknown>,
+            async()=> {
+              const remote=await loadLibraryFromFirestore(uid,{establishBaseline:false});
+              if(!remote) throw new Error('No hay una copia remota disponible para comparar.');
+              return remote;
+            },active);
+        } catch {
+          if(active()) useStore.setState({firebaseSyncError:'Se detectó un conflicto, pero no se pudo leer la copia remota. Tus cambios no fueron reemplazados. Conserva una copia local y vuelve a intentar cuando haya conexión.'});
+        }
+      }
+    }
     throw error;
-  });
+  }
 }
 
 /** Carga la biblioteca desde Firebase; muestra splash mientras tanto. */

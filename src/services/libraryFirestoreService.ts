@@ -35,7 +35,7 @@ const MAX_ATOMIC_ENTITIES = 399;
 const loadedVersions = new Map<string, number>();
 export function forgetLibraryVersion(uid: string): void { loadedVersions.delete(uid); }
 function conflict(): Error {
-  return new Error('Conflicto de sincronización: hay otra versión o falta una carga verificada. Tus cambios locales siguen pendientes. Guarda una copia antes de resolverlo.');
+  return Object.assign(new Error('Conflicto de sincronización: hay otra versión o falta una carga verificada. Tus cambios locales siguen pendientes.'), { code: 'storytable/conflict' });
 }
 function revision(data: Record<string, unknown> | null): number {
   if (!data) return 0;
@@ -191,9 +191,11 @@ export async function saveLibraryToFirestore(uid: string, slice: StorySlicePaylo
 }
 
 export async function loadLibraryFromFirestore(
-  uid: string
+  uid: string,
+  options: { establishBaseline?: boolean } = {}
 ): Promise<StorySlicePayload | null> {
-  forgetLibraryVersion(uid);
+  const establishBaseline = options.establishBaseline !== false;
+  if (establishBaseline) forgetLibraryVersion(uid);
   if (!db) return null;
 
   let libraryId: string = LIBRARY_DOC_ID;
@@ -204,7 +206,7 @@ export async function loadLibraryFromFirestore(
     if (rootData) libraryId = LEGACY_LIBRARY_DOC_ID;
   }
 
-  if (!rootData) { loadedVersions.set(uid, 0); return null; }
+  if (!rootData) { if (establishBaseline) loadedVersions.set(uid, 0); return null; }
 
   if (isLegacyMonolithicLibrary(rootData)) {
     const legacyEntities = extractLegacyEntities(rootData);
@@ -223,7 +225,7 @@ export async function loadLibraryFromFirestore(
   const after = await loadMetadataDoc(uid, libraryId);
   if (revision(after) !== version) throw conflict();
   if (libraryId !== LIBRARY_DOC_ID) throw new Error('Biblioteca antigua: requiere revisión antes de guardar.');
-  loadedVersions.set(uid, version);
+  if (establishBaseline) loadedVersions.set(uid, version);
   const meta = rootData as unknown as LibraryMetadata;
 
   return {

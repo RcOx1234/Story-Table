@@ -64,3 +64,10 @@ Planificador puro de tres versiones: versión común + dispositivo A + B. Presel
 Referencia principal: sistema existente de StoryTable (fondo #111318, texto claro, rojo reservado para acción/selección); captura aportada por el usuario. Investigación externa de estilos bloqueada por suscripción inactiva; se usó la guía de accesibilidad/formularios disponible: controles nativos, foco visible, etiquetas completas y avisos de estado. Decisiones: versiones lado a lado en escritorio y apiladas en móvil; campos cambiados visibles, JSON secundario; progreso y filtro de pendientes; cinco elementos por página; archivo y ejemplo en sección secundaria. Sin imágenes remotas cargadas ni HTML importado interpretado.
 
 Se conserva el flujo read-only. Integrar el diálogo al guardado requiere capturar remoto/base verificados y resolver revisión obsoleta; no se conectó el preview a Firebase. Pruebas de presentación de diferencias y preservación del texto. Validación visual pendiente si el navegador del entorno no está disponible.
+
+
+## Sprint 9 — Captura automática al fallar un guardado por conflicto
+
+El error de revisión incompatible tiene código explícito. La ruta real pushStoryBundle captura una instantánea local y lee la remota sin establecer una nueva base de guardado. Abre el comparador para la cuenta activa; no necesita archivos. Una captura en curso se comparte para evitar lecturas duplicadas, y un cambio de cuenta o limpieza invalida su resultado. Cerrar el diálogo no autoriza sobreescrituras ni elimina los originales. Una revisión pendiente bloquea nuevos envíos. Si falla la lectura remota, permanece el error y no se crea una propuesta vacía.
+
+Alcance: código integrado y pruebas con adaptadores, Firebase sigue desactivado en este preview. La aplicación de decisiones, base común duradera, bibliotecas grandes y validación Firebase real siguen pendientes. Las capturas están en memoria: hay que descargar para preservarlas fuera de la sesión. En este entorno las herramientas Firebase dejaron de estar disponibles; no se verificaron cuotas ni datos reales en este sprint.

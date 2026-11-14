@@ -1,3 +1,4 @@
+import { cloudConflictReview } from '@/services/cloudConflictReview';
 import { BaseModal } from '@/components/modals/crud/BaseModal';
 import { stageLibraryImport } from '@/lib/conflictReview';
 import { ConflictReviewModal } from '@/components/sync/ConflictReviewModal';
@@ -5,7 +6,7 @@ import { MobileNavigation } from './MobileNavigation';
 import { useAppStore, useStore } from '@/store';
 import { Search, Plus, Bell, Command, User, Settings, LogOut, Lightbulb, FileText, Sparkles, Download, Upload, CloudUpload, CloudCog, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useRef, useState, type ChangeEvent } from 'react';
+import { useRef, useState, useMemo, useSyncExternalStore, type ChangeEvent } from 'react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -36,6 +37,13 @@ export function TopBar() {
   const [importBusy,setImportBusy]=useState(false);
   const [reviewInitial,setReviewInitial]=useState<ReturnType<typeof stageLibraryImport>|undefined>();
   const [reviewKey,setReviewKey]=useState(0);
+  const capturedConflict=useSyncExternalStore(cloudConflictReview.subscribe,cloudConflictReview.getSnapshot,()=>null);
+  const [dismissedConflict,setDismissedConflict]=useState<number|null>(null);
+  const activeConflict=capturedConflict?.ownerId===user?.id?capturedConflict:null;
+  const capturedCopies=useMemo(()=>activeConflict?stageLibraryImport(
+    JSON.parse(JSON.stringify(activeConflict.local)),
+    JSON.parse(JSON.stringify(activeConflict.remote)),
+    'Versión de la nube al detectar el conflicto'):undefined,[activeConflict]);
   const syncError = useAppStore((s) => s.firebaseSyncError);
   const autoSaveEnabled = useAppStore((s) => s.firebaseAutoSaveEnabled);
   const autoSaveSyncing = useAppStore((s) => s.firebaseAutoSaveSyncing);
@@ -295,6 +303,7 @@ export function TopBar() {
               className="hidden"
               onChange={(e) => void handleImportLibrary(e)}
             />
+    {activeConflict&&capturedCopies&&<ConflictReviewModal key={'cloud-'+activeConflict.id} open={dismissedConflict!==activeConflict.id} initial={capturedCopies} onClose={()=>setDismissedConflict(activeConflict.id)} />}
     <ConflictReviewModal key={reviewKey} open={reviewOpen} initial={reviewInitial} onClose={() => setReviewOpen(false)} />
     <BaseModal open={recoveryOpen} onClose={()=>setRecoveryOpen(false)} title="Copias y recuperación" description="Protege tu trabajo o revisa una copia sin reemplazar la biblioteca." maxWidthClass="max-w-2xl">
       <div className="space-y-4 text-sm text-[#E8E9EB]">
@@ -320,6 +329,7 @@ export function TopBar() {
     {syncError && (
       <div role="alert" className="border-b border-amber-500/40 bg-amber-950 px-4 py-3 text-sm text-amber-100">
         <p>{syncError}</p>
+        {activeConflict&&<button type="button" className="mr-4 mt-2 underline" onClick={()=>setDismissedConflict(null)}>Revisar conflicto detectado</button>}
         <button type="button" onClick={exportRecoverySnapshot} className="mt-2 underline">
           Guardar copia local con papelera
         </button>

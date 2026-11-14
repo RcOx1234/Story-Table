@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import ts from 'typescript';
 
-function fixture({pending=false,gate=null,loadFails=false}={}) {
+function fixture({pending=false,gate=null,loadFails=false,saveFails=false}={}) {
   const keys=['worlds','characters','scenes','places','maps','plots','components','organizations','ideas','timelines','fantasticElements','houses','worldFacts','worldData','placeCollections','mapCollections','worldTags','entityFolders'];
   const empty=Object.fromEntries(keys.map(k=>[k,[]]));
   empty.characterOrderByWorld={};empty.dashboardWorldIds=[];
@@ -31,7 +31,7 @@ function fixture({pending=false,gate=null,loadFails=false}={}) {
       if(name==='@/lib/firebase')return {auth:{currentUser:{uid:'test-user'}}};
       if(name==='@/services/libraryFirestoreService')return {
         loadLibraryFromFirestore:async()=>{if(gate)await gate.promise;if(loadFails)throw Error('offline');return structuredClone(remote);},
-        saveLibraryToFirestore:async()=>{saves++;},
+        saveLibraryToFirestore:async()=>{saves++;if(saveFails)throw Object.assign(new Error('Conflict'),{code:'storytable/conflict'});},
         forgetLibraryVersion:()=>{invalidated++;}
       };
       if(name.startsWith('@/'))return load('src/'+name.slice(2)+'.ts');
@@ -44,6 +44,7 @@ function fixture({pending=false,gate=null,loadFails=false}={}) {
   state.lastFirebaseSyncFingerprint=pending?'previous-revision':fingerprint(state);
   persist();
   return {service:load('src/services/storyBundleSync.ts'),getState:()=>state,edit:name=>store.setState({worlds:[{id:'w',name}]}),
+    review:()=>load('src/services/cloudConflictReview.ts').cloudConflictReview.getSnapshot(),
     saves:()=>saves,invalidated:()=>invalidated,persisted:()=>JSON.parse(storage.get('story-table-sync-preview-v1')).state};
 }
 test('hydration preserves pending local data in memory and persistence without pushing',async()=>{
@@ -69,4 +70,22 @@ test('offline load reports an error and preserves the original local content',as
   const f=fixture({loadFails:true});await f.service.hydrateStoryBundleFromFirebase('test-user');
   assert.equal(f.getState().worlds[0].name,'Old saved');assert.equal(f.getState().firebaseSyncError,'offline');
   assert.equal(f.getState().storyDataLoading,false);assert.equal(f.saves(),0);
+});
+
+test('actual save conflict stages both versions automatically without marking synchronized',async()=>{
+ const f=fixture({pending:true,saveFails:true});
+ const before=f.getState().lastFirebaseSyncFingerprint;
+ await assert.rejects(f.service.pushStoryBundle('test-user'),/Conflict/);
+ assert.equal(f.review().local.worlds[0].name,'Pending local');
+ assert.equal(f.review().remote.worlds[0].name,'New remote');
+ assert.equal(f.getState().worlds[0].name,'Pending local');
+ assert.equal(f.getState().lastFirebaseSyncFingerprint,before);
+ await assert.rejects(f.service.pushStoryBundle('test-user'),/pendiente/);
+ assert.equal(f.saves(),1);
+});
+test('save conflict plus offline remote read keeps local content and exposes recovery error',async()=>{
+ const f=fixture({pending:true,saveFails:true,loadFails:true});
+ await assert.rejects(f.service.pushStoryBundle('test-user'));
+ assert.equal(f.review(),null);assert.equal(f.getState().worlds[0].name,'Pending local');
+ assert.match(f.getState().firebaseSyncError,/no se pudo leer/);
 });
