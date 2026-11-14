@@ -1,3 +1,4 @@
+import { ConflictReviewModal } from '@/components/sync/ConflictReviewModal';
 import { MobileNavigation } from './MobileNavigation';
 import { useAppStore, useStore, type AppState } from '@/store';
 import { Search, Plus, Bell, Command, User, Settings, LogOut, Lightbulb, FileText, Sparkles, Download, Upload, CloudUpload, CloudCog, Loader2 } from 'lucide-react';
@@ -28,6 +29,7 @@ export function TopBar() {
   const scenesRecent = useAppStore((s) => s.scenes.filter((sc) => !sc.isDeleted).slice(-3));
   const [savingCloud, setSavingCloud] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
   const syncError = useAppStore((s) => s.firebaseSyncError);
   const autoSaveEnabled = useAppStore((s) => s.firebaseAutoSaveEnabled);
   const autoSaveSyncing = useAppStore((s) => s.firebaseAutoSaveSyncing);
@@ -299,6 +301,9 @@ export function TopBar() {
             <DropdownMenuItem className="cursor-pointer focus:bg-[#1E2230]" onClick={exportRecoverySnapshot}>
               <Download size={14} className="mr-2" /> Copia local con papelera
             </DropdownMenuItem>
+            <DropdownMenuItem className="cursor-pointer focus:bg-[#1E2230]" onClick={() => setReviewOpen(true)}>
+              <FileText size={14} className="mr-2" /> Comparar copias
+            </DropdownMenuItem>
             <DropdownMenuItem className="cursor-pointer focus:bg-[#1E2230]" onClick={() => fileImportRef.current?.click()}>
               <Upload size={14} className="mr-2" /> Importar biblioteca.
             </DropdownMenuItem>
@@ -327,6 +332,7 @@ export function TopBar() {
       </div>
       <AccountSettingsModal open={accountOpen} onClose={() => setAccountOpen(false)} />
     </header>
+    <ConflictReviewModal open={reviewOpen} onClose={() => setReviewOpen(false)} />
     {syncError && (
       <div role="alert" className="border-b border-amber-500/40 bg-amber-950 px-4 py-3 text-sm text-amber-100">
         <p>{syncError}</p>

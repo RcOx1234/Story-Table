@@ -29,3 +29,12 @@ This preview deliberately refuses more than 399 entities per atomic save before 
 Hydration no longer automatically pushes pending local data or applies remote data before checking pending edits. It preserves local content and exposes a persistent error notice with a recovery-copy action. Conflict resolution is conservative: merging and selecting a remote/local winner are not implemented. No cloud-enabled deployment or migration is authorized by this preview.
 
 Tests use the actual service and a serial in-memory transaction adapter, not the Firebase emulator. Server retries, security rules, offline device recovery, full backup/restore, old clients that do not follow this protocol, explicit delete/tombstone handling, and actual Safari/device synchronization still require integration testing. Documentation: https://firebase.google.com/docs/firestore/manage-data/transactions
+
+
+## Sprint 4 — Comparación local de copias
+
+Menú de usuario → Comparar copias. Incluye un ejemplo ficticio y lectura de exportaciones o copias locales con papelera (máximo 20 MB por archivo). Las decisiones son explícitas por entidad o ajuste; la ausencia de un registro nunca se elige automáticamente. No escribe en el estado de la biblioteca ni en Firebase.
+
+Permite descargar ambas originales sin resolver diferencias, o un archivo de revisión con originales completas, decisiones y propuesta. El archivo de revisión no es una importación de biblioteca: aún requiere validar relaciones, imágenes, pertenencia a cuenta y versión remota antes de poder aplicarse. La revisión permanece en memoria hasta descargarla. No descarga imágenes enlazadas. No implica resolución integral de conflictos ni restauración verificada.
+
+Pruebas nuevas: contenido equivalente, orden de entidades y ajustes, decisiones pendientes, ausencia explícita, papelera, originales independientes, formatos e identificadores inválidos. La validación visual y entre dispositivos sigue pendiente.
