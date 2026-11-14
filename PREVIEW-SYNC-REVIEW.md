@@ -57,3 +57,10 @@ Consulta de solo lectura: proyecto activo y Billing Enabled: Yes. Herramientas d
 Menú simplificado: Guardar una copia y Copias y recuperación. La antigua importación que reemplazaba el store y enviaba a Firebase se sustituyó en el preview por preparación de revisión: conserva ambas entradas y no escribe en el store ni en Firebase. Herramientas avanzadas agrupadas; detalles JSON plegados y nombres de elementos visibles.
 
 Planificador puro de tres versiones: versión común + dispositivo A + B. Preselecciona modificaciones de un solo lado y altas independientes; modificaciones concurrentes, ausencia de una base y borrados quedan para revisión. Detecta borrados coincidentes como bloqueos. El ejemplo usa una base ficticia y conserva esa base en la descarga. No se integra aún al autoguardado: requiere checkpoints por cuenta/version, aplicación atómica con control de revisión, recuperación y pruebas reales. Incluso sin conflictos canApply permanece false. La comparación por entidad es conservadora; dos campos distintos de la misma entidad todavía requieren revisión.
+
+
+## Sprint 8 — Revisión legible
+
+Referencia principal: sistema existente de StoryTable (fondo #111318, texto claro, rojo reservado para acción/selección); captura aportada por el usuario. Investigación externa de estilos bloqueada por suscripción inactiva; se usó la guía de accesibilidad/formularios disponible: controles nativos, foco visible, etiquetas completas y avisos de estado. Decisiones: versiones lado a lado en escritorio y apiladas en móvil; campos cambiados visibles, JSON secundario; progreso y filtro de pendientes; cinco elementos por página; archivo y ejemplo en sección secundaria. Sin imágenes remotas cargadas ni HTML importado interpretado.
+
+Se conserva el flujo read-only. Integrar el diálogo al guardado requiere capturar remoto/base verificados y resolver revisión obsoleta; no se conectó el preview a Firebase. Pruebas de presentación de diferencias y preservación del texto. Validación visual pendiente si el navegador del entorno no está disponible.
