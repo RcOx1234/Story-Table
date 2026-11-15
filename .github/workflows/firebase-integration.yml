@@ -1,0 +1,26 @@
+name: Firebase isolated integration
+on:
+  push:
+    branches: [codex/storytable-sync-safety-preview]
+permissions:
+  contents: read
+jobs:
+  emulator:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - run: npm ci
+      - run: npm test
+      - name: Firestore and Storage integration (fictitious project only)
+        run: npx -y firebase-tools@latest emulators:exec --project demo-storytable-safety --config firebase.integration.json --only firestore,storage "node --test --test-timeout=120000 tests/integration/firebase.test.mjs"
