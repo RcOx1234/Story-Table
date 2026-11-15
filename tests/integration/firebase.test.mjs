@@ -2,7 +2,7 @@ import test, {after} from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
-import {webcrypto, randomUUID} from 'node:crypto';
+import {randomUUID} from 'node:crypto';
 import ts from 'typescript';
 import {initializeApp, deleteApp} from 'firebase/app';
 import * as firestore from 'firebase/firestore';
@@ -32,7 +32,8 @@ function client(uid) {
    if(name.startsWith('@/'))return load('src/'+name.slice(2)+'.ts');
    throw Error('Unexpected dependency: '+name);
   };
-  vm.runInNewContext(code,{module,exports:module.exports,require,structuredClone,Blob,Uint8Array,TextEncoder,atob,crypto:webcrypto,URL,console});
+  // Keep native Object prototypes shared with the SDK, as in the browser.
+  vm.compileFunction(code, ['module','exports','require'])(module,module.exports,require);
   return module.exports;
  }
  const c={app,db,storage,service:load('src/services/libraryFirestoreService.ts')};clients.push(c);return c;
