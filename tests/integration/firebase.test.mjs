@@ -11,7 +11,7 @@ import * as storageSdk from 'firebase/storage';
 // Fixed demo project and loopback endpoints: never use application env config.
 const projectId='demo-storytable-safety';
 assert.equal(process.env.FIRESTORE_EMULATOR_HOST,'127.0.0.1:8080','Run with emulators:exec');
-assert.equal(process.env.STORAGE_EMULATOR_HOST ?? process.env.FIREBASE_STORAGE_EMULATOR_HOST,'127.0.0.1:9199','Storage emulator required');
+assert.match(process.env.STORAGE_EMULATOR_HOST ?? process.env.FIREBASE_STORAGE_EMULATOR_HOST ?? '', /^(http:\/\/)?127\.0\.0\.1:9199$/, 'Storage emulator required');
 const clients=[];
 function client(uid) {
  const app=initializeApp({projectId,apiKey:'demo-only',storageBucket:projectId+'.appspot.com'},randomUUID());
