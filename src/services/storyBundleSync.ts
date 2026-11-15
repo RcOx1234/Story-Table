@@ -371,7 +371,7 @@ export async function resolveCloudConflict(uid:string,id:number,choices:Record<s
     const active=()=>auth?.currentUser?.uid===uid&&useStore.getState().user?.id===uid&&cloudConflictReview.getSnapshot()===session;
     try {
       await resolveReviewedConflict({
-        local:session.local,remote:session.remote,choices:submitted,isActive:active,
+        local:JSON.parse(JSON.stringify(session.local)),remote:JSON.parse(JSON.stringify(session.remote)),choices:submitted,isActive:active,
         readLocal:()=>JSON.parse(JSON.stringify(getStorySlice())),
         readRemote:async()=>{
           const remote=await loadLibraryFromFirestore(uid);
@@ -380,7 +380,7 @@ export async function resolveCloudConflict(uid:string,id:number,choices:Record<s
         },
         backup:async archive=>preserveConflictArchive(uid,archive),
         apply:proposal=>{applyStorySlice(proposal);useStore.setState({firebaseSyncError:'Versión revisada pendiente de confirmación en la nube.'});},
-        write:proposal=>saveLibraryToFirestore(uid,proposal),
+        write:proposal=>saveLibraryToFirestore(uid,proposal,{reviewedReplacement:true}),
         acknowledge:proposal=>{
           useStore.getState().setLastFirebaseSyncFingerprint(fingerprintFromSlice(proposal as unknown as StorySlice));
           useStore.setState({firebaseSyncError:null});

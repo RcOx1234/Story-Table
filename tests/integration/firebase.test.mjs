@@ -36,7 +36,7 @@ function client(uid) {
   vm.compileFunction(code, ['module','exports','require'])(module,module.exports,require);
   return module.exports;
  }
- const c={app,db,storage,service:load('src/services/libraryFirestoreService.ts')};clients.push(c);return c;
+ const c={app,db,storage,load,service:load('src/services/libraryFirestoreService.ts')};clients.push(c);return c;
 }
 const root=uid=>'users/'+uid+'/storyTable/biblioteca';
 after(async()=>{await Promise.all(clients.map(async c=>{await firestore.terminate(c.db);await deleteApp(c.app);}));});
@@ -95,4 +95,26 @@ test('real SDK: legacy load never migrates or deletes the origin',async()=>{
  await assert.rejects(c.service.saveLibraryToFirestore(uid,original),/antigua/);
  assert.deepEqual((await firestore.getDocFromServer(firestore.doc(c.db,path))).data(),original);
  assert.equal((await firestore.getDocFromServer(firestore.doc(c.db,root(uid)))).exists(),false);
+});
+
+test('reviewed resolution saves the chosen complete entity and permits the next normal save',async()=>{
+ const uid='resolve-'+randomUUID(),c=client(uid);
+ await c.service.loadLibraryFromFirestore(uid);
+ await c.service.saveLibraryToFirestore(uid,{worlds:[{id:'w',name:'Cloud',description:'Only in cloud'}]});
+ const remote=await c.service.loadLibraryFromFirestore(uid);
+ let local={...structuredClone(remote),worlds:[{id:'w',name:'Local choice'}]},ack=null,archive=null;
+ const {resolveReviewedConflict}=c.load('src/lib/conflictResolution.ts');
+ await resolveReviewedConflict({
+  local:structuredClone(local),remote,choices:{'["worlds","w"]':'a'},isActive:()=>true,
+  readLocal:()=>local,readRemote:()=>c.service.loadLibraryFromFirestore(uid),
+  backup:async a=>{archive=structuredClone(a);},apply:p=>{local=p;},
+  write:p=>c.service.saveLibraryToFirestore(uid,p,{reviewedReplacement:true}),acknowledge:p=>{ack=p;}
+ });
+ assert.equal(archive.originals.b.worlds[0].description,'Only in cloud');
+ assert.equal(ack.worlds[0].name,'Local choice');
+ const saved=await c.service.loadLibraryFromFirestore(uid);
+ assert.equal(saved.worlds[0].name,'Local choice');assert.equal('description' in saved.worlds[0],false);
+ local.worlds[0].name='Next edit';
+ await c.service.saveLibraryToFirestore(uid,local);
+ assert.equal((await c.service.loadLibraryFromFirestore(uid)).worlds[0].name,'Next edit');
 });

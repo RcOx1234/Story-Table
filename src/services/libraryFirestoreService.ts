@@ -134,7 +134,7 @@ export async function migrateMonolithicLibraryToSubcollections(
   throw new Error('La migración requiere una copia verificada y un proceso explícito. El origen no fue modificado.');
 }
 
-export async function saveLibraryToFirestore(uid: string, slice: StorySlicePayload): Promise<void> {
+export async function saveLibraryToFirestore(uid: string, slice: StorySlicePayload, options: { reviewedReplacement?: boolean } = {}): Promise<void> {
   if (!db) throw new Error('Firestore no disponible');
   const root = libraryRootRef(uid);
   const current = await loadMetadataDoc(uid, LIBRARY_DOC_ID);
@@ -178,8 +178,8 @@ export async function saveLibraryToFirestore(uid: string, slice: StorySlicePaylo
       }
       if (revision(remote) !== expectedVersion) throw conflict();
       const metadata = buildMetadata(uid, prepared, remote as unknown as LibraryMetadata | null);
-      for (const write of writes) transaction.set(write.ref, write.payload as DocumentData, { merge: true });
-      transaction.set(root, deepSanitizeForFirestore(metadata) as DocumentData, { merge: true });
+      for (const write of writes) transaction.set(write.ref, write.payload as DocumentData, { merge: !options.reviewedReplacement });
+      transaction.set(root, deepSanitizeForFirestore(options.reviewedReplacement ? { ...remote, ...metadata } : metadata) as DocumentData, { merge: !options.reviewedReplacement });
       return metadata.version;
     });
     loadedVersions.set(uid, nextVersion);
