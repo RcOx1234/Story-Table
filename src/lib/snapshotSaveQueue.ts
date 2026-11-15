@@ -1,4 +1,4 @@
-/** Serialize callers and acknowledge only the immutable snapshot actually written. */
+/** Serialize ordinary saves and reviewed resolutions through the same lane. */
 export function createSnapshotSaveQueue<T>(options: {
   read: () => T;
   write: (owner: string, snapshot: T) => Promise<void>;
@@ -6,15 +6,17 @@ export function createSnapshotSaveQueue<T>(options: {
   isOwnerActive: (owner: string) => boolean;
 }) {
   let tail: Promise<void> = Promise.resolve();
-  return (owner: string): Promise<void> => {
-    const operation = tail.then(async () => {
-      if (!options.isOwnerActive(owner)) throw new Error('La sesión cambió. El guardado sigue pendiente.');
-      const snapshot = structuredClone(options.read());
-      await options.write(owner, snapshot);
-      if (!options.isOwnerActive(owner)) throw new Error('La sesión cambió durante el guardado. Revisa la sincronización.');
-      options.acknowledge(snapshot);
-    });
-    tail = operation.catch(() => undefined);
-    return operation;
+  const runExclusive = (operation: () => Promise<void>): Promise<void> => {
+    const result = tail.then(operation);
+    tail = result.catch(() => undefined);
+    return result;
   };
+  const save = (owner: string): Promise<void> => runExclusive(async () => {
+    if (!options.isOwnerActive(owner)) throw new Error('La sesión cambió. El guardado sigue pendiente.');
+    const snapshot = structuredClone(options.read());
+    await options.write(owner, snapshot);
+    if (!options.isOwnerActive(owner)) throw new Error('La sesión cambió durante el guardado. Revisa la sincronización.');
+    options.acknowledge(snapshot);
+  });
+  return Object.assign(save, { runExclusive });
 }

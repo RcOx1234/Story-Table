@@ -1,3 +1,5 @@
+import { resolveReviewedConflict, sameReviewContent } from '@/lib/conflictResolution';
+import type { Choice } from '@/lib/conflictReview';
 import { cloudConflictReview, isStoryConflict } from '@/services/cloudConflictReview';
 import { formatSaveFailure } from '@/lib/saveFailure';
 import { useStore } from '@/store';
@@ -211,7 +213,10 @@ export function markStoryBundleSynced(): void {
 
 const saveSnapshot = createSnapshotSaveQueue<StorySlice>({
   read: getStorySlice,
-  write: (uid, snapshot) => saveLibraryToFirestore(uid, snapshot as unknown as Record<string, unknown>),
+  write: (uid, snapshot) => {
+    if (cloudConflictReview.getSnapshot()?.ownerId === uid) throw new Error('Hay una revisión pendiente.');
+    return saveLibraryToFirestore(uid, snapshot as unknown as Record<string, unknown>);
+  },
   acknowledge: (snapshot) => {
     useStore.getState().setLastFirebaseSyncFingerprint(fingerprintFromSlice(snapshot));
     useStore.setState({ firebaseSyncError: null });
@@ -346,3 +351,63 @@ export function recoverLocalStoryBackup(): { recovered: boolean; worlds: number;
   return { recovered: true, worlds: backup.worlds.length, ideas: backup.ideas.length };
 }
 
+
+function preserveConflictArchive(uid:string,archive:unknown):void {
+  const key='storytable-conflict-backup-v1:'+uid+':'+crypto.randomUUID();
+  const raw=JSON.stringify({ownerId:uid,archive});
+  try {
+    localStorage.setItem(key,raw);
+    if(localStorage.getItem(key)!==raw) throw Error('No se verificó la copia.');
+  } catch {
+    throw Error('No hay espacio o acceso para conservar la copia de seguridad local. Descarga ambas originales; no se aplicó la revisión.');
+  }
+}
+
+export async function resolveCloudConflict(uid:string,id:number,choices:Record<string,Choice>):Promise<void> {
+  const submitted=structuredClone(choices);
+  return saveSnapshot.runExclusive(async()=>{
+    const session=cloudConflictReview.getSnapshot();
+    if(!session||session.id!==id||session.ownerId!==uid) throw Error('La revisión cambió. Vuelve a abrirla.');
+    const active=()=>auth?.currentUser?.uid===uid&&useStore.getState().user?.id===uid&&cloudConflictReview.getSnapshot()===session;
+    try {
+      await resolveReviewedConflict({
+        local:session.local,remote:session.remote,choices:submitted,isActive:active,
+        readLocal:()=>JSON.parse(JSON.stringify(getStorySlice())),
+        readRemote:async()=>{
+          const remote=await loadLibraryFromFirestore(uid);
+          if(!remote) throw Error('La copia remota ya no está disponible. No se aplicó la revisión.');
+          return remote;
+        },
+        backup:async archive=>preserveConflictArchive(uid,archive),
+        apply:proposal=>{applyStorySlice(proposal);useStore.setState({firebaseSyncError:'Versión revisada pendiente de confirmación en la nube.'});},
+        write:proposal=>saveLibraryToFirestore(uid,proposal),
+        acknowledge:proposal=>{
+          useStore.getState().setLastFirebaseSyncFingerprint(fingerprintFromSlice(proposal as unknown as StorySlice));
+          useStore.setState({firebaseSyncError:null});
+          cloudConflictReview.clear();
+        },
+      });
+    } catch(error) {
+      forgetLibraryVersion(uid);
+      if(auth?.currentUser?.uid===uid) useStore.setState({firebaseSyncError:formatSaveFailure(error)});
+      throw error;
+    }
+  });
+}
+
+export async function refreshCloudConflict(uid:string,id:number):Promise<void> {
+  return saveSnapshot.runExclusive(async()=>{
+    const session=cloudConflictReview.getSnapshot();
+    if(!session||session.id!==id||session.ownerId!==uid) throw Error('La revisión cambió.');
+    const active=()=>auth?.currentUser?.uid===uid&&useStore.getState().user?.id===uid;
+    if(!active()) throw Error('La sesión cambió.');
+    const local=JSON.parse(JSON.stringify(getStorySlice()));
+    const remote=await loadLibraryFromFirestore(uid,{establishBaseline:false});
+    if(!active()||cloudConflictReview.getSnapshot()!==session) throw Error('La sesión o revisión cambió.');
+    if(!sameReviewContent(local,JSON.parse(JSON.stringify(getStorySlice())))) throw Error('Hay ediciones nuevas. Vuelve a actualizar la revisión.');
+    if(!remote) throw Error('No se pudo obtener la copia de la nube.');
+    preserveConflictArchive(uid,{format:'storytable-review-refresh-v1',previous:session,currentLocal:local,currentRemote:remote});
+    cloudConflictReview.clear();
+    await cloudConflictReview.capture(uid,()=>local,async()=>remote,active);
+  });
+}

@@ -18,7 +18,7 @@ import { toast } from 'sonner';
 import { isFirebaseConfigured } from '@/lib/firebase';
 import { logout as firebaseLogout } from '@/services/authService';
 import { buildLibraryExport } from '@/lib/storyImportExport';
-import { pushStoryBundle, getStorySlice } from '@/services/storyBundleSync';
+import { pushStoryBundle, getStorySlice, resolveCloudConflict, refreshCloudConflict } from '@/services/storyBundleSync';
 import { formatFirestoreSaveError } from '@/lib/firestorePayload';
 import { AccountSettingsModal } from '@/components/modals/AccountSettingsModal';
 
@@ -303,7 +303,7 @@ export function TopBar() {
               className="hidden"
               onChange={(e) => void handleImportLibrary(e)}
             />
-    {activeConflict&&capturedCopies&&<ConflictReviewModal key={'cloud-'+activeConflict.id} open={dismissedConflict!==activeConflict.id} initial={capturedCopies} onClose={()=>setDismissedConflict(activeConflict.id)} />}
+    {activeConflict&&capturedCopies&&<ConflictReviewModal key={'cloud-'+activeConflict.id} open={dismissedConflict!==activeConflict.id} initial={capturedCopies} onApply={choices=>resolveCloudConflict(activeConflict.ownerId,activeConflict.id,choices)} onRefresh={()=>refreshCloudConflict(activeConflict.ownerId,activeConflict.id)} onClose={()=>setDismissedConflict(activeConflict.id)} />}
     <ConflictReviewModal key={reviewKey} open={reviewOpen} initial={reviewInitial} onClose={() => setReviewOpen(false)} />
     <BaseModal open={recoveryOpen} onClose={()=>setRecoveryOpen(false)} title="Copias y recuperación" description="Protege tu trabajo o revisa una copia sin reemplazar la biblioteca." maxWidthClass="max-w-2xl">
       <div className="space-y-4 text-sm text-[#E8E9EB]">
