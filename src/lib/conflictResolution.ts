@@ -28,7 +28,7 @@ export async function resolveReviewedConflict(options:{
   const {proposal,archive}=prepareReviewedResolution(options.local,options.remote,options.choices);
   const check=()=>{
     if(!options.isActive()) throw Error('La sesión o la revisión cambió. No se aplicó esta revisión.');
-    if(!sameReviewContent(options.local,options.readLocal())) throw Error('Seguiste editando mientras revisabas. Pulsa Actualizar revisión para incluir esos cambios.');
+    if(JSON.stringify(options.local)!==JSON.stringify(options.readLocal())) throw Error('Seguiste editando mientras revisabas. Pulsa Actualizar revisión para incluir esos cambios.');
   };
   check();
   const remote=await options.readRemote();

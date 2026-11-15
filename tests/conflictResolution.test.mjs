@@ -63,3 +63,12 @@ test('exclusive resolutions and normal saves share a queue',async()=>{
  const save=q('u');await Promise.resolve();assert.deepEqual(events,['review']);release();
  await Promise.all([resolution,save]);assert.deepEqual(events,['review','done','save']);
 });
+
+test('local array reordering during review is retained rather than overwritten',async()=>{
+ const {state,options}=fixture();
+ options.local={worlds:[{id:'w',name:'Local'},{id:'w2',name:'Second'}]};
+ options.remote=structuredClone(options.local);options.choices={};
+ state.local={worlds:[...options.local.worlds].reverse()};state.remote=options.remote;
+ await assert.rejects(resolveReviewedConflict(options),/Seguiste editando/);
+ assert.equal(state.local.worlds[0].id,'w2');assert.deepEqual(state.events,[]);
+});
