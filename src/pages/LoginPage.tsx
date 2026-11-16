@@ -79,7 +79,7 @@ export function LoginPage() {
           <h1 className="mb-2 text-3xl font-bold text-[#E8E9EB]" style={{ fontFamily: 'Montserrat' }}>
             Story Table
           </h1>
-          <p className="text-sm text-[#5A6078]">Tu biblioteca privada por cuenta</p>
+          <p className="text-sm text-[#5A6078]">Crea una cuenta de pruebas. Tu cuenta y tus historias personales están en otro proyecto.</p>
         </div>
 
         <div className="story-card p-6 sm:p-7">

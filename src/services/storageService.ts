@@ -16,7 +16,7 @@ export async function uploadFileToUserPath(
   contentType?: string
 ): Promise<string> {
   if (!storage || !isFirebaseConfigured()) {
-    throw new Error('Firebase Storage no está configurado');
+    throw Object.assign(new Error('Este preview prueba texto y sincronización. La subida de imágenes y archivos está desactivada. El guardado en la nube no se completó; conserva una copia local desde el menú de usuario.'), { code: 'storage/preview-disabled' });
   }
   const storageRef = ref(storage, `users/${uid}/${relativePath}`);
   await uploadBytes(storageRef, file, contentType ? { contentType } : undefined);

@@ -9,7 +9,7 @@ import { saveLibraryToFirestore, loadLibraryFromFirestore, forgetLibraryVersion 
 import type { AppState } from '@/store';
 import { storyContentFingerprint } from '@/lib/storyFingerprint';
 
-const PERSIST_STORAGE_KEY = 'story-table-sync-preview-v1';
+const PERSIST_STORAGE_KEY = 'story-table-cloud-preview-v1';
 
 let lastHydratedUid: string | null = null;
 let hydrateInFlight: Promise<void> | null = null;

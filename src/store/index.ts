@@ -1209,7 +1209,7 @@ export const useStore = create<AppState>()(
       },
     }),
     {
-      name: 'story-table-sync-preview-v1',
+      name: 'story-table-cloud-preview-v1',
       partialize: (state) => ({
         user: state.user,
         worlds: state.worlds,
